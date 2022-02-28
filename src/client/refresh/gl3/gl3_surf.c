@@ -74,6 +74,8 @@ void GL3_SurfInit(void)
 	glEnableVertexAttribArray(GL3_ATTRIB_LIGHTFLAGS);
 	qglVertexAttribIPointer(GL3_ATTRIB_LIGHTFLAGS, 1, GL_UNSIGNED_INT, sizeof(gl3_3D_vtx_t), offsetof(gl3_3D_vtx_t, lightFlags));
 
+
+
 	// init VAO and VBO for model vertexdata: 9 floats
 	// (X,Y,Z), (S,T), (R,G,B,A)
 
@@ -334,60 +336,33 @@ UpdateLMscales(const hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE], gl3ShaderInfo
 	}
 }
 
-static gl3_3D_vtx_t* 	batch_vertices;
-static size_t			batch_capacity;
-static size_t 			batch_numverts;
-static int 				batch_lmtexnum;
-
-void
-GL3_AddSurfaceToBatch(msurface_t* fa)
-{
-	size_t numverts = fa->polys->numverts;
-	if (batch_numverts + numverts > batch_capacity)
-	{
-		if (batch_capacity == 0) { 
-			batch_capacity = max(numverts, 128);
-		}
-		else {
-			batch_capacity = max(batch_numverts+numverts, batch_capacity*2);
-		}
-		
-		batch_vertices = realloc(batch_vertices, batch_capacity * sizeof(gl3_3D_vtx_t));
-	}
-
-	memcpy(batch_vertices + batch_numverts, fa->polys->vertices, numverts*sizeof(gl3_3D_vtx_t));
-	batch_numverts += numverts;
-}
-
-void
-GL3_DrawSurfaceBatch()
-{
-	if (batch_numverts == 0) { return; }
-
-	GL3_BindVAO(gl3state.vao3D);
-	GL3_BindVBO(gl3state.vbo3D);
-
-	GL3_BufferAndDraw3D(batch_vertices, batch_numverts, GL_TRIANGLE_FAN);
-
-	batch_numverts = 0;
-}
-
 static void
-RenderBrushPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
+RenderBrushPoly(entity_t *currententity, msurface_t *fa)
 {
 	int map;
+	gl3image_t *image;
 
 	c_brush_polys++;
 
-	if (fa->lightmaptexturenum != batch_lmtexnum)
+	image = TextureAnimation(currententity, fa->texinfo);
+
+	if (fa->flags & SURF_DRAWTURB)
 	{
-		GL3_DrawSurfaceBatch();
-		batch_lmtexnum = fa->lightmaptexturenum;
-		GL3_BindLightmap(fa->lightmaptexturenum);
+		GL3_Bind(image->texnum);
+
+		GL3_EmitWaterPolys(fa);
+
+		return;
+	}
+	else
+	{
+		GL3_Bind(image->texnum);
 	}
 
 	hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE] = {0};
 	lmScales[0] = HMM_Vec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+	GL3_BindLightmap(fa->lightmaptexturenum);
 
 	// Any dynamic lights on this surface?
 	for (map = 0; map < MAX_LIGHTMAPS_PER_SURFACE && fa->styles[map] != 255; map++)
@@ -398,14 +373,17 @@ RenderBrushPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 		lmScales[map].A = 1.0f;
 	}
 
-	UpdateLMscales(lmScales, &gl3state.si3Dlm);
-	GL3_AddSurfaceToBatch(fa);
-
 	if (fa->texinfo->flags & SURF_FLOWING)
 	{
-		//GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
-		//UpdateLMscales(lmScales, &gl3state.si3DlmFlow);
-		//GL3_DrawGLFlowingPoly(fa);
+		GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
+		UpdateLMscales(lmScales, &gl3state.si3DlmFlow);
+		GL3_DrawGLFlowingPoly(fa);
+	}
+	else
+	{
+		GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
+		UpdateLMscales(lmScales, &gl3state.si3Dlm);
+		GL3_DrawGLPoly(fa);
 	}
 
 	// Note: lightmap chains are gone, lightmaps are rendered together with normal texture in one pass
@@ -413,7 +391,7 @@ RenderBrushPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 
 /*
  * Draw water surfaces and windows.
- * The BSP tree is waled front to back, so unwinding the chain.
+ * The BSP tree is waled front to back, so unwinding the chain
  * of alpha_surfaces will draw back to front, giving proper ordering.
  */
 void
@@ -495,29 +473,11 @@ DrawTextureChains(entity_t *currententity)
 
 		c_visible_textures++;
 
-		GL3_Bind(image->texnum);
-		batch_lmtexnum = -1;
-		batch_numverts = 0;
-
-		if (s->flags & SURF_DRAWTURB)
+		for ( ; s; s = s->texturechain)
 		{
-			// TODO
+			SetLightFlags(s);
+			RenderBrushPoly(currententity, s);
 		}
-		else if (s->texinfo->flags & SURF_FLOWING)
-		{
-			// GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
-		}
-		else
-		{
-			GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
-			for ( ; s; s = s->texturechain)
-			{
-				SetLightFlags(s);
-				RenderBrushPoly(currententity, image, s);
-			}
-		}
-
-		GL3_DrawSurfaceBatch();
 
 		image->texturechain = NULL;
 	}
@@ -618,7 +578,7 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
 			}
 			else
 			{
-				// RenderBrushPoly(currententity, psurf);
+				RenderBrushPoly(currententity, psurf);
 			}
 		}
 	}
