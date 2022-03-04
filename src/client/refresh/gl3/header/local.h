@@ -182,6 +182,8 @@ enum {
 	MAX_LIGHTMAPS_PER_SURFACE = MAXLIGHTMAPS // 4
 };
 
+struct gl3_3D_vtx_s;
+
 typedef struct
 {
 	// TODO: what of this do we need?
@@ -228,6 +230,11 @@ typedef struct
 	gl3ShaderInfo_t siParticle; // for particles. surprising, right?
 
 	GLuint vao3D, vbo3D; // for brushes etc, using 10 floats and one uint as vertex input (x,y,z, s,t, lms,lmt, normX,normY,normZ ; lightFlags)
+	GLuint vaoWorld, vboWorld; // for static world geometry
+
+	struct gl3_3D_vtx_s* world_vertices;
+	unsigned int num_world_vertices;
+	unsigned int cap_world_vertices;
 
 	// the next two are for gl3config.useBigVBO == true
 	int vbo3Dsize;

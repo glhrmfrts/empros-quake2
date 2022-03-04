@@ -41,24 +41,8 @@ gl3lightmapstate_t gl3_lms;
 extern gl3image_t gl3textures[MAX_GL3TEXTURES];
 extern int numgl3textures;
 
-void GL3_SurfInit(void)
+static void Setup3DAttributes()
 {
-	// init the VAO and VBO for the standard vertexdata: 10 floats and 1 uint
-	// (X, Y, Z), (S, T), (LMS, LMT), (normX, normY, normZ) ; lightFlags - last two groups for lightmap/dynlights
-
-	glGenVertexArrays(1, &gl3state.vao3D);
-	GL3_BindVAO(gl3state.vao3D);
-
-	glGenBuffers(1, &gl3state.vbo3D);
-	GL3_BindVBO(gl3state.vbo3D);
-
-	if(gl3config.useBigVBO)
-	{
-		gl3state.vbo3Dsize = 5*1024*1024; // a 5MB buffer seems to work well?
-		gl3state.vbo3DcurOffset = 0;
-		glBufferData(GL_ARRAY_BUFFER, gl3state.vbo3Dsize, NULL, GL_STREAM_DRAW); // allocate/reserve that data
-	}
-
 	glEnableVertexAttribArray(GL3_ATTRIB_POSITION);
 	qglVertexAttribPointer(GL3_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(gl3_3D_vtx_t), 0);
 
@@ -73,6 +57,37 @@ void GL3_SurfInit(void)
 
 	glEnableVertexAttribArray(GL3_ATTRIB_LIGHTFLAGS);
 	qglVertexAttribIPointer(GL3_ATTRIB_LIGHTFLAGS, 1, GL_UNSIGNED_INT, sizeof(gl3_3D_vtx_t), offsetof(gl3_3D_vtx_t, lightFlags));
+}
+
+void GL3_SurfInit(void)
+{
+	// init the VAO and VBO for the standard vertexdata: 10 floats and 1 uint
+	// (X, Y, Z), (S, T), (LMS, LMT), (normX, normY, normZ) ; lightFlags - last two groups for lightmap/dynlights
+
+	glGenVertexArrays(1, &gl3state.vao3D);
+	GL3_BindVAO(gl3state.vao3D);
+
+	glGenBuffers(1, &gl3state.vbo3D);
+	GL3_BindVBO(gl3state.vbo3D);
+
+	if(gl3config.useBigVBO)
+	{
+	 	gl3state.vbo3Dsize = 5*1024*1024; // a 5MB buffer seems to work well?
+	 	gl3state.vbo3DcurOffset = 0;
+	 	glBufferData(GL_ARRAY_BUFFER, gl3state.vbo3Dsize, NULL, GL_STREAM_DRAW); // allocate/reserve that data
+	}
+
+	Setup3DAttributes();
+
+
+	glGenVertexArrays(1, &gl3state.vaoWorld);
+	GL3_BindVAO(gl3state.vaoWorld);
+
+	glGenBuffers(1, &gl3state.vboWorld);
+	GL3_BindVBO(gl3state.vboWorld);
+
+	Setup3DAttributes();
+
 
 	// init VAO and VBO for model vertexdata: 9 floats
 	// (X,Y,Z), (S,T), (R,G,B,A)
@@ -120,6 +135,11 @@ void GL3_SurfShutdown(void)
 	gl3state.vbo3D = 0;
 	glDeleteVertexArrays(1, &gl3state.vao3D);
 	gl3state.vao3D = 0;
+
+	glDeleteBuffers(1, &gl3state.vboWorld);
+	gl3state.vboWorld = 0;
+	glDeleteVertexArrays(1, &gl3state.vaoWorld);
+	gl3state.vaoWorld = 0;
 
 	glDeleteBuffers(1, &gl3state.eboAlias);
 	gl3state.eboAlias = 0;
@@ -334,42 +354,53 @@ UpdateLMscales(const hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE], gl3ShaderInfo
 	}
 }
 
-static gl3_3D_vtx_t* 	batch_vertices;
-static size_t			batch_capacity;
-static size_t 			batch_numverts;
+#define MAX_BATCH_INDICES 4096
+
+static unsigned int 	batch_indices[MAX_BATCH_INDICES];
+static size_t 			batch_numindices;
 static int 				batch_lmtexnum;
 
-void
-GL3_AddSurfaceToBatch(msurface_t* fa)
+static size_t
+NumberOfIndicesForSurface(msurface_t* fa)
 {
-	size_t numverts = fa->polys->numverts;
-	if (batch_numverts + numverts > batch_capacity)
-	{
-		if (batch_capacity == 0) { 
-			batch_capacity = max(numverts, 128);
-		}
-		else {
-			batch_capacity = max(batch_numverts+numverts, batch_capacity*2);
-		}
-		
-		batch_vertices = realloc(batch_vertices, batch_capacity * sizeof(gl3_3D_vtx_t));
-	}
-
-	memcpy(batch_vertices + batch_numverts, fa->polys->vertices, numverts*sizeof(gl3_3D_vtx_t));
-	batch_numverts += numverts;
+	return 3 * (fa->numedges - 2);
 }
 
 void
-GL3_DrawSurfaceBatch()
+GL3_SurfBatch_Clear()
 {
-	if (batch_numverts == 0) { return; }
+	batch_lmtexnum = -1;
+	batch_numindices = 0;
+}
 
-	GL3_BindVAO(gl3state.vao3D);
-	GL3_BindVBO(gl3state.vbo3D);
+void
+GL3_SurfBatch_Flush()
+{
+	if (batch_numindices == 0) { return; }
 
-	GL3_BufferAndDraw3D(batch_vertices, batch_numverts, GL_TRIANGLE_FAN);
+	glDrawElements(GL_TRIANGLES, batch_numindices, GL_UNSIGNED_INT, batch_indices);
 
-	batch_numverts = 0;
+	batch_numindices = 0;
+}
+
+void
+GL3_SurfBatch_Add(msurface_t* fa)
+{
+	size_t numindices = NumberOfIndicesForSurface(fa);
+	if (batch_numindices + numindices > MAX_BATCH_INDICES)
+	{
+		GL3_SurfBatch_Flush();
+	}
+
+	unsigned int* dest = batch_indices + batch_numindices;
+	for (int i=2; i<fa->numedges; i++)
+	{
+		*dest++ = fa->polys->vbo_first_vert;
+		*dest++ = fa->polys->vbo_first_vert + i - 1;
+		*dest++ = fa->polys->vbo_first_vert + i;
+	}
+
+	batch_numindices += numindices;
 }
 
 static void
@@ -381,7 +412,7 @@ RenderBrushPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 
 	if (fa->lightmaptexturenum != batch_lmtexnum)
 	{
-		GL3_DrawSurfaceBatch();
+		GL3_SurfBatch_Flush();
 		batch_lmtexnum = fa->lightmaptexturenum;
 		GL3_BindLightmap(fa->lightmaptexturenum);
 	}
@@ -399,7 +430,7 @@ RenderBrushPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 	}
 
 	UpdateLMscales(lmScales, &gl3state.si3Dlm);
-	GL3_AddSurfaceToBatch(fa);
+	GL3_SurfBatch_Add(fa);
 
 	if (fa->texinfo->flags & SURF_FLOWING)
 	{
@@ -479,6 +510,10 @@ DrawTextureChains(entity_t *currententity)
 
 	c_visible_textures = 0;
 
+	GL3_BindVAO(gl3state.vaoWorld);
+	GL3_BindVBO(gl3state.vboWorld);
+	GL3_BindEBO(0);
+
 	for (i = 0, image = gl3textures; i < numgl3textures; i++, image++)
 	{
 		if (!image->registration_sequence)
@@ -496,8 +531,8 @@ DrawTextureChains(entity_t *currententity)
 		c_visible_textures++;
 
 		GL3_Bind(image->texnum);
-		batch_lmtexnum = -1;
-		batch_numverts = 0;
+
+		GL3_SurfBatch_Clear();
 
 		if (s->flags & SURF_DRAWTURB)
 		{
@@ -505,7 +540,12 @@ DrawTextureChains(entity_t *currententity)
 		}
 		else if (s->texinfo->flags & SURF_FLOWING)
 		{
-			// GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
+			GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
+			for ( ; s; s = s->texturechain)
+			{
+				SetLightFlags(s);
+				RenderBrushPoly(currententity, image, s);
+			}
 		}
 		else
 		{
@@ -517,7 +557,7 @@ DrawTextureChains(entity_t *currententity)
 			}
 		}
 
-		GL3_DrawSurfaceBatch();
+		GL3_SurfBatch_Flush();
 
 		image->texturechain = NULL;
 	}

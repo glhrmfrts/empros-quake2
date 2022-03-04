@@ -134,14 +134,12 @@ GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 
 	VectorClear(total);
 
-	size_t trinumverts = lnumverts * 3 - 6;
-
 	/* draw texture */
-	poly = Hunk_Alloc(sizeof(glpoly_t) + (trinumverts-3) * sizeof(gl3_3D_vtx_t));
+	poly = Hunk_Alloc(sizeof(glpoly_t) + (lnumverts - 4) * sizeof(gl3_3D_vtx_t));
 	poly->next = fa->polys;
 	poly->flags = fa->flags;
 	fa->polys = poly;
-	poly->numverts = trinumverts;
+	poly->numverts = lnumverts;
 
 	VectorCopy(fa->plane->normal, normal);
 
@@ -152,11 +150,9 @@ GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 		for (i=0; i<3; ++i)  normal[i] = -normal[i];
 	}
 
-	gl3_3D_vtx_t* temp_verts = malloc(lnumverts * sizeof(gl3_3D_vtx_t));
-
 	for (i = 0; i < lnumverts; i++)
 	{
-		gl3_3D_vtx_t* vert = &temp_verts[i];
+		gl3_3D_vtx_t* vert = &poly->vertices[i];
 
 		lindex = currentmodel->surfedges[fa->firstedge + i];
 
@@ -202,28 +198,27 @@ GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 		vert->lightFlags = 0;
 	}
 
-	// triangulate
-	
-	if (lnumverts > 3)
+// Add the poly's vertices to the world VBO
+	poly->vbo_first_vert = gl3state.num_world_vertices;
+
+	if (gl3state.num_world_vertices + lnumverts > gl3state.cap_world_vertices)
 	{
-		int vi = 0;
-		for (int idx = 1; idx < lnumverts - 1; idx++)
-		{
-			poly->vertices[vi++] = temp_verts[0];
-			poly->vertices[vi++] = temp_verts[idx];
-			poly->vertices[vi++] = temp_verts[idx+1];
+		if (gl3state.cap_world_vertices == 0) { 
+			gl3state.cap_world_vertices = max(lnumverts, 128);
 		}
-		poly->numverts = vi;
-	}
-	else
-	{
-		for (int idx = 0; idx < lnumverts; idx++)
-		{
-			poly->vertices[idx] = temp_verts[idx];
+		else {
+			gl3state.cap_world_vertices = max(gl3state.num_world_vertices+lnumverts, gl3state.cap_world_vertices*2);
 		}
+		
+		gl3state.world_vertices = realloc(gl3state.world_vertices, gl3state.cap_world_vertices * sizeof(gl3_3D_vtx_t));
 	}
 
-	free(temp_verts);
+	memcpy(
+		gl3state.world_vertices + gl3state.num_world_vertices,
+		fa->polys->vertices,
+		lnumverts*sizeof(gl3_3D_vtx_t)
+	);
+	gl3state.num_world_vertices += lnumverts;
 }
 
 void
@@ -289,5 +284,9 @@ void
 GL3_LM_EndBuildingLightmaps(void)
 {
 	GL3_LM_UploadBlock();
+
+	GL3_BindVBO(gl3state.vboWorld);
+	glBufferData(GL_ARRAY_BUFFER, gl3state.num_world_vertices*sizeof(gl3_3D_vtx_t),
+				(const void*)gl3state.world_vertices, GL_STATIC_DRAW);
 }
 

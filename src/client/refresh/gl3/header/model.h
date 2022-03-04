@@ -95,7 +95,8 @@ typedef struct glpoly_s
 	struct  glpoly_s *chain;
 	int numverts;
 	int flags; /* for SURF_UNDERWATER (not needed anymore?) */
-	gl3_3D_vtx_t vertices[3]; /* variable sized */
+	size_t vbo_first_vert; // index of first vertex in the world VBO
+	gl3_3D_vtx_t vertices[4]; /* variable sized */
 } glpoly_t;
 
 typedef struct msurface_s
