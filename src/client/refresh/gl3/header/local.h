@@ -239,6 +239,8 @@ typedef struct
 	unsigned int num_world_vertices;
 	unsigned int cap_world_vertices;
 
+	qboolean postfx_initialized;
+
 	// the next two are for gl3config.useBigVBO == true
 	int vbo3Dsize;
 	int vbo3DcurOffset;
@@ -581,7 +583,7 @@ typedef struct gl3_framebuffer_s
 	GLuint depth_texture;
 } gl3_framebuffer_t;
 
-void GL3_PostFx_Init(GLuint width, GLuint height);
+void GL3_PostFx_Init();
 void GL3_PostFx_Shutdown();
 void GL3_PostFx_BeforeScene();
 void GL3_PostFx_AfterScene();

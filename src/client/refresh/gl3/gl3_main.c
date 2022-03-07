@@ -596,8 +596,6 @@ GL3_Init(void)
 
 	GL3_SurfInit();
 
-	GL3_PostFx_Init(gl3_newrefdef.width, gl3_newrefdef.height);
-
 	R_Printf(PRINT_ALL, "\n");
 	return true;
 }
@@ -615,6 +613,7 @@ GL3_Shutdown(void)
 	// randomly chose one function that should always be there to test..
 	if(glDeleteBuffers != NULL)
 	{
+		GL3_PostFx_Shutdown();
 		GL3_Mod_FreeAll();
 		GL3_ShutdownMeshes();
 		GL3_ShutdownImages();

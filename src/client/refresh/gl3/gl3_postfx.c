@@ -176,11 +176,8 @@ static void GetUniforms(const gl3ShaderInfo_t* si, const char* shadername, unifo
     uniforms->u_PreviousViewProjectionMatrix = GetUniform(si, "u_PreviousViewProjectionMatrix", shadername);
 }
 
-void GL3_PostFx_Init(GLuint width, GLuint height)
+void GL3_PostFx_Init()
 {
-    width = 1440;
-    height = 900;
-
     glGenVertexArrays(1, &screen_vao);
     glGenBuffers(1, &screen_vbo);
 
@@ -204,6 +201,8 @@ void GL3_PostFx_Init(GLuint width, GLuint height)
     };
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), (const void*)vertices, GL_STATIC_DRAW);
 
+    GLuint width = gl3_newrefdef.width;
+    GLuint height = gl3_newrefdef.height;
     GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH, &resolve_multisample_fbo);
     GL3_CreateFramebuffer(width, height, 1, GL3_FRAMEBUFFER_DEPTH, &motion_blur_mask_fbo);
     GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_NONE, &motion_blur_fbo);
@@ -217,6 +216,7 @@ void GL3_PostFx_Shutdown()
     GL3_DestroyFramebuffer(&resolve_multisample_fbo);
     glDeleteVertexArrays(1, &screen_vao);
     glDeleteBuffers(1, &screen_vbo);
+    gl3state.postfx_initialized = false;
 }
 
 #define POSTFX 1
@@ -224,6 +224,10 @@ void GL3_PostFx_Shutdown()
 void GL3_PostFx_BeforeScene()
 {
 #if POSTFX
+    if (!gl3state.postfx_initialized) {
+        gl3state.postfx_initialized = true;
+        GL3_PostFx_Init();
+    }
     GL3_BindFramebuffer(&resolve_multisample_fbo);
     weapon_model_entity = NULL;
 #endif
