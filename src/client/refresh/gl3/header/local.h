@@ -229,6 +229,9 @@ typedef struct
 	// NOTE: make sure siParticle is always the last shaderInfo (or adapt GL3_ShutdownShaders())
 	gl3ShaderInfo_t siParticle; // for particles. surprising, right?
 
+	gl3ShaderInfo_t siPostfxResolveMultisample;
+	gl3ShaderInfo_t siPostfxMotionBlur;
+
 	GLuint vao3D, vbo3D; // for brushes etc, using 10 floats and one uint as vertex input (x,y,z, s,t, lms,lmt, normX,normY,normZ ; lightFlags)
 	GLuint vaoWorld, vboWorld; // for static world geometry
 
@@ -439,6 +442,7 @@ GL3_SelectTMU(GLenum tmu)
 extern void GL3_TextureMode(char *string);
 extern void GL3_Bind(GLuint texnum);
 extern void GL3_BindLightmap(int lightmapnum);
+extern void GL3_InvalidateTextureBindings();
 extern gl3image_t *GL3_LoadPic(char *name, byte *pic, int width, int realwidth,
                                int height, int realheight, imagetype_t type, int bits);
 extern gl3image_t *GL3_FindImage(char *name, imagetype_t type);
@@ -551,5 +555,38 @@ extern cvar_t *gl_shadows;
 extern cvar_t *r_fixsurfsky;
 
 extern cvar_t *gl3_debugcontext;
+
+extern cvar_t *r_motionblur;
+
+extern entity_t* weapon_model_entity;
+
+// gl3_postfx.c
+
+typedef enum gl3_framebuffer_flag_e
+{
+	GL3_FRAMEBUFFER_NONE = 0,
+	GL3_FRAMEBUFFER_FILTERED = 1,
+	GL3_FRAMEBUFFER_MULTISAMPLED = 2,
+	GL3_FRAMEBUFFER_FLOAT = 4,
+	GL3_FRAMEBUFFER_DEPTH = 8,
+} gl3_framebuffer_flag_t;
+
+typedef struct gl3_framebuffer_s
+{
+	GLuint id;
+	gl3_framebuffer_flag_t flags;
+	GLuint width, height;
+	GLuint num_color_textures;
+	GLuint color_textures[4];
+	GLuint depth_texture;
+} gl3_framebuffer_t;
+
+void GL3_PostFx_Init(GLuint width, GLuint height);
+void GL3_PostFx_Shutdown();
+void GL3_PostFx_BeforeScene();
+void GL3_PostFx_AfterScene();
+
+// gl3_misc.c
+qboolean GL3_Matrix4_Invert(const float *m, float *out);
 
 #endif /* SRC_CLIENT_REFRESH_GL3_HEADER_LOCAL_H_ */

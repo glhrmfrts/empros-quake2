@@ -177,6 +177,15 @@ GL3_BindLightmap(int lightmapnum)
 	}
 }
 
+void
+GL3_InvalidateTextureBindings()
+{
+	gl3state.currenttexture = 0;
+	gl3state.currentlightmap = -1;
+	gl3state.currenttmu = GL_TEXTURE9;
+	GL3_SelectTMU(GL_TEXTURE0);
+}
+
 /*
  * Returns has_alpha
  */

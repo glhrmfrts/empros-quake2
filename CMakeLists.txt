@@ -515,6 +515,7 @@ set(GL3-Source
 	${REF_SRC_DIR}/gl3/gl3_mesh.c
 	${REF_SRC_DIR}/gl3/gl3_misc.c
 	${REF_SRC_DIR}/gl3/gl3_model.c
+	${REF_SRC_DIR}/gl3/gl3_postfx.c
 	${REF_SRC_DIR}/gl3/gl3_sdl.c
 	${REF_SRC_DIR}/gl3/gl3_surf.c
 	${REF_SRC_DIR}/gl3/gl3_warp.c

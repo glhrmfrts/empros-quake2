@@ -505,7 +505,7 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			lmTex     += texture(lightmap2, passLMcoord) * lmScales[2];
 			lmTex     += texture(lightmap3, passLMcoord) * lmScales[3];
 
-			if(passLightFlags != 0u)
+			if(true)
 			{
 				// TODO: or is hardcoding 32 better?
 				for(uint i=0u; i<numDynLights; ++i)
@@ -515,7 +515,7 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 					// and, if it is, sets intensity according to distance between light and pixel on surface
 
 					// dyn light number i does not affect this plane, just skip it
-					if((passLightFlags & (1u << i)) == 0u)  continue;
+					// if((passLightFlags & (1u << i)) == 0u)  continue;
 
 					float intens = dynLights[i].lightColor.a;
 
@@ -808,6 +808,137 @@ static const char* fragmentSrcParticlesSquare = MULTILINE_STRING(
 		}
 );
 
+static const char* vertexSrcPostfxCommon = MULTILINE_STRING(#version 150\n
+
+	in vec3 position;
+	in vec2 texCoord;
+
+	out vec2 v_TexCoord;
+
+	void main() {
+		gl_Position = vec4(position, 1.0);
+		v_TexCoord = texCoord;
+	}
+);
+
+static const char* fragmentSrcPostfxResolveMultisample = MULTILINE_STRING(#version 150\n
+
+	uniform sampler2DMS u_FboSampler0;
+	uniform sampler2DMS u_DepthSampler0;
+	uniform int u_SampleCount;
+
+	in vec2 v_TexCoord;
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 color;
+	};
+
+	out vec4 outColor[2];
+
+	void main()
+	{
+		vec4 combinedColor = vec4(0.0f);
+		vec4 combinedDepth = vec4(0.0f);
+
+		for (int i = 0; i < u_SampleCount; i++)
+		{
+			combinedColor += texelFetch(u_FboSampler0, ivec2(gl_FragCoord.xy), i);
+			combinedDepth += texelFetch(u_DepthSampler0, ivec2(gl_FragCoord.xy), i);
+		}
+
+		float invSampleCount = 1.0f / float(u_SampleCount);
+
+		outColor[0] = invSampleCount * combinedColor;
+		outColor[1] = invSampleCount * combinedDepth;
+	}
+);
+
+static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
+
+	uniform sampler2D u_FboSampler0; // color
+	uniform sampler2D u_FboSampler1; // depth
+	uniform sampler2D u_FboSampler2; // mask
+	uniform float u_Intensity;
+
+	uniform mat4 u_ViewProjectionInverseMatrix;
+	uniform mat4 u_PreviousViewProjectionMatrix;
+
+	in vec2 v_TexCoord;
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 color;
+	};
+
+	out vec4 outColor[2];
+
+	void main()
+	{
+		vec2 texCoord = v_TexCoord;
+		
+		// Get the depth buffer value at this pixel.
+		float zOverW = texture2D(u_FboSampler1, v_TexCoord).r;
+		
+		// H is the viewport position at this pixel in the range -1 to 1.
+		vec4 H = vec4(v_TexCoord.x * 2 - 1, (1 - v_TexCoord.y) * 2 - 1, zOverW, 1);
+		
+		// Transform by the view-projection inverse.
+		vec4 D = u_ViewProjectionInverseMatrix * H;
+		
+		// Divide by w to get the world position.    
+		vec4 worldPos = D / D.w;
+
+		// Current viewport position
+		vec4 currentPos = H;
+		
+		// Use the world position, and transform by the previous view-    // projection matrix.
+		vec4 previousPos = u_PreviousViewProjectionMatrix * worldPos;
+		
+		// Convert to nonhomogeneous points [-1,1] by dividing by w.
+		previousPos /= previousPos.w;
+
+		// Get the mask value
+		float maskValue = 1.0f - texture2D(u_FboSampler2, v_TexCoord).a;
+		
+		// Use this frame's position and last frame's to compute the pixel    // velocity.
+		vec4 velocity = (currentPos - previousPos)/2.f * u_Intensity * maskValue;
+
+		// Get the initial color at this pixel.
+		vec4 color = texture2D(u_FboSampler0, texCoord);
+		texCoord += velocity.xy;
+
+		const int numSamples = 4;
+		int numAvgSamples = 4;
+
+		for(int i = 1; i < numSamples; ++i) {
+			// Sample the color buffer along the velocity vector.
+			vec4 currentColor = texture2D(u_FboSampler0, texCoord);
+			
+			float maskValue = 1.0f - texture2D(u_FboSampler2, texCoord).a;
+			if (maskValue == 0.0f) { numAvgSamples--; }
+
+			// Add the current color to our color sum.
+			color += currentColor * maskValue;
+			texCoord += velocity.xy;
+		}
+
+		// Average all of the samples to get the final blur color.
+		outColor[0] = color * (1.0f / numAvgSamples);
+		outColor[1] = texture2D(u_FboSampler1, v_TexCoord);
+	}
+);
+
 #undef MULTILINE_STRING
 
 enum {
@@ -816,6 +947,77 @@ enum {
 	GL3_BINDINGPOINT_UNI3D,
 	GL3_BINDINGPOINT_UNILIGHTS
 };
+
+static qboolean
+initShaderPostfx(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragSrc)
+{
+	GLuint shaders2D[2] = {0};
+	GLuint prog = 0;
+
+	if(shaderInfo->shaderProgram != 0)
+	{
+		R_Printf(PRINT_ALL, "WARNING: calling initShader2D for gl3ShaderInfo_t that already has a shaderProgram!\n");
+		glDeleteProgram(shaderInfo->shaderProgram);
+	}
+
+	//shaderInfo->uniColor = shaderInfo->uniProjMatrix = shaderInfo->uniModelViewMatrix = -1;
+	shaderInfo->shaderProgram = 0;
+	shaderInfo->uniLmScales = -1;
+
+	shaders2D[0] = CompileShader(GL_VERTEX_SHADER, vertSrc, NULL);
+	if(shaders2D[0] == 0)  return false;
+
+	shaders2D[1] = CompileShader(GL_FRAGMENT_SHADER, fragSrc, NULL);
+	if(shaders2D[1] == 0)
+	{
+		glDeleteShader(shaders2D[0]);
+		return false;
+	}
+
+	prog = CreateShaderProgram(2, shaders2D);
+
+	// I think the shaders aren't needed anymore once they're linked into the program
+	glDeleteShader(shaders2D[0]);
+	glDeleteShader(shaders2D[1]);
+
+	if(prog == 0)
+	{
+		return false;
+	}
+
+	shaderInfo->shaderProgram = prog;
+	GL3_UseProgram(prog);
+
+	// Bind the buffer object to the uniform blocks
+	GLuint blockIndex = glGetUniformBlockIndex(prog, "uniCommon");
+	if(blockIndex != GL_INVALID_INDEX)
+	{
+		GLint blockSize;
+		glGetActiveUniformBlockiv(prog, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+		if(blockSize != sizeof(gl3state.uniCommonData))
+		{
+			R_Printf(PRINT_ALL, "WARNING: OpenGL driver disagrees with us about UBO size of 'uniCommon': %i vs %i\n",
+					blockSize, (int)sizeof(gl3state.uniCommonData));
+
+			goto err_cleanup;
+		}
+
+		glUniformBlockBinding(prog, blockIndex, GL3_BINDINGPOINT_UNICOMMON);
+	}
+	else
+	{
+		R_Printf(PRINT_ALL, "WARNING: Couldn't find uniform block index 'uniCommon'\n");
+		goto err_cleanup;
+	}
+
+	return true;
+
+err_cleanup:
+
+	glDeleteProgram(prog);
+
+	return false;
+}
 
 static qboolean
 initShader2D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragSrc)
@@ -1179,6 +1381,19 @@ static qboolean createShaders(void)
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering particles!\n");
 		return false;
 	}
+
+
+	if (!initShaderPostfx(&gl3state.siPostfxResolveMultisample, vertexSrcPostfxCommon, fragmentSrcPostfxResolveMultisample))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for resolve multisample postfx!\n");
+		return false;
+	}
+	if (!initShaderPostfx(&gl3state.siPostfxMotionBlur, vertexSrcPostfxCommon, fragmentSrcPostfxMotionBlur))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for motion blur postfx!\n");
+		return false;
+	}
+
 
 	gl3state.currentShaderProgram = 0;
 

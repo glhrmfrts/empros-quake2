@@ -721,8 +721,15 @@ Cmd_AddCommand(char *cmd_name, xcommand_t function)
 		}
 	}
 
-	cmd = Z_Malloc(sizeof(cmd_function_t));
-	cmd->name = cmd_name;
+	size_t namelen = strlen(cmd_name);
+
+	cmd = Z_Malloc(sizeof(cmd_function_t) + namelen + 1);
+
+	// Why we need to copy this to heap memory? I don't know, but crashes otherwise
+	char* cpname = (char*)cmd + sizeof(cmd_function_t);
+	memcpy(cpname, cmd_name, namelen + 1);
+
+	cmd->name = cpname;
 	cmd->function = function;
 
 	/* link the command in */

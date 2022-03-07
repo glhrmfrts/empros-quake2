@@ -248,6 +248,8 @@ GL3_Register(void)
 	r_speeds = ri.Cvar_Get("r_speeds", "0", 0);
 	gl_finish = ri.Cvar_Get("gl_finish", "0", CVAR_ARCHIVE);
 
+	r_motionblur = ri.Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
+
 #if 0 // TODO!
 	//gl_lefthand = ri.Cvar_Get("hand", "0", CVAR_USERINFO | CVAR_ARCHIVE);
 	//gl_farsee = ri.Cvar_Get("gl_farsee", "0", CVAR_LATCH | CVAR_ARCHIVE);
@@ -593,6 +595,8 @@ GL3_Init(void)
 	GL3_Draw_InitLocal();
 
 	GL3_SurfInit();
+
+	GL3_PostFx_Init(gl3_newrefdef.width, gl3_newrefdef.height);
 
 	R_Printf(PRINT_ALL, "\n");
 	return true;
@@ -988,6 +992,11 @@ GL3_DrawEntitiesOnList(void)
 	for (i = 0; i < gl3_newrefdef.num_entities; i++)
 	{
 		entity_t *currententity = &gl3_newrefdef.entities[i];
+
+		if (currententity->flags & RF_WEAPONMODEL)
+		{
+			weapon_model_entity = currententity;
+		}
 
 		if (currententity->flags & RF_TRANSLUCENT)
 		{
@@ -1535,6 +1544,8 @@ GL3_RenderView(refdef_t *fd)
 
 	SetupGL();
 
+	GL3_PostFx_BeforeScene();
+
 	GL3_MarkLeaves(); /* done here so we know if we're in water */
 
 	GL3_DrawWorld();
@@ -1547,6 +1558,8 @@ GL3_RenderView(refdef_t *fd)
 	GL3_DrawParticles();
 
 	GL3_DrawAlphaSurfaces();
+
+	GL3_PostFx_AfterScene();
 
 	// Note: R_Flash() is now GL3_Draw_Flash() and called from GL3_RenderFrame()
 

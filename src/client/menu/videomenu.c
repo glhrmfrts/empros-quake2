@@ -45,6 +45,7 @@ extern cvar_t *vid_renderer;
 static cvar_t *r_vsync;
 static cvar_t *gl_anisotropic;
 static cvar_t *gl_msaa_samples;
+static cvar_t *r_motionblur;
 
 static menuframework_s s_opengl_menu;
 
@@ -53,6 +54,7 @@ static menulist_s s_mode_list;
 static menulist_s s_display_list;
 static menulist_s s_uiscale_list;
 static menuslider_s s_brightness_slider;
+static menuslider_s s_motionblur_slider;
 static menuslider_s s_fov_slider;
 static menulist_s s_fs_box;
 static menulist_s s_vsync_list;
@@ -159,6 +161,13 @@ BrightnessCallback(void *s)
 
 	float gamma = slider->curvalue / 10.0;
 	Cvar_SetValue("vid_gamma", gamma);
+}
+
+static void
+MotionBlurCallback(void *s)
+{
+	menuslider_s *slider = (menuslider_s *)s;
+	Cvar_SetValue("r_motionblur", slider->curvalue / 10.0f);
 }
 
 static void
@@ -449,6 +458,11 @@ VID_MenuInit(void)
 		gl_msaa_samples = Cvar_Get("r_msaa_samples", "0", CVAR_ARCHIVE);
 	}
 
+	if (!r_motionblur)
+	{
+		r_motionblur = Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
+	}
+
 	s_opengl_menu.x = viddef.width * 0.50;
 	s_opengl_menu.nitems = 0;
 
@@ -580,6 +594,15 @@ VID_MenuInit(void)
 		s_msaa_list.curvalue--;
 	}
 
+	s_motionblur_slider.generic.type = MTYPE_SLIDER;
+	s_motionblur_slider.generic.name = "motion blur";
+	s_motionblur_slider.generic.x = 0;
+	s_motionblur_slider.generic.y = (y += 10);
+	s_motionblur_slider.generic.callback = MotionBlurCallback;
+	s_motionblur_slider.minvalue = 0;
+	s_motionblur_slider.maxvalue = 20;
+	s_motionblur_slider.curvalue = r_motionblur->value * 10;
+
 	s_defaults_action.generic.type = MTYPE_ACTION;
 	s_defaults_action.generic.name = "reset to default";
 	s_defaults_action.generic.x = 0;
@@ -608,6 +631,7 @@ VID_MenuInit(void)
 	Menu_AddItem(&s_opengl_menu, (void *)&s_vsync_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_af_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_msaa_list);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_motionblur_slider);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_defaults_action);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_apply_action);
 
