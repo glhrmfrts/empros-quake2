@@ -1662,6 +1662,8 @@ CMod_LoadEntityString(lump_t *l, char *name)
 	map_entitystring[l->filelen] = 0;
 }
 
+#define QBSPHEADER               ('Q' | ('B' << 8) | ('S' << 16) | ('P' << 24))
+
 /*
  * Loads in the map and all submodels
  */
@@ -1725,6 +1727,20 @@ CM_LoadMap(char *name, qboolean clientload, unsigned *checksum)
 	{
 		((int *)&header)[i] = LittleLong(((int *)&header)[i]);
 	}
+
+	qboolean use_qbsp = false;
+	int ident = header.ident;
+	switch (ident) {
+    case IDBSPHEADER:
+        break;
+    case QBSPHEADER:
+        use_qbsp = true;
+        Com_Error(ERR_DROP, "unsupported QBSP format: %s", name);
+        break;
+    default:
+        Com_Error(ERR_DROP, "unsupported unknown BSP format: %s", name);
+		break;
+    }
 
 	if (header.version != BSPVERSION)
 	{

@@ -38,7 +38,8 @@ enum {
 	SURF_DRAWSKY = 4,
 	SURF_DRAWTURB = 0x10,
 	SURF_DRAWBACKGROUND = 0x40,
-	SURF_UNDERWATER = 0x80
+	SURF_UNDERWATER = 0x80,
+	SURF_DRAWTURBLIT = 0x100,
 };
 
 // used for vertex array elements when drawing brushes, sprites, sky and more
@@ -117,8 +118,8 @@ typedef struct msurface_s
 	int dlight_s, dlight_t;         /* gl lightmap coordinates for dynamic lightmaps */
 
 	glpoly_t *polys;                /* multiple if warped */
-	struct  msurface_s *texturechain;
-	// struct  msurface_s *lightmapchain; not used/needed anymore
+	struct msurface_s *texturechain;
+	struct msurface_s *transchain;
 
 	mtexinfo_t *texinfo;
 

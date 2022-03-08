@@ -594,15 +594,20 @@ Mod_LoadFaces(gl3model_t *loadmodel, byte *mod_base, lump_t *l)
 		/* set the drawing flags */
 		if (out->texinfo->flags & SURF_WARP)
 		{
-			out->flags |= SURF_DRAWTURB;
-
-			for (i = 0; i < 2; i++)
+			if (in->lightofs > 0)
 			{
-				out->extents[i] = 16384;
-				out->texturemins[i] = -8192;
+				out->flags |= SURF_DRAWTURBLIT;
 			}
-
-			GL3_SubdivideSurface(out, loadmodel); /* cut up polygon for warps */
+			else
+			{
+				out->flags |= SURF_DRAWTURB;
+				for (i = 0; i < 2; i++)
+				{
+					out->extents[i] = 16384;
+					out->texturemins[i] = -8192;
+				}
+				GL3_SubdivideSurface(out, loadmodel); /* cut up polygon for warps */
+			}
 		}
 
 		if (r_fixsurfsky->value)
@@ -614,12 +619,9 @@ Mod_LoadFaces(gl3model_t *loadmodel, byte *mod_base, lump_t *l)
 		}
 
 		/* create lightmaps and polygons */
-		if (!(out->texinfo->flags & (SURF_SKY | SURF_TRANS33 | SURF_TRANS66 | SURF_WARP)))
-		{
-			GL3_LM_CreateSurfaceLightmap(out);
-		}
+		GL3_LM_CreateSurfaceLightmap(out);
 
-		if (out->texinfo->flags & SURF_WARP)
+		if ((out->flags & SURF_DRAWTURB))
 		{
 			GL3_LM_BuildPolygonFromWarpSurface(loadmodel, out);
 		}
@@ -880,6 +882,8 @@ static int calcLumpHunkSize(const lump_t *l, int inSize, int outSize)
 	return size;
 }
 
+#define QBSPHEADER               ('Q' | ('B' << 8) | ('S' << 16) | ('P' << 24))
+
 static void
 Mod_LoadBrushModel(gl3model_t *mod, void *buffer, int modfilelen)
 {
@@ -895,6 +899,20 @@ Mod_LoadBrushModel(gl3model_t *mod, void *buffer, int modfilelen)
 	header = (dheader_t *)buffer;
 
 	i = LittleLong(header->version);
+
+	qboolean use_qbsp = false;
+	int ident = LittleLong(header->ident);
+	switch (ident) {
+    case IDBSPHEADER:
+        break;
+    case QBSPHEADER:
+        use_qbsp = true;
+        ri.Sys_Error(ERR_DROP, "unsupported QBSP format: %s", mod->name);
+        break;
+    default:
+        ri.Sys_Error(ERR_DROP, "unsupported unknown BSP format: %s", mod->name);
+		break;
+    }
 
 	if (i != BSPVERSION)
 	{

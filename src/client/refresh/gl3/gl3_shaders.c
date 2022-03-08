@@ -587,6 +587,116 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 		}
 );
 
+
+static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
+
+		// it gets attributes and uniforms from fragmentCommon3D
+
+		struct DynLight { // gl3UniDynLight in C
+			vec3 lightOrigin;
+			float _pad;
+			//vec3 lightColor;
+			//float lightIntensity;
+			vec4 lightColor; // .a is intensity; this way it also works on OSX...
+			// (otherwise lightIntensity always contained 1 there)
+		};
+
+		layout (std140) uniform uniLights
+		{
+			DynLight dynLights[32];
+			uint numDynLights;
+			uint _pad1; uint _pad2; uint _pad3; // FFS, AMD!
+		};
+
+		layout (std140) uniform uniStyles
+		{
+			vec4 lightstyles[256];
+		};
+
+		uniform sampler2D tex;
+
+		uniform sampler2D lightmap0;
+		uniform sampler2D lightmap1;
+		uniform sampler2D lightmap2;
+		uniform sampler2D lightmap3;
+
+		in vec2 passLMcoord;
+		in vec3 passWorldCoord;
+		in vec3 passNormal;
+		flat in uint passLightFlags;
+
+		flat in uint pass_style0;
+		flat in uint pass_style1;
+		flat in uint pass_style2;
+		flat in uint pass_style3;
+
+		void main()
+		{
+			const float MPI = 3.14159;
+
+			vec2 ntc = passTexCoord;
+			ntc.s += 0.125 + sin( passTexCoord.t*MPI + (((time*20.0)*MPI*2.0)/128.0) ) * 0.125;
+			//ntc.s += scroll;
+			ntc.t += 0.125 + sin( passTexCoord.s*MPI + (((time*20.0)*MPI*2.0)/128.0) ) * 0.125;
+			// tc *= 1.0/64.0; // do this last
+
+			vec4 texel = texture(tex, ntc);
+
+			// apply intensity
+			texel.rgb *= intensity;
+
+			// apply lightmap
+			vec4 lmTex = texture(lightmap0, passLMcoord) * lightstyles[pass_style0];
+			lmTex     += texture(lightmap1, passLMcoord) * lightstyles[pass_style1];
+			lmTex     += texture(lightmap2, passLMcoord) * lightstyles[pass_style2];
+			lmTex     += texture(lightmap3, passLMcoord) * lightstyles[pass_style3];
+
+			if(true)
+			{
+				// TODO: or is hardcoding 32 better?
+				for(uint i=0u; i<numDynLights; ++i)
+				{
+					// I made the following up, it's probably not too cool..
+					// it basically checks if the light is on the right side of the surface
+					// and, if it is, sets intensity according to distance between light and pixel on surface
+
+					// dyn light number i does not affect this plane, just skip it
+					// if((passLightFlags & (1u << i)) == 0u)  continue;
+
+					float intens = dynLights[i].lightColor.a;
+
+					vec3 lightToPos = dynLights[i].lightOrigin - passWorldCoord;
+					float distLightToPos = length(lightToPos);
+					float fact = max(0, intens - distLightToPos - 52);
+
+					// move the light source a bit further above the surface
+					// => helps if the lightsource is so close to the surface (e.g. grenades, rockets)
+					//    that the dot product below would return 0
+					// (light sources that are below the surface are filtered out by lightFlags)
+					lightToPos += passNormal*32.0;
+
+					// also factor in angle between light and point on surface
+					fact *= max(0, dot(passNormal, normalize(lightToPos)));
+
+
+					lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
+				}
+			}
+
+			lmTex.rgb *= overbrightbits;
+			outColor = lmTex*texel;
+
+			float fogDensity = fogParams.w/64.0;
+			float fog = exp(-fogDensity * fogDensity * passFogCoord * passFogCoord);
+			fog = clamp(fog, 0.0, 1.0);
+			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
+
+			outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
+
+			outColor.a = 1; // lightmaps aren't used with translucent surfaces
+		}
+);
+
 static const char* fragmentSrc3Dcolor = MULTILINE_STRING(
 
 		// it gets attributes and uniforms from fragmentCommon3D
@@ -1368,6 +1478,11 @@ static qboolean createShaders(void)
 	if(!initShader3D(&gl3state.si3Dlm, vertexSrc3Dlm, fragmentSrc3Dlm))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 3D rendering with lightmap!\n");
+		return false;
+	}
+	if(!initShader3D(&gl3state.si3DlmTurb, vertexSrc3Dlm, fragmentSrc3DlmWater))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 3D rendering water with lightmap!\n");
 		return false;
 	}
 	if(!initShader3D(&gl3state.si3Dtrans, vertexSrc3D, fragmentSrc3D))

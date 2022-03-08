@@ -550,30 +550,24 @@ DrawTextureChains(entity_t *currententity)
 
 		if (s->flags & SURF_DRAWTURB)
 		{
-			// TODO
 			GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
-			for ( ; s; s = s->texturechain)
-			{
-				RenderWorldPoly(currententity, image, s);
-			}
+		}
+		else if (s->flags & SURF_DRAWTURBLIT)
+		{
+			GL3_UseProgram(gl3state.si3DlmTurb.shaderProgram);
 		}
 		else if (s->texinfo->flags & SURF_FLOWING)
 		{
 			GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
-			for ( ; s; s = s->texturechain)
-			{
-				SetLightFlags(s);
-				RenderWorldPoly(currententity, image, s);
-			}
 		}
 		else
 		{
 			GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
-			for ( ; s; s = s->texturechain)
-			{
-				SetLightFlags(s);
-				RenderWorldPoly(currententity, image, s);
-			}
+		}
+
+		for ( ; s; s = s->texturechain)
+		{
+			RenderWorldPoly(currententity, image, s);
 		}
 
 		GL3_SurfBatch_Flush();

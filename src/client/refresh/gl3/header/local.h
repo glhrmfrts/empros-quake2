@@ -222,6 +222,8 @@ typedef struct
 	gl3ShaderInfo_t si2D;      // shader for rendering 2D with textures
 	gl3ShaderInfo_t si2Dcolor; // shader for rendering 2D with flat colors
 	gl3ShaderInfo_t si3Dlm;        // a regular opaque face (e.g. from brush) with lightmap
+	gl3ShaderInfo_t si3DlmTurb;    // a regular opaque water face (e.g. from brush) with lightmap
+
 	// TODO: lm-only variants for gl_lightmap 1
 	gl3ShaderInfo_t si3Dtrans;     // transparent is always w/o lightmap
 	gl3ShaderInfo_t si3DcolorOnly; // used for beams - no lightmaps
@@ -298,6 +300,7 @@ typedef struct image_s
 	//int upload_width, upload_height;    /* after power of two and picmip */
 	int registration_sequence;          /* 0 = free */
 	struct msurface_s *texturechain;    /* for sort-by-texture world drawing */
+	struct msurface_s *transchain;		/* for translucent surface chaining */
 	GLuint texnum;                      /* gl texture binding */
 	float sl, tl, sh, th;               /* 0,0 - 1,1 unless part of the scrap */
 	// qboolean scrap; // currently unused
