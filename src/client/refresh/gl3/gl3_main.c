@@ -1379,6 +1379,18 @@ SetupGL(void)
 
 	GL3_UpdateUBO3D();
 
+// gnemeth: light styles as attributes
+	for (int i = 0; i < MAX_LIGHTSTYLES; i++)
+	{
+		gl3state.uniStylesData.lightstyles[i] = HMM_Vec4(
+			gl3_newrefdef.lightstyles[i].rgb[0],
+			gl3_newrefdef.lightstyles[i].rgb[1],
+			gl3_newrefdef.lightstyles[i].rgb[2],
+			1.0f
+		);
+	}
+	GL3_UpdateUBOStyles();
+
 	/* set drawing parms */
 	if (gl_cull->value)
 	{

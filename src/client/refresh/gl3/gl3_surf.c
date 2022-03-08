@@ -57,6 +57,13 @@ static void Setup3DAttributes()
 
 	glEnableVertexAttribArray(GL3_ATTRIB_LIGHTFLAGS);
 	qglVertexAttribIPointer(GL3_ATTRIB_LIGHTFLAGS, 1, GL_UNSIGNED_INT, sizeof(gl3_3D_vtx_t), offsetof(gl3_3D_vtx_t, lightFlags));
+
+	for (int map = 0; map < MAX_LIGHTMAPS_PER_SURFACE; map++) {
+		size_t offs = offsetof(gl3_3D_vtx_t, styles);
+		offs += sizeof(GLuint) * map;
+		glEnableVertexAttribArray(GL3_ATTRIB_STYLE0 + map);
+		qglVertexAttribIPointer(GL3_ATTRIB_STYLE0 + map, 1, GL_UNSIGNED_INT, sizeof(gl3_3D_vtx_t), offs);
+	}
 }
 
 void GL3_SurfInit(void)
@@ -417,27 +424,7 @@ RenderBrushPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 		GL3_BindLightmap(fa->lightmaptexturenum);
 	}
 
-	hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE] = {0};
-	lmScales[0] = HMM_Vec4(1.0f, 1.0f, 1.0f, 1.0f);
-
-	// Any dynamic lights on this surface?
-	for (map = 0; map < MAX_LIGHTMAPS_PER_SURFACE && fa->styles[map] != 255; map++)
-	{
-		lmScales[map].R = gl3_newrefdef.lightstyles[fa->styles[map]].rgb[0];
-		lmScales[map].G = gl3_newrefdef.lightstyles[fa->styles[map]].rgb[1];
-		lmScales[map].B = gl3_newrefdef.lightstyles[fa->styles[map]].rgb[2];
-		lmScales[map].A = 1.0f;
-	}
-
-	UpdateLMscales(lmScales, &gl3state.si3Dlm);
 	GL3_SurfBatch_Add(fa);
-
-	if (fa->texinfo->flags & SURF_FLOWING)
-	{
-		//GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
-		//UpdateLMscales(lmScales, &gl3state.si3DlmFlow);
-		//GL3_DrawGLFlowingPoly(fa);
-	}
 
 	// Note: lightmap chains are gone, lightmaps are rendered together with normal texture in one pass
 }

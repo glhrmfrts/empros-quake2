@@ -111,6 +111,10 @@ CreateShaderProgram(int numShaders, const GLuint* shaders)
 	glBindAttribLocation(shaderProgram, GL3_ATTRIB_COLOR, "vertColor");
 	glBindAttribLocation(shaderProgram, GL3_ATTRIB_NORMAL, "normal");
 	glBindAttribLocation(shaderProgram, GL3_ATTRIB_LIGHTFLAGS, "lightFlags");
+	glBindAttribLocation(shaderProgram, GL3_ATTRIB_STYLE0, "style0");
+	glBindAttribLocation(shaderProgram, GL3_ATTRIB_STYLE1, "style1");
+	glBindAttribLocation(shaderProgram, GL3_ATTRIB_STYLE2, "style2");
+	glBindAttribLocation(shaderProgram, GL3_ATTRIB_STYLE3, "style3");
 
 	// the following line is not necessary/implicit (as there's only one output)
 	// glBindFragDataLocation(shaderProgram, 0, "outColor"); XXX would this even be here?
@@ -266,6 +270,10 @@ static const char* vertexCommon3D = MULTILINE_STRING(#version 150\n
 		in vec4 vertColor;  // GL3_ATTRIB_COLOR
 		in vec3 normal;     // GL3_ATTRIB_NORMAL
 		in uint lightFlags; // GL3_ATTRIB_LIGHTFLAGS
+		in uint style0;	    // GL3_ATTRIB_STYLE0
+		in uint style1;	    // GL3_ATTRIB_STYLE1
+		in uint style2;	    // GL3_ATTRIB_STYLE2
+		in uint style3;	    // GL3_ATTRIB_STYLE3
 
 		out vec2 passTexCoord;
 		out float passFogCoord;
@@ -362,6 +370,11 @@ static const char* vertexSrc3Dlm = MULTILINE_STRING(
 		out vec3 passNormal;
 		flat out uint passLightFlags;
 
+		flat out uint pass_style0;
+		flat out uint pass_style1;
+		flat out uint pass_style2;
+		flat out uint pass_style3;
+
 		void main()
 		{
 			passTexCoord = texCoord;
@@ -371,6 +384,11 @@ static const char* vertexSrc3Dlm = MULTILINE_STRING(
 			vec4 worldNormal = transModel * vec4(normal, 0.0f);
 			passNormal = normalize(worldNormal.xyz);
 			passLightFlags = lightFlags;
+
+			pass_style0 = style0;
+			pass_style1 = style1;
+			pass_style2 = style2;
+			pass_style3 = style3;
 
 			gl_Position = transProj * transView * worldCoord;
 
@@ -387,6 +405,11 @@ static const char* vertexSrc3DlmFlow = MULTILINE_STRING(
 		out vec3 passNormal;
 		flat out uint passLightFlags;
 
+		flat out uint pass_style0;
+		flat out uint pass_style1;
+		flat out uint pass_style2;
+		flat out uint pass_style3;
+
 		void main()
 		{
 			passTexCoord = texCoord + vec2(scroll, 0);
@@ -396,6 +419,11 @@ static const char* vertexSrc3DlmFlow = MULTILINE_STRING(
 			vec4 worldNormal = transModel * vec4(normal, 0.0f);
 			passNormal = normalize(worldNormal.xyz);
 			passLightFlags = lightFlags;
+
+			pass_style0 = style0;
+			pass_style1 = style1;
+			pass_style2 = style2;
+			pass_style3 = style3;
 
 			gl_Position = transProj * transView * worldCoord;
 
@@ -478,6 +506,11 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			uint _pad1; uint _pad2; uint _pad3; // FFS, AMD!
 		};
 
+		layout (std140) uniform uniStyles
+		{
+			vec4 lightstyles[256];
+		};
+
 		uniform sampler2D tex;
 
 		uniform sampler2D lightmap0;
@@ -485,12 +518,15 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 		uniform sampler2D lightmap2;
 		uniform sampler2D lightmap3;
 
-		uniform vec4 lmScales[4];
-
 		in vec2 passLMcoord;
 		in vec3 passWorldCoord;
 		in vec3 passNormal;
 		flat in uint passLightFlags;
+
+		flat in uint pass_style0;
+		flat in uint pass_style1;
+		flat in uint pass_style2;
+		flat in uint pass_style3;
 
 		void main()
 		{
@@ -500,10 +536,10 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			texel.rgb *= intensity;
 
 			// apply lightmap
-			vec4 lmTex = texture(lightmap0, passLMcoord) * lmScales[0];
-			lmTex     += texture(lightmap1, passLMcoord) * lmScales[1];
-			lmTex     += texture(lightmap2, passLMcoord) * lmScales[2];
-			lmTex     += texture(lightmap3, passLMcoord) * lmScales[3];
+			vec4 lmTex = texture(lightmap0, passLMcoord) * lightstyles[pass_style0];
+			lmTex     += texture(lightmap1, passLMcoord) * lightstyles[pass_style1];
+			lmTex     += texture(lightmap2, passLMcoord) * lightstyles[pass_style2];
+			lmTex     += texture(lightmap3, passLMcoord) * lightstyles[pass_style3];
 
 			if(true)
 			{
@@ -945,7 +981,8 @@ enum {
 	GL3_BINDINGPOINT_UNICOMMON,
 	GL3_BINDINGPOINT_UNI2D,
 	GL3_BINDINGPOINT_UNI3D,
-	GL3_BINDINGPOINT_UNILIGHTS
+	GL3_BINDINGPOINT_UNILIGHTS,
+	GL3_BINDINGPOINT_UNISTYLES,
 };
 
 static qboolean
@@ -1203,6 +1240,22 @@ initShader3D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragS
 	}
 	// else: as uniLights is only used in the LM shaders, it's ok if it's missing
 
+	blockIndex = glGetUniformBlockIndex(prog, "uniStyles");
+	if(blockIndex != GL_INVALID_INDEX)
+	{
+		GLint blockSize;
+		glGetActiveUniformBlockiv(prog, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+		if(blockSize != sizeof(gl3state.uniStylesData))
+		{
+			R_Printf(PRINT_ALL, "WARNING: OpenGL driver disagrees with us about UBO size of 'uniStyles'\n");
+			R_Printf(PRINT_ALL, "         OpenGL says %d, we say %d\n", blockSize, (int)sizeof(gl3state.uniStylesData));
+
+			goto err_cleanup;
+		}
+
+		glUniformBlockBinding(prog, blockIndex, GL3_BINDINGPOINT_UNISTYLES);
+	}
+
 	// make sure texture is GL_TEXTURE0
 	GLint texLoc = glGetUniformLocation(prog, "tex");
 	if(texLoc != -1)
@@ -1292,7 +1345,12 @@ static void initUBOs(void)
 	glBindBufferBase(GL_UNIFORM_BUFFER, GL3_BINDINGPOINT_UNILIGHTS, gl3state.uniLightsUBO);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3state.uniLightsData), &gl3state.uniLightsData, GL_DYNAMIC_DRAW);
 
-	gl3state.currentUBO = gl3state.uniLightsUBO;
+	glGenBuffers(1, &gl3state.uniStylesUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, gl3state.uniStylesUBO);
+	glBindBufferBase(GL_UNIFORM_BUFFER, GL3_BINDINGPOINT_UNISTYLES, gl3state.uniStylesUBO);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3state.uniStylesData), &gl3state.uniStylesData, GL_DYNAMIC_DRAW);
+
+	gl3state.currentUBO = gl3state.uniStylesUBO;
 }
 
 static qboolean createShaders(void)
@@ -1424,7 +1482,7 @@ void GL3_ShutdownShaders(void)
 	// let's (ab)use the fact that all 4 UBO handles are consecutive fields
 	// of the gl3state struct
 	glDeleteBuffers(4, &gl3state.uniCommonUBO);
-	gl3state.uniCommonUBO = gl3state.uni2DUBO = gl3state.uni3DUBO = gl3state.uniLightsUBO = 0;
+	gl3state.uniCommonUBO = gl3state.uni2DUBO = gl3state.uni3DUBO = gl3state.uniLightsUBO = gl3state.uniStylesUBO = 0;
 }
 
 qboolean GL3_RecreateShaders(void)
@@ -1499,4 +1557,9 @@ void GL3_UpdateUBO3D(void)
 void GL3_UpdateUBOLights(void)
 {
 	updateUBO(gl3state.uniLightsUBO, sizeof(gl3state.uniLightsData), &gl3state.uniLightsData);
+}
+
+void GL3_UpdateUBOStyles(void)
+{
+	updateUBO(gl3state.uniStylesUBO, sizeof(gl3state.uniStylesData), &gl3state.uniStylesData);
 }

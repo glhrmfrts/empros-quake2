@@ -49,6 +49,7 @@ typedef struct gl3_3D_vtx_s {
 	float lmTexCoord[2]; // lightmap texture coordinate (sometimes unused)
 	vec3_t normal;
 	GLuint lightFlags; // bit i set means: dynlight i affects surface
+	GLuint styles[MAX_LIGHTMAPS_PER_SURFACE];
 } gl3_3D_vtx_t;
 
 // used for vertex array elements when drawing models

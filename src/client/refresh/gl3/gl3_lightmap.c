@@ -196,6 +196,11 @@ GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 
 		VectorCopy(normal, vert->normal);
 		vert->lightFlags = 0;
+
+		// gnemeth: light styles as attributes (for batch rendering)
+		for (int map = 0; map < MAX_LIGHTMAPS_PER_SURFACE; map++) {
+			vert->styles[map] = fa->styles[map];
+		}
 	}
 
 // Add the poly's vertices to the world VBO

@@ -78,7 +78,11 @@ enum {
 	GL3_ATTRIB_LMTEXCOORD = 2, // for lightmap
 	GL3_ATTRIB_COLOR      = 3, // per-vertex color
 	GL3_ATTRIB_NORMAL     = 4, // vertex normal
-	GL3_ATTRIB_LIGHTFLAGS = 5  // uint, each set bit means "dyn light i affects this surface"
+	GL3_ATTRIB_LIGHTFLAGS = 5,  // uint, each set bit means "dyn light i affects this surface"
+	GL3_ATTRIB_STYLE0     = 6,
+	GL3_ATTRIB_STYLE1     = 7,
+	GL3_ATTRIB_STYLE2     = 8,
+	GL3_ATTRIB_STYLE3     = 9,
 };
 
 // TODO: do we need the following configurable?
@@ -172,6 +176,11 @@ typedef struct
 	GLfloat _padding[3];
 } gl3UniLights_t;
 
+typedef struct
+{
+	hmm_vec4 lightstyles[MAX_LIGHTSTYLES];
+} gl3UniStyles_t;
+
 enum {
 	// width and height used to be 128, so now we should be able to get the same lightmap data
 	// that used 32 lightmaps before into one, so 4 lightmaps should be enough
@@ -253,10 +262,12 @@ typedef struct
 	gl3Uni2D_t uni2DData;
 	gl3Uni3D_t uni3DData;
 	gl3UniLights_t uniLightsData;
+	gl3UniStyles_t uniStylesData;
 	GLuint uniCommonUBO;
 	GLuint uni2DUBO;
 	GLuint uni3DUBO;
 	GLuint uniLightsUBO;
+	GLuint uniStylesUBO;
 
 } gl3state_t;
 
@@ -507,6 +518,7 @@ extern void GL3_UpdateUBOCommon(void);
 extern void GL3_UpdateUBO2D(void);
 extern void GL3_UpdateUBO3D(void);
 extern void GL3_UpdateUBOLights(void);
+extern void GL3_UpdateUBOStyles(void);
 
 // gl3_shadow.c
 
@@ -583,10 +595,10 @@ typedef struct gl3_framebuffer_s
 	GLuint depth_texture;
 } gl3_framebuffer_t;
 
-void GL3_PostFx_Init();
-void GL3_PostFx_Shutdown();
-void GL3_PostFx_BeforeScene();
-void GL3_PostFx_AfterScene();
+extern void GL3_PostFx_Init();
+extern void GL3_PostFx_Shutdown();
+extern void GL3_PostFx_BeforeScene();
+extern void GL3_PostFx_AfterScene();
 
 // gl3_misc.c
 qboolean GL3_Matrix4_Invert(const float *m, float *out);
