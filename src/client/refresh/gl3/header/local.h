@@ -478,6 +478,7 @@ extern void GL3_LM_InitBlock(void);
 extern void GL3_LM_UploadBlock(void);
 extern qboolean GL3_LM_AllocBlock(int w, int h, int *x, int *y);
 extern void GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa);
+extern void GL3_LM_BuildPolygonFromWarpSurface(gl3model_t *currentmodel, msurface_t *fa);
 extern void GL3_LM_CreateSurfaceLightmap(msurface_t *surf);
 extern void GL3_LM_BeginBuildingLightmaps(gl3model_t *m);
 extern void GL3_LM_EndBuildingLightmaps(void);

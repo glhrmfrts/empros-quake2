@@ -619,7 +619,11 @@ Mod_LoadFaces(gl3model_t *loadmodel, byte *mod_base, lump_t *l)
 			GL3_LM_CreateSurfaceLightmap(out);
 		}
 
-		if (!(out->texinfo->flags & SURF_WARP))
+		if (out->texinfo->flags & SURF_WARP)
+		{
+			GL3_LM_BuildPolygonFromWarpSurface(loadmodel, out);
+		}
+		else
 		{
 			GL3_LM_BuildPolygonFromSurface(loadmodel, out);
 		}

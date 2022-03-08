@@ -370,7 +370,19 @@ static int 				batch_lmtexnum;
 static size_t
 NumberOfIndicesForSurface(msurface_t* fa)
 {
-	return 3 * (fa->numedges - 2);
+	if (fa->flags & SURF_DRAWTURB)
+	{
+		size_t count = 0;
+		for (glpoly_t* bp = fa->polys; bp != NULL; bp = bp->next)
+		{
+			count += bp->numverts * 3 - 6;
+		}
+		return count;
+	}
+	else
+	{
+		return 3 * (fa->numedges - 2);
+	}
 }
 
 void
@@ -400,24 +412,39 @@ GL3_SurfBatch_Add(msurface_t* fa)
 	}
 
 	unsigned int* dest = batch_indices + batch_numindices;
-	for (int i=2; i<fa->numedges; i++)
+	if (fa->flags & SURF_DRAWTURB)
 	{
-		*dest++ = fa->polys->vbo_first_vert;
-		*dest++ = fa->polys->vbo_first_vert + i - 1;
-		*dest++ = fa->polys->vbo_first_vert + i;
+		for (glpoly_t* bp = fa->polys; bp != NULL; bp = bp->next)
+		{
+			for (int i=2; i<bp->numverts; i++)
+			{
+				*dest++ = bp->vbo_first_vert;
+				*dest++ = bp->vbo_first_vert + i - 1;
+				*dest++ = bp->vbo_first_vert + i;
+			}
+		}
+	}
+	else
+	{
+		for (int i=2; i<fa->numedges; i++)
+		{
+			*dest++ = fa->polys->vbo_first_vert;
+			*dest++ = fa->polys->vbo_first_vert + i - 1;
+			*dest++ = fa->polys->vbo_first_vert + i;
+		}
 	}
 
 	batch_numindices += numindices;
 }
 
 static void
-RenderBrushPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
+RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 {
 	int map;
 
 	c_brush_polys++;
 
-	if (fa->lightmaptexturenum != batch_lmtexnum)
+	if (!(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
 	{
 		GL3_SurfBatch_Flush();
 		batch_lmtexnum = fa->lightmaptexturenum;
@@ -524,6 +551,11 @@ DrawTextureChains(entity_t *currententity)
 		if (s->flags & SURF_DRAWTURB)
 		{
 			// TODO
+			GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
+			for ( ; s; s = s->texturechain)
+			{
+				RenderWorldPoly(currententity, image, s);
+			}
 		}
 		else if (s->texinfo->flags & SURF_FLOWING)
 		{
@@ -531,7 +563,7 @@ DrawTextureChains(entity_t *currententity)
 			for ( ; s; s = s->texturechain)
 			{
 				SetLightFlags(s);
-				RenderBrushPoly(currententity, image, s);
+				RenderWorldPoly(currententity, image, s);
 			}
 		}
 		else
@@ -540,7 +572,7 @@ DrawTextureChains(entity_t *currententity)
 			for ( ; s; s = s->texturechain)
 			{
 				SetLightFlags(s);
-				RenderBrushPoly(currententity, image, s);
+				RenderWorldPoly(currententity, image, s);
 			}
 		}
 
@@ -645,7 +677,7 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
 			}
 			else
 			{
-				// RenderBrushPoly(currententity, psurf);
+				GL3_EmitWaterPolys(psurf);
 			}
 		}
 	}

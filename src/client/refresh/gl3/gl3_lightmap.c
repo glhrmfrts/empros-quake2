@@ -117,13 +117,77 @@ GL3_LM_AllocBlock(int w, int h, int *x, int *y)
 	return true;
 }
 
+static void
+BuildWorldVertex(const vec3_t vec, const vec3_t normal, const msurface_t* fa, gl3_3D_vtx_t* vert)
+{
+	float s, t;
+
+	s = DotProduct(vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
+	s /= fa->texinfo->image->width;
+
+	t = DotProduct(vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
+	t /= fa->texinfo->image->height;
+
+	VectorCopy(vec, vert->pos);
+	vert->texCoord[0] = s;
+	vert->texCoord[1] = t;
+
+	/* lightmap texture coordinates */
+	s = DotProduct(vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
+	s -= fa->texturemins[0];
+	s += fa->light_s * 16;
+	s += 8;
+	s /= BLOCK_WIDTH * 16; /* fa->texinfo->texture->width; */
+
+	t = DotProduct(vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
+	t -= fa->texturemins[1];
+	t += fa->light_t * 16;
+	t += 8;
+	t /= BLOCK_HEIGHT * 16; /* fa->texinfo->texture->height; */
+
+	vert->lmTexCoord[0] = s;
+	vert->lmTexCoord[1] = t;
+
+	VectorCopy(normal, vert->normal);
+	vert->lightFlags = 0;
+
+	// gnemeth: light styles as attributes (for batch rendering)
+	for (int map = 0; map < MAX_LIGHTMAPS_PER_SURFACE; map++) {
+		vert->styles[map] = fa->styles[map];
+	}
+}
+
+static void
+AddPolyToWorldVBO(glpoly_t* poly, size_t lnumverts)
+{
+	poly->vbo_first_vert = gl3state.num_world_vertices;
+
+	if (gl3state.num_world_vertices + lnumverts > gl3state.cap_world_vertices)
+	{
+		if (gl3state.cap_world_vertices == 0) { 
+			gl3state.cap_world_vertices = max(lnumverts, 128);
+		}
+		else {
+			gl3state.cap_world_vertices = max(gl3state.num_world_vertices+lnumverts, gl3state.cap_world_vertices*2);
+		}
+		
+		gl3state.world_vertices = realloc(gl3state.world_vertices, gl3state.cap_world_vertices * sizeof(gl3_3D_vtx_t));
+	}
+
+	memcpy(
+		gl3state.world_vertices + gl3state.num_world_vertices,
+		poly->vertices,
+		lnumverts*sizeof(gl3_3D_vtx_t)
+	);
+	gl3state.num_world_vertices += lnumverts;
+}
+
 void
 GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 {
 	int i, lindex, lnumverts;
 	medge_t *pedges, *r_pedge;
 	float *vec;
-	float s, t;
 	glpoly_t *poly;
 	vec3_t total;
 	vec3_t normal;
@@ -131,8 +195,6 @@ GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 	/* reconstruct the polygon */
 	pedges = currentmodel->edges;
 	lnumverts = fa->numedges;
-
-	VectorClear(total);
 
 	/* draw texture */
 	poly = Hunk_Alloc(sizeof(glpoly_t) + (lnumverts - 4) * sizeof(gl3_3D_vtx_t));
@@ -167,63 +229,19 @@ GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 			vec = currentmodel->vertexes[r_pedge->v[1]].position;
 		}
 
-		s = DotProduct(vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
-		s /= fa->texinfo->image->width;
-
-		t = DotProduct(vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
-		t /= fa->texinfo->image->height;
-
-		VectorAdd(total, vec, total);
-		VectorCopy(vec, vert->pos);
-		vert->texCoord[0] = s;
-		vert->texCoord[1] = t;
-
-		/* lightmap texture coordinates */
-		s = DotProduct(vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
-		s -= fa->texturemins[0];
-		s += fa->light_s * 16;
-		s += 8;
-		s /= BLOCK_WIDTH * 16; /* fa->texinfo->texture->width; */
-
-		t = DotProduct(vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
-		t -= fa->texturemins[1];
-		t += fa->light_t * 16;
-		t += 8;
-		t /= BLOCK_HEIGHT * 16; /* fa->texinfo->texture->height; */
-
-		vert->lmTexCoord[0] = s;
-		vert->lmTexCoord[1] = t;
-
-		VectorCopy(normal, vert->normal);
-		vert->lightFlags = 0;
-
-		// gnemeth: light styles as attributes (for batch rendering)
-		for (int map = 0; map < MAX_LIGHTMAPS_PER_SURFACE; map++) {
-			vert->styles[map] = fa->styles[map];
-		}
+		BuildWorldVertex(vec, normal, fa, vert);
 	}
 
-// Add the poly's vertices to the world VBO
-	poly->vbo_first_vert = gl3state.num_world_vertices;
+	AddPolyToWorldVBO(poly, lnumverts);
+}
 
-	if (gl3state.num_world_vertices + lnumverts > gl3state.cap_world_vertices)
+void
+GL3_LM_BuildPolygonFromWarpSurface(gl3model_t *currentmodel, msurface_t *fa)
+{
+	for (glpoly_t* bp = fa->polys; bp != NULL; bp = bp->next)
 	{
-		if (gl3state.cap_world_vertices == 0) { 
-			gl3state.cap_world_vertices = max(lnumverts, 128);
-		}
-		else {
-			gl3state.cap_world_vertices = max(gl3state.num_world_vertices+lnumverts, gl3state.cap_world_vertices*2);
-		}
-		
-		gl3state.world_vertices = realloc(gl3state.world_vertices, gl3state.cap_world_vertices * sizeof(gl3_3D_vtx_t));
+		AddPolyToWorldVBO(bp, bp->numverts);
 	}
-
-	memcpy(
-		gl3state.world_vertices + gl3state.num_world_vertices,
-		fa->polys->vertices,
-		lnumverts*sizeof(gl3_3D_vtx_t)
-	);
-	gl3state.num_world_vertices += lnumverts;
 }
 
 void
