@@ -300,7 +300,6 @@ typedef struct image_s
 	//int upload_width, upload_height;    /* after power of two and picmip */
 	int registration_sequence;          /* 0 = free */
 	struct msurface_s *texturechain;    /* for sort-by-texture world drawing */
-	struct msurface_s *transchain;		/* for translucent surface chaining */
 	GLuint texnum;                      /* gl texture binding */
 	float sl, tl, sh, th;               /* 0,0 - 1,1 unless part of the scrap */
 	// qboolean scrap; // currently unused

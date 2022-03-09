@@ -204,77 +204,6 @@ TextureAnimation(entity_t *currententity, mtexinfo_t *tex)
 	return tex->image;
 }
 
-
-static void
-SetLightFlags(msurface_t *surf)
-{
-	unsigned int lightFlags = 0;
-	if (surf->dlightframe == gl3_framecount)
-	{
-		lightFlags = surf->dlightbits;
-	}
-
-	gl3_3D_vtx_t* verts = surf->polys->vertices;
-
-	int numVerts = surf->polys->numverts;
-	for(int i=0; i<numVerts; ++i)
-	{
-		verts[i].lightFlags = lightFlags;
-	}
-}
-
-static void
-SetAllLightFlags(msurface_t *surf)
-{
-	unsigned int lightFlags = 0xffffffff;
-
-	gl3_3D_vtx_t* verts = surf->polys->vertices;
-
-	int numVerts = surf->polys->numverts;
-	for(int i=0; i<numVerts; ++i)
-	{
-		verts[i].lightFlags = lightFlags;
-	}
-}
-
-void
-GL3_DrawGLPoly(msurface_t *fa)
-{
-	glpoly_t *p = fa->polys;
-
-	GL3_BindVAO(gl3state.vao3D);
-	GL3_BindVBO(gl3state.vbo3D);
-
-	GL3_BufferAndDraw3D(p->vertices, p->numverts, GL_TRIANGLE_FAN);
-}
-
-void
-GL3_DrawGLFlowingPoly(msurface_t *fa)
-{
-	glpoly_t *p;
-	float scroll;
-
-	p = fa->polys;
-
-	scroll = -64.0f * ((gl3_newrefdef.time / 40.0f) - (int)(gl3_newrefdef.time / 40.0f));
-
-	if (scroll == 0.0f)
-	{
-		scroll = -64.0f;
-	}
-
-	if(gl3state.uni3DData.scroll != scroll)
-	{
-		gl3state.uni3DData.scroll = scroll;
-		GL3_UpdateUBO3D();
-	}
-
-	GL3_BindVAO(gl3state.vao3D);
-	GL3_BindVBO(gl3state.vbo3D);
-
-	GL3_BufferAndDraw3D(p->vertices, p->numverts, GL_TRIANGLE_FAN);
-}
-
 static void
 DrawTriangleOutlines(void)
 {
@@ -393,6 +322,14 @@ GL3_SurfBatch_Clear()
 }
 
 void
+GL3_SurfBatch_Begin()
+{
+	GL3_BindVAO(gl3state.vaoWorld);
+	GL3_BindEBO(0);
+	GL3_SurfBatch_Clear();
+}
+
+void
 GL3_SurfBatch_Flush()
 {
 	if (batch_numindices == 0) { return; }
@@ -437,6 +374,12 @@ GL3_SurfBatch_Add(msurface_t* fa)
 	batch_numindices += numindices;
 }
 
+void GL3_SurfBatch_DrawSingle(msurface_t* fa)
+{
+	GL3_SurfBatch_Add(fa);
+	GL3_SurfBatch_Flush();
+}
+
 static void
 RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 {
@@ -472,10 +415,14 @@ GL3_DrawAlphaSurfaces(void)
 
 	glEnable(GL_BLEND);
 
+	GL3_SurfBatch_Begin();
+
 	for (s = gl3_alpha_surfaces; s != NULL; s = s->texturechain)
 	{
 		GL3_Bind(s->texinfo->image->texnum);
+
 		c_brush_polys++;
+
 		float alpha = 1.0f;
 		if (s->texinfo->flags & SURF_TRANS33)
 		{
@@ -493,17 +440,24 @@ GL3_DrawAlphaSurfaces(void)
 
 		if (s->flags & SURF_DRAWTURB)
 		{
-			GL3_EmitWaterPolys(s);
+			GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
+			GL3_SurfBatch_DrawSingle(s);
+		}
+		else if (s->flags & SURF_DRAWTURBLIT)
+		{
+			GL3_UseProgram(gl3state.si3DlmTurb.shaderProgram);
+			GL3_BindLightmap(s->lightmaptexturenum);
+			GL3_SurfBatch_DrawSingle(s);
 		}
 		else if (s->texinfo->flags & SURF_FLOWING)
 		{
 			GL3_UseProgram(gl3state.si3DtransFlow.shaderProgram);
-			GL3_DrawGLFlowingPoly(s);
+			GL3_SurfBatch_DrawSingle(s);
 		}
 		else
 		{
 			GL3_UseProgram(gl3state.si3Dtrans.shaderProgram);
-			GL3_DrawGLPoly(s);
+			GL3_SurfBatch_DrawSingle(s);
 		}
 	}
 
@@ -524,9 +478,7 @@ DrawTextureChains(entity_t *currententity)
 
 	c_visible_textures = 0;
 
-	GL3_BindVAO(gl3state.vaoWorld);
-	GL3_BindVBO(gl3state.vboWorld);
-	GL3_BindEBO(0);
+	GL3_SurfBatch_Begin();
 
 	for (i = 0, image = gl3textures; i < numgl3textures; i++, image++)
 	{
@@ -579,46 +531,6 @@ DrawTextureChains(entity_t *currententity)
 }
 
 static void
-RenderLightmappedPoly(entity_t *currententity, msurface_t *surf)
-{
-	int map;
-	gl3image_t *image = TextureAnimation(currententity, surf->texinfo);
-
-	hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE] = {0};
-	lmScales[0] = HMM_Vec4(1.0f, 1.0f, 1.0f, 1.0f);
-
-	assert((surf->texinfo->flags & (SURF_SKY | SURF_TRANS33 | SURF_TRANS66 | SURF_WARP)) == 0
-			&& "RenderLightMappedPoly mustn't be called with transparent, sky or warping surfaces!");
-
-	// Any dynamic lights on this surface?
-	for (map = 0; map < MAX_LIGHTMAPS_PER_SURFACE && surf->styles[map] != 255; map++)
-	{
-		lmScales[map].R = gl3_newrefdef.lightstyles[surf->styles[map]].rgb[0];
-		lmScales[map].G = gl3_newrefdef.lightstyles[surf->styles[map]].rgb[1];
-		lmScales[map].B = gl3_newrefdef.lightstyles[surf->styles[map]].rgb[2];
-		lmScales[map].A = 1.0f;
-	}
-
-	c_brush_polys++;
-
-	GL3_Bind(image->texnum);
-	GL3_BindLightmap(surf->lightmaptexturenum);
-
-	if (surf->texinfo->flags & SURF_FLOWING)
-	{
-		GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
-		UpdateLMscales(lmScales, &gl3state.si3DlmFlow);
-		GL3_DrawGLFlowingPoly(surf);
-	}
-	else
-	{
-		GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
-		UpdateLMscales(lmScales, &gl3state.si3Dlm);
-		GL3_DrawGLPoly(surf);
-	}
-}
-
-static void
 DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
 {
 	int i, k;
@@ -640,11 +552,9 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
 	if (currententity->flags & RF_TRANSLUCENT)
 	{
 		glEnable(GL_BLEND);
-		/* TODO: should I care about the 0.25 part? we'll just set alpha to 0.33 or 0.66 depending on surface flag..
-		glColor4f(1, 1, 1, 0.25);
-		R_TexEnv(GL_MODULATE);
-		*/
 	}
+
+	GL3_SurfBatch_Begin();
 
 	/* draw texture */
 	for (i = 0; i < currentmodel->nummodelsurfaces; i++, psurf++)
@@ -658,20 +568,33 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
 		if (((psurf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) ||
 			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 		{
+			gl3image_t *image = TextureAnimation(currententity, psurf->texinfo);
+
 			if (psurf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
 			{
 				/* add to the translucent chain */
 				psurf->texturechain = gl3_alpha_surfaces;
 				gl3_alpha_surfaces = psurf;
 			}
-			else if(!(psurf->flags & SURF_DRAWTURB))
+			else if (!(psurf->flags & SURF_DRAWTURB))
 			{
-				SetAllLightFlags(psurf);
-				RenderLightmappedPoly(currententity, psurf);
+				GL3_Bind(image->texnum);
+				GL3_BindLightmap(psurf->lightmaptexturenum);
+				if (psurf->texinfo->flags & SURF_FLOWING)
+				{
+					GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
+				}
+				else
+				{
+					GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
+				}
+				GL3_SurfBatch_DrawSingle(psurf);
 			}
 			else
 			{
-				GL3_EmitWaterPolys(psurf);
+				GL3_Bind(image->texnum);
+				GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
+				GL3_SurfBatch_DrawSingle(psurf);
 			}
 		}
 	}
@@ -878,22 +801,10 @@ RecursiveWorldNode(entity_t *currententity, mnode_t *node)
 		}
 		else
 		{
-			// calling RenderLightmappedPoly() here probably isn't optimal, rendering everything
-			// through texturechains should be faster, because far less glBindTexture() is needed
-			// (and it might allow batching the drawcalls of surfaces with the same texture)
-#if 0
-			if(!(surf->flags & SURF_DRAWTURB))
-			{
-				RenderLightmappedPoly(surf);
-			}
-			else
-#endif // 0
-			{
-				/* the polygon is visible, so add it to the texture sorted chain */
-				image = TextureAnimation(currententity, surf->texinfo);
-				surf->texturechain = image->texturechain;
-				image->texturechain = surf;
-			}
+			/* the polygon is visible, so add it to the texture sorted chain */
+			image = TextureAnimation(currententity, surf->texinfo);
+			surf->texturechain = image->texturechain;
+			image->texturechain = surf;
 		}
 	}
 

@@ -124,11 +124,11 @@ static void SetupShadowViewCluster(const r_shadow_light_t* light)
 static void UpdateShadowUBO()
 {
     if (!shadow_ubo) {
-		glGenBuffers (1, &shadow_ubo);
-		glBindBuffer (GL_UNIFORM_BUFFER, shadow_ubo);
-		glBufferData (GL_UNIFORM_BUFFER, sizeof(shadow_ubo_data_t), &shadow_ubo_data, GL_DYNAMIC_DRAW);
-		glBindBuffer (GL_UNIFORM_BUFFER, 0);
-		glBindBufferBase (GL_UNIFORM_BUFFER, SHADOW_UBO_BINDING_POINT, shadow_ubo);
+		glGenBuffers(1, &shadow_ubo);
+		glBindBuffer(GL_UNIFORM_BUFFER, shadow_ubo);
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(shadow_ubo_data_t), &shadow_ubo_data, GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+		glBindBufferBase(GL_UNIFORM_BUFFER, SHADOW_UBO_BINDING_POINT, shadow_ubo);
 	}
 
 	shadow_ubo_data.use_shadow = (int)r_shadow_enabled.value;
@@ -136,13 +136,13 @@ static void UpdateShadowUBO()
 
 	for (r_shadow_light_t* light = first_light; light; light = light->next) {
 		if (light->rendered) {
-			GL3_Shadow_AddLightToUniformBuffer (light);
+			GL3_Shadow_AddLightToUniformBuffer(light);
 		}
 	}
 
-	glBindBuffer (GL_UNIFORM_BUFFER, shadow_ubo);
-	glBufferData (GL_UNIFORM_BUFFER, sizeof(shadow_ubo_data_t), &shadow_ubo_data, GL_DYNAMIC_DRAW);
-	glBindBuffer (GL_UNIFORM_BUFFER, 0);
+	glBindBuffer(GL_UNIFORM_BUFFER, shadow_ubo);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(shadow_ubo_data_t), &shadow_ubo_data, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 static void AddLightToUniformBuffer(const r_shadow_light_t* light)

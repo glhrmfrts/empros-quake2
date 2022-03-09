@@ -224,41 +224,6 @@ GL3_SubdivideSurface(msurface_t *fa, gl3model_t* loadmodel)
 	R_SubdividePolygon(numverts, verts[0], fa);
 }
 
-/*
- * Does a water warp on the pre-fragmented glpoly_t chain
- */
-void
-GL3_EmitWaterPolys(msurface_t *fa)
-{
-	glpoly_t *bp;
-	float scroll = 0.0f;
-
-	if (fa->texinfo->flags & SURF_FLOWING)
-	{
-		scroll = -64.0f * ((gl3_newrefdef.time * 0.5) - (int)(gl3_newrefdef.time * 0.5));
-		if (scroll == 0.0f) // this is done in GL3_DrawGLFlowingPoly() TODO: keep?
-		{
-			scroll = -64.0f;
-		}
-	}
-
-	if(gl3state.uni3DData.scroll != scroll)
-	{
-		gl3state.uni3DData.scroll = scroll;
-		GL3_UpdateUBO3D();
-	}
-
-	GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
-
-	GL3_BindVAO(gl3state.vao3D);
-	GL3_BindVBO(gl3state.vbo3D);
-
-	for (bp = fa->polys; bp != NULL; bp = bp->next)
-	{
-		GL3_BufferAndDraw3D(bp->vertices, bp->numverts, GL_TRIANGLE_FAN);
-	}
-}
-
 // ########### below: Sky-specific stuff ##########
 
 #define ON_EPSILON 0.1 /* point on plane side epsilon */

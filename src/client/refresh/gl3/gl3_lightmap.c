@@ -250,7 +250,7 @@ GL3_LM_CreateSurfaceLightmap(msurface_t *surf)
 	int smax, tmax;
 
 	if (surf->flags & SURF_DRAWTURB) { return; }
-	if (surf->texinfo->flags & (SURF_SKY | SURF_TRANS33 | SURF_TRANS66)) { return; }
+	if (surf->texinfo->flags & SURF_SKY) { return; }
 
 	smax = (surf->extents[0] >> 4) + 1;
 	tmax = (surf->extents[1] >> 4) + 1;

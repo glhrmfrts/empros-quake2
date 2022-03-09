@@ -1372,10 +1372,17 @@ SetupGL(void)
 	}
 
 	gl3state.uni3DData.transModelMat4 = gl3_identityMat4;
-
 	gl3state.uni3DData.time = gl3_newrefdef.time;
 
 	GL3_Fog_SetupFrame();
+
+// scroll for SURF_FLOWING surfaces
+	float scroll = -64.0f * ((gl3_newrefdef.time * 0.5) - (int)(gl3_newrefdef.time * 0.5));
+	if (scroll == 0.0f)
+	{
+		scroll = -64.0f;
+	}
+	gl3state.uni3DData.scroll = scroll;
 
 	GL3_UpdateUBO3D();
 

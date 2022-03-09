@@ -693,7 +693,7 @@ static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
 
 			outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
 
-			outColor.a = 1; // lightmaps aren't used with translucent surfaces
+			outColor.a = alpha; // lightmaps aren't used with translucent surfaces (gnemeth: yes, they are)
 		}
 );
 
