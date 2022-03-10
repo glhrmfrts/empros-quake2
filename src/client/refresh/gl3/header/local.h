@@ -181,6 +181,34 @@ typedef struct
 	hmm_vec4 lightstyles[MAX_LIGHTSTYLES];
 } gl3UniStyles_t;
 
+enum { MAX_FRAME_SHADOWS = 10 };
+
+enum { GL3_SHADOW_MAP_TEXTURE_UNIT = GL_TEXTURE5 };
+
+typedef struct {
+	hmm_mat4 view_matrix;
+	hmm_mat4 proj_matrix;
+	hmm_vec4 light_normal;
+	hmm_vec4 light_position;
+	float brighten;
+	float darken;
+	float radius;
+	float bias;
+	float spot_cutoff;
+	float spot_outer_cutoff;
+	int light_type;
+	int pad1;
+} gl3UniShadowSingle_t;
+
+typedef struct
+{
+	int use_shadow;
+	int num_shadow_maps;
+	int pad1;
+	int pad2;
+	gl3UniShadowSingle_t shadows[MAX_FRAME_SHADOWS];
+} gl3UniShadows_t;
+
 enum {
 	// width and height used to be 128, so now we should be able to get the same lightmap data
 	// that used 32 lightmaps before into one, so 4 lightmaps should be enough
@@ -192,6 +220,12 @@ enum {
 };
 
 struct gl3_3D_vtx_s;
+struct gl3_shadow_light_s;
+
+struct gl3_shadow_frame_texture {
+	GLuint texnum;
+	GLuint unit;
+};
 
 typedef struct
 {
@@ -243,6 +277,8 @@ typedef struct
 	gl3ShaderInfo_t siPostfxResolveMultisample;
 	gl3ShaderInfo_t siPostfxMotionBlur;
 
+	gl3ShaderInfo_t siShadowMap;
+
 	GLuint vao3D, vbo3D; // for brushes etc, using 10 floats and one uint as vertex input (x,y,z, s,t, lms,lmt, normX,normY,normZ ; lightFlags)
 	GLuint vaoWorld, vboWorld; // for static world geometry
 
@@ -265,11 +301,18 @@ typedef struct
 	gl3Uni3D_t uni3DData;
 	gl3UniLights_t uniLightsData;
 	gl3UniStyles_t uniStylesData;
+	gl3UniShadows_t uniShadowsData;
 	GLuint uniCommonUBO;
 	GLuint uni2DUBO;
 	GLuint uni3DUBO;
 	GLuint uniLightsUBO;
 	GLuint uniStylesUBO;
+	GLuint uniShadowsUBO;
+
+	struct gl3_shadow_light_s* first_shadow_light;
+	struct gl3_shadow_light_s* last_shadow_light_rendered;
+	struct gl3_shadow_light_s* current_shadow_light;
+	struct gl3_shadow_frame_texture shadow_frame_textures[MAX_FRAME_SHADOWS];
 
 } gl3state_t;
 
@@ -380,10 +423,64 @@ GL3_BindEBO(GLuint ebo)
 	}
 }
 
+// Yaw-Pitch-Roll
+// equivalent to R_z * R_y * R_x where R_x is the trans matrix for rotating around X axis for aroundXdeg
+static inline hmm_mat4 rotAroundAxisZYX(float aroundZdeg, float aroundYdeg, float aroundXdeg)
+{
+	// Naming of variables is consistent with http://planning.cs.uiuc.edu/node102.html
+	// and https://de.wikipedia.org/wiki/Roll-Nick-Gier-Winkel#.E2.80.9EZY.E2.80.B2X.E2.80.B3-Konvention.E2.80.9C
+	float alpha = HMM_ToRadians(aroundZdeg);
+	float beta = HMM_ToRadians(aroundYdeg);
+	float gamma = HMM_ToRadians(aroundXdeg);
+
+	float sinA = HMM_SinF(alpha);
+	float cosA = HMM_CosF(alpha);
+	// TODO: or sincosf(alpha, &sinA, &cosA); ?? (not a standard function)
+	float sinB = HMM_SinF(beta);
+	float cosB = HMM_CosF(beta);
+	float sinG = HMM_SinF(gamma);
+	float cosG = HMM_CosF(gamma);
+
+	hmm_mat4 ret = {{
+		{ cosA*cosB,                  sinA*cosB,                   -sinB,    0 }, // first *column*
+		{ cosA*sinB*sinG - sinA*cosG, sinA*sinB*sinG + cosA*cosG, cosB*sinG, 0 },
+		{ cosA*sinB*cosG + sinA*sinG, sinA*sinB*cosG - cosA*sinG, cosB*cosG, 0 },
+		{  0,                          0,                          0,        1 }
+	}};
+
+	return ret;
+}
+
+// equivalent to R_x * R_y * R_z where R_x is the trans matrix for rotating around X axis for aroundXdeg
+static inline hmm_mat4 rotAroundAxisXYZ(float aroundXdeg, float aroundYdeg, float aroundZdeg)
+{
+	float alpha = HMM_ToRadians(aroundXdeg);
+	float beta = HMM_ToRadians(aroundYdeg);
+	float gamma = HMM_ToRadians(aroundZdeg);
+
+	float sinA = HMM_SinF(alpha);
+	float cosA = HMM_CosF(alpha);
+	float sinB = HMM_SinF(beta);
+	float cosB = HMM_CosF(beta);
+	float sinG = HMM_SinF(gamma);
+	float cosG = HMM_CosF(gamma);
+
+	hmm_mat4 ret = {{
+		{  cosB*cosG,  sinA*sinB*cosG + cosA*sinG, -cosA*sinB*cosG + sinA*sinG, 0 }, // first *column*
+		{ -cosB*sinG, -sinA*sinB*sinG + cosA*cosG,  cosA*sinB*sinG + sinA*cosG, 0 },
+		{  sinB,      -sinA*cosB,                   cosA*cosB,                  0 },
+		{  0,          0,                           0,                          1 }
+	}};
+
+	return ret;
+}
+
 extern void GL3_BufferAndDraw3D(const gl3_3D_vtx_t* verts, int numVerts, GLenum drawMode);
 
 extern qboolean GL3_CullBox(vec3_t mins, vec3_t maxs);
 extern void GL3_RotateForEntity(entity_t *e);
+
+extern hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar);
 
 // gl3_fog.c
 
@@ -505,6 +602,9 @@ extern void GL3_DrawAlphaSurfaces(void);
 extern void GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel);
 extern void GL3_DrawWorld(void);
 extern void GL3_MarkLeaves(void);
+extern void GL3_SetupViewCluster(void);
+extern void GL3_RecursiveWorldNode(entity_t* ent, mnode_t* node, const vec3_t modelorg);
+extern void GL3_DrawTextureChains(entity_t* ent);
 
 // gl3_mesh.c
 extern void GL3_DrawAliasModel(entity_t *e);
@@ -586,6 +686,7 @@ typedef enum gl3_framebuffer_flag_e
 	GL3_FRAMEBUFFER_MULTISAMPLED = 2,
 	GL3_FRAMEBUFFER_FLOAT = 4,
 	GL3_FRAMEBUFFER_DEPTH = 8,
+	GL3_FRAMEBUFFER_SHADOWMAP = 16,
 } gl3_framebuffer_flag_t;
 
 typedef struct gl3_framebuffer_s
@@ -598,6 +699,13 @@ typedef struct gl3_framebuffer_s
 	GLuint depth_texture;
 } gl3_framebuffer_t;
 
+void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_textures, gl3_framebuffer_flag_t flags, gl3_framebuffer_t* out);
+void GL3_DestroyFramebuffer(gl3_framebuffer_t* fb);
+void GL3_BindFramebuffer(const gl3_framebuffer_t* fb);
+void GL3_UnbindFramebuffer();
+void GL3_BindFramebufferTexture(const gl3_framebuffer_t* fb, int index, int unit);
+void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit);
+
 extern void GL3_PostFx_Init();
 extern void GL3_PostFx_Shutdown();
 extern void GL3_PostFx_BeforeScene();
@@ -605,5 +713,44 @@ extern void GL3_PostFx_AfterScene();
 
 // gl3_misc.c
 qboolean GL3_Matrix4_Invert(const float *m, float *out);
+
+// gl3_shadows.c
+typedef enum gl3_shadow_light_type {
+	gl3_shadow_light_type_sun,
+	gl3_shadow_light_type_spot,
+	//gl3_shadow_light_type_point,
+} gl3_shadow_light_type_t;
+
+typedef struct gl3_shadow_light_s {
+	int id;
+	gl3_shadow_light_type_t type;
+	qboolean enabled;
+	qboolean rendered; // rendered this frame?
+	vec3_t light_position;
+	vec3_t light_normal;
+	vec3_t light_angles; // (pitch yaw roll)
+	float brighten;
+	float darken;
+	float radius;
+	float coneangle;
+	float coneouterangle;
+	float bias;
+	int shadow_map_width;
+	int shadow_map_height;
+	gl3_framebuffer_t shadow_map_fbo;
+	// GLuint shadow_map_cubemap;
+	GLenum current_cube_face;
+	hmm_mat4 view_matrix;
+	hmm_mat4 proj_matrix;
+
+	// next in the global list of lights
+	struct gl3_shadow_light_s* next;
+} gl3_shadow_light_t;
+
+void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float coneangle, float zfar);
+void GL3_Shadow_SetupLightShader(gl3_shadow_light_t* light);
+void GL3_Shadow_RenderShadowMaps();
+
+void GL3_BindShadowmap(int shadowmap);
 
 #endif /* SRC_CLIENT_REFRESH_GL3_HEADER_LOCAL_H_ */

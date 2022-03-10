@@ -124,34 +124,6 @@ cvar_t *gl3_debugcontext;
 cvar_t *gl3_usebigvbo;
 cvar_t *r_fixsurfsky;
 
-// Yaw-Pitch-Roll
-// equivalent to R_z * R_y * R_x where R_x is the trans matrix for rotating around X axis for aroundXdeg
-static hmm_mat4 rotAroundAxisZYX(float aroundZdeg, float aroundYdeg, float aroundXdeg)
-{
-	// Naming of variables is consistent with http://planning.cs.uiuc.edu/node102.html
-	// and https://de.wikipedia.org/wiki/Roll-Nick-Gier-Winkel#.E2.80.9EZY.E2.80.B2X.E2.80.B3-Konvention.E2.80.9C
-	float alpha = HMM_ToRadians(aroundZdeg);
-	float beta = HMM_ToRadians(aroundYdeg);
-	float gamma = HMM_ToRadians(aroundXdeg);
-
-	float sinA = HMM_SinF(alpha);
-	float cosA = HMM_CosF(alpha);
-	// TODO: or sincosf(alpha, &sinA, &cosA); ?? (not a standard function)
-	float sinB = HMM_SinF(beta);
-	float cosB = HMM_CosF(beta);
-	float sinG = HMM_SinF(gamma);
-	float cosG = HMM_CosF(gamma);
-
-	hmm_mat4 ret = {{
-		{ cosA*cosB,                  sinA*cosB,                   -sinB,    0 }, // first *column*
-		{ cosA*sinB*sinG - sinA*cosG, sinA*sinB*sinG + cosA*cosG, cosB*sinG, 0 },
-		{ cosA*sinB*cosG + sinA*sinG, sinA*sinB*cosG - cosA*sinG, cosB*cosG, 0 },
-		{  0,                          0,                          0,        1 }
-	}};
-
-	return ret;
-}
-
 void
 GL3_RotateForEntity(entity_t *e)
 {
@@ -570,6 +542,8 @@ GL3_Init(void)
 		}
 #endif
 	}
+
+	gl3state.current_shadow_light = NULL;
 
 	// generate texture handles for all possible lightmaps
 	glGenTextures(MAX_LIGHTMAPS*MAX_LIGHTMAPS_PER_SURFACE, gl3state.lightmap_textureIDs[0]);
@@ -1131,13 +1105,10 @@ SetFrustum(void)
 	}
 }
 
-static void
-SetupFrame(void)
-{
-	int i;
+void
+GL3_SetupViewCluster()
+{	
 	mleaf_t *leaf;
-
-	gl3_framecount++;
 
 	/* build the transformation matrix for the given view angles */
 	VectorCopy(gl3_newrefdef.vieworg, gl3_origin);
@@ -1152,7 +1123,7 @@ SetupFrame(void)
 		leaf = GL3_Mod_PointInLeaf(gl3_origin, gl3_worldmodel);
 		gl3_viewcluster = gl3_viewcluster2 = leaf->cluster;
 
-		leaf = GL3_Mod_PointInLeaf(gl3_origin, gl3_worldmodel);
+		//R_Printf(PRINT_ALL, "player cluster = %d\n", leaf->cluster);
 
 		/* check above and below so crossing solid water doesn't draw wrong */
 		if (!leaf->contents)
@@ -1186,8 +1157,16 @@ SetupFrame(void)
 			}
 		}
 	}
+}
 
-	for (i = 0; i < 4; i++)
+static void
+SetupFrame(void)
+{
+	gl3_framecount++;
+
+	GL3_SetupViewCluster();
+
+	for (int i = 0; i < 4; i++)
 	{
 		v_blend[i] = gl3_newrefdef.blend[i];
 	}
@@ -1245,30 +1224,6 @@ GL3_SetGL2D(void)
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_BLEND);
-}
-
-// equivalent to R_x * R_y * R_z where R_x is the trans matrix for rotating around X axis for aroundXdeg
-static hmm_mat4 rotAroundAxisXYZ(float aroundXdeg, float aroundYdeg, float aroundZdeg)
-{
-	float alpha = HMM_ToRadians(aroundXdeg);
-	float beta = HMM_ToRadians(aroundYdeg);
-	float gamma = HMM_ToRadians(aroundZdeg);
-
-	float sinA = HMM_SinF(alpha);
-	float cosA = HMM_CosF(alpha);
-	float sinB = HMM_SinF(beta);
-	float cosB = HMM_CosF(beta);
-	float sinG = HMM_SinF(gamma);
-	float cosG = HMM_CosF(gamma);
-
-	hmm_mat4 ret = {{
-		{  cosB*cosG,  sinA*sinB*cosG + cosA*sinG, -cosA*sinB*cosG + sinA*sinG, 0 }, // first *column*
-		{ -cosB*sinG, -sinA*sinB*sinG + cosA*cosG,  cosA*sinB*sinG + sinA*cosG, 0 },
-		{  sinB,      -sinA*cosB,                   cosA*cosB,                  0 },
-		{  0,          0,                           0,                          1 }
-	}};
-
-	return ret;
 }
 
 // equivalent to R_MYgluPerspective() but returning a matrix instead of setting internal OpenGL state
@@ -1554,7 +1509,7 @@ GL3_RenderView(refdef_t *fd)
 		glFinish();
 	}
 
-	// GL3_Shadow_RenderShadowMaps();
+	GL3_Shadow_RenderShadowMaps();
 
 	SetupFrame();
 
@@ -1562,16 +1517,17 @@ GL3_RenderView(refdef_t *fd)
 
 	SetupGL();
 
+	//if (true) return;
+
 	GL3_PostFx_BeforeScene();
 
 	GL3_MarkLeaves(); /* done here so we know if we're in water */
 
+	gl3state.currenttexture = -1;
+
 	GL3_DrawWorld();
 
 	GL3_DrawEntitiesOnList();
-
-	// kick the silly gl1_flashblend poly lights
-	// GL3_RenderDlights();
 
 	GL3_DrawParticles();
 
@@ -1579,31 +1535,12 @@ GL3_RenderView(refdef_t *fd)
 
 	GL3_PostFx_AfterScene();
 
-	// Note: R_Flash() is now GL3_Draw_Flash() and called from GL3_RenderFrame()
-
 	if (r_speeds->value)
 	{
 		R_Printf(PRINT_ALL, "%4i wpoly %4i epoly %i tex %i lmaps\n",
 				c_brush_polys, c_alias_polys, c_visible_textures,
 				c_visible_lightmaps);
 	}
-
-#if 0 // TODO: stereo stuff
-	switch (gl_state.stereo_mode) {
-		case STEREO_MODE_NONE:
-			break;
-		case STEREO_MODE_ANAGLYPH:
-			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-			break;
-		case STEREO_MODE_ROW_INTERLEAVED:
-		case STEREO_MODE_COLUMN_INTERLEAVED:
-		case STEREO_MODE_PIXEL_INTERLEAVED:
-			glDisable(GL_STENCIL_TEST);
-			break;
-		default:
-			break;
-	}
-#endif // 0
 }
 
 #if 0 // TODO: stereo

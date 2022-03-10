@@ -511,6 +511,30 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			vec4 lightstyles[256];
 		};
 
+		struct ShadowLight
+		{
+			mat4 view_matrix;
+			mat4 proj_matrix;
+			vec4 light_normal;
+			vec4 light_position;
+			float brighten;
+			float darken;
+			float radius;
+			float bias;
+			float spot_cutoff;
+			float spot_outer_cutoff;
+			int light_type;
+		};
+
+		layout (std140) uniform uniShadows
+		{
+			int use_shadow;
+			int num_shadow_maps;
+			ShadowLight shadows[10];
+		};
+
+		uniform sampler2DShadow shadow_map_samplers[10];
+
 		uniform sampler2D tex;
 
 		uniform sampler2D lightmap0;
@@ -528,6 +552,55 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 		flat in uint pass_style2;
 		flat in uint pass_style3;
 
+		vec2 poissonDisk[16] = vec2[](
+			vec2( -0.94201624, -0.39906216 ),
+			vec2( 0.94558609, -0.76890725 ),
+			vec2( -0.094184101, -0.92938870 ),
+			vec2( 0.34495938, 0.29387760 ),
+			vec2( -0.91588581, 0.45771432 ),
+			vec2( -0.81544232, -0.87912464 ),
+			vec2( -0.38277543, 0.27676845 ),
+			vec2( 0.97484398, 0.75648379 ),
+			vec2( 0.44323325, -0.97511554 ),
+			vec2( 0.53742981, -0.47373420 ),
+			vec2( -0.26496911, -0.41893023 ),
+			vec2( 0.79197514, 0.19090188 ),
+			vec2( -0.24188840, 0.99706507 ),
+			vec2( -0.81409955, 0.91437590 ),
+			vec2( 0.19984126, 0.78641367 ),
+			vec2( 0.14383161, -0.14100790 )
+		);
+
+		float CalcSpotShadow(in int idx, in vec3 world_coord, in vec3 world_normal)
+		{
+			mat4 shadow_matrix = shadows[idx].proj_matrix * shadows[idx].view_matrix;
+			vec4 shadow_coord_v4 = (shadow_matrix * vec4(world_coord, 1.0));
+			vec3 shadow_coord = 0.5*(shadow_coord_v4.xyz/shadow_coord_v4.w)+0.5;
+			float dist_factor = length(world_coord - shadows[idx].light_position.xyz) / shadows[idx].radius;
+			float radinfluence = 1.0 - clamp(dist_factor*dist_factor, 0.0, 1.0);
+			
+			float theta        = dot(normalize(world_coord - shadows[idx].light_position.xyz), shadows[idx].light_normal.xyz);
+			float epsilon      = shadows[idx].spot_cutoff - shadows[idx].spot_outer_cutoff;
+			float light_factor = clamp((theta - shadows[idx].spot_outer_cutoff) / epsilon, 0.0, 1.0);
+
+			// float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
+			// if (norm_factor < 0) { return 0.0f; }
+
+			float bias = shadows[idx].bias*(theta);
+			float darken = shadows[idx].darken/6.0;
+			float brighten = shadows[idx].brighten/6.0;
+			float result = 0.0f;
+			for (int j=0;j<6;j++) {
+				int index = j;     //int(floor(16.0*texture2D(random_tex, (WorldCoord.xy+WorldCoord.z)*j).r));
+				if (texture(shadow_map_samplers[idx], vec3(shadow_coord.xy+poissonDisk[index]/800.0,shadow_coord.z-bias)) < 1.0) {
+					result += darken*light_factor*radinfluence;
+				} else {
+					result -= brighten*light_factor*radinfluence;
+				}
+			}
+			return result;
+		}
+
 		void main()
 		{
 			vec4 texel = texture(tex, passTexCoord);
@@ -541,36 +614,38 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			lmTex     += texture(lightmap2, passLMcoord) * lightstyles[pass_style2];
 			lmTex     += texture(lightmap3, passLMcoord) * lightstyles[pass_style3];
 
-			if(true)
+			// TODO: or is hardcoding 32 better?
+			for(uint i=0u; i<numDynLights; ++i)
 			{
-				// TODO: or is hardcoding 32 better?
-				for(uint i=0u; i<numDynLights; ++i)
-				{
-					// I made the following up, it's probably not too cool..
-					// it basically checks if the light is on the right side of the surface
-					// and, if it is, sets intensity according to distance between light and pixel on surface
+				// I made the following up, it's probably not too cool..
+				// it basically checks if the light is on the right side of the surface
+				// and, if it is, sets intensity according to distance between light and pixel on surface
 
-					// dyn light number i does not affect this plane, just skip it
-					// if((passLightFlags & (1u << i)) == 0u)  continue;
+				// dyn light number i does not affect this plane, just skip it
+				// if((passLightFlags & (1u << i)) == 0u)  continue;
 
-					float intens = dynLights[i].lightColor.a;
+				float intens = dynLights[i].lightColor.a;
 
-					vec3 lightToPos = dynLights[i].lightOrigin - passWorldCoord;
-					float distLightToPos = length(lightToPos);
-					float fact = max(0, intens - distLightToPos - 52);
+				vec3 lightToPos = dynLights[i].lightOrigin - passWorldCoord;
+				float distLightToPos = length(lightToPos);
+				float fact = max(0, intens - distLightToPos - 52);
 
-					// move the light source a bit further above the surface
-					// => helps if the lightsource is so close to the surface (e.g. grenades, rockets)
-					//    that the dot product below would return 0
-					// (light sources that are below the surface are filtered out by lightFlags)
-					lightToPos += passNormal*32.0;
+				// move the light source a bit further above the surface
+				// => helps if the lightsource is so close to the surface (e.g. grenades, rockets)
+				//    that the dot product below would return 0
+				// (light sources that are below the surface are filtered out by lightFlags)
+				lightToPos += passNormal*32.0;
 
-					// also factor in angle between light and point on surface
-					fact *= max(0, dot(passNormal, normalize(lightToPos)));
+				// also factor in angle between light and point on surface
+				fact *= max(0, dot(passNormal, normalize(lightToPos)));
 
+				lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
+			}
 
-					lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
-				}
+			for(int i=0; i<num_shadow_maps; ++i)
+			{
+				float shadow_factor = CalcSpotShadow(i, passWorldCoord, passNormal);
+				lmTex.rgb *= 1.0 - shadow_factor;
 			}
 
 			lmTex.rgb *= overbrightbits;
@@ -954,6 +1029,50 @@ static const char* fragmentSrcParticlesSquare = MULTILINE_STRING(
 		}
 );
 
+
+//
+// Shadow maps
+//
+
+
+static const char* vertexSrcShadowMap = MULTILINE_STRING(
+		// it gets attributes and uniforms from vertexCommon3D
+
+		out vec3 passWorldCoord;
+		out vec3 passNormal;
+
+		void main()
+		{
+			passTexCoord = texCoord;
+			vec4 worldCoord = transModel * vec4(position, 1.0);
+			passWorldCoord = worldCoord.xyz;
+			vec4 worldNormal = transModel * vec4(normal, 0.0f);
+			passNormal = normalize(worldNormal.xyz);
+
+			gl_Position = transProj * transView * worldCoord;
+
+			passFogCoord = gl_Position.w;
+		}
+);
+
+static const char* fragmentSrcShadowMap = MULTILINE_STRING(
+		in vec3 passWorldCoord;
+		in vec3 passNormal;
+
+		uniform sampler2D tex;
+
+		void main()
+		{
+			outColor = texture2D(tex, passTexCoord);
+			gl_FragDepth = gl_FragCoord.z;
+		}
+);
+
+
+//
+// Post FX
+//
+
 static const char* vertexSrcPostfxCommon = MULTILINE_STRING(#version 150\n
 
 	in vec3 position;
@@ -1093,6 +1212,7 @@ enum {
 	GL3_BINDINGPOINT_UNI3D,
 	GL3_BINDINGPOINT_UNILIGHTS,
 	GL3_BINDINGPOINT_UNISTYLES,
+	GL3_BINDINGPOINT_UNISHADOWS,
 };
 
 static qboolean
@@ -1366,6 +1486,22 @@ initShader3D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragS
 		glUniformBlockBinding(prog, blockIndex, GL3_BINDINGPOINT_UNISTYLES);
 	}
 
+	blockIndex = glGetUniformBlockIndex(prog, "uniShadows");
+	if(blockIndex != GL_INVALID_INDEX)
+	{
+		GLint blockSize;
+		glGetActiveUniformBlockiv(prog, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+		if(blockSize != sizeof(gl3state.uniShadowsData))
+		{
+			R_Printf(PRINT_ALL, "WARNING: OpenGL driver disagrees with us about UBO size of 'uniShadows'\n");
+			R_Printf(PRINT_ALL, "         OpenGL says %d, we say %d\n", blockSize, (int)sizeof(gl3state.uniShadowsData));
+
+			goto err_cleanup;
+		}
+
+		glUniformBlockBinding(prog, blockIndex, GL3_BINDINGPOINT_UNISHADOWS);
+	}
+
 	// make sure texture is GL_TEXTURE0
 	GLint texLoc = glGetUniformLocation(prog, "tex");
 	if(texLoc != -1)
@@ -1382,6 +1518,17 @@ initShader3D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragS
 		if(lmLoc != -1)
 		{
 			glUniform1i(lmLoc, i+1); // lightmap0 belongs to GL_TEXTURE1, lightmap1 to GL_TEXTURE2 etc
+		}
+	}
+
+	char shadowMapName[] = "shadow_map_samplers[#]";
+	for (i=0; i<MAX_FRAME_SHADOWS; i++)
+	{
+		shadowMapName[strlen(shadowMapName) - 2] = '0' + i;
+		GLint loc = glGetUniformLocation(prog, shadowMapName);
+		if (loc != -1)
+		{
+			glUniform1i(loc, GL3_SHADOW_MAP_TEXTURE_UNIT - GL_TEXTURE0 + i);
 		}
 	}
 
@@ -1460,7 +1607,12 @@ static void initUBOs(void)
 	glBindBufferBase(GL_UNIFORM_BUFFER, GL3_BINDINGPOINT_UNISTYLES, gl3state.uniStylesUBO);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3state.uniStylesData), &gl3state.uniStylesData, GL_DYNAMIC_DRAW);
 
-	gl3state.currentUBO = gl3state.uniStylesUBO;
+	glGenBuffers(1, &gl3state.uniShadowsUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, gl3state.uniShadowsUBO);
+	glBindBufferBase(GL_UNIFORM_BUFFER, GL3_BINDINGPOINT_UNISHADOWS, gl3state.uniShadowsUBO);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3state.uniShadowsData), &gl3state.uniShadowsData, GL_DYNAMIC_DRAW);
+
+	gl3state.currentUBO = gl3state.uniShadowsUBO;
 }
 
 static qboolean createShaders(void)
@@ -1540,6 +1692,11 @@ static qboolean createShaders(void)
 	if(!initShader3D(&gl3state.si3DaliasColor, vertexSrcAlias, fragmentSrcAliasColor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering flat-colored models!\n");
+		return false;
+	}
+	if(!initShader3D(&gl3state.siShadowMap, vertexSrcShadowMap, fragmentSrcShadowMap))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
 		return false;
 	}
 
@@ -1677,4 +1834,9 @@ void GL3_UpdateUBOLights(void)
 void GL3_UpdateUBOStyles(void)
 {
 	updateUBO(gl3state.uniStylesUBO, sizeof(gl3state.uniStylesData), &gl3state.uniStylesData);
+}
+
+void GL3_UpdateUBOShadows(void)
+{
+	updateUBO(gl3state.uniShadowsUBO, sizeof(gl3state.uniShadowsData), &gl3state.uniShadowsData);
 }

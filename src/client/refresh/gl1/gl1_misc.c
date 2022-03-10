@@ -161,10 +161,10 @@ R_ScreenShot(void)
 void
 R_Strings(void)
 {
-	R_Printf(PRINT_ALL, "GL_VENDOR: %s\n", gl_config.vendor_string);
-	R_Printf(PRINT_ALL, "GL_RENDERER: %s\n", gl_config.renderer_string);
-	R_Printf(PRINT_ALL, "GL_VERSION: %s\n", gl_config.version_string);
-	R_Printf(PRINT_ALL, "GL_EXTENSIONS: %s\n", gl_config.extensions_string);
+	// R_Printf(PRINT_ALL, "GL_VENDOR: %s\n", gl_config.vendor_string);
+	// R_Printf(PRINT_ALL, "GL_RENDERER: %s\n", gl_config.renderer_string);
+	// R_Printf(PRINT_ALL, "GL_VERSION: %s\n", gl_config.version_string);
+	// R_Printf(PRINT_ALL, "GL_EXTENSIONS: %s\n", gl_config.extensions_string);
 }
 
 void

@@ -1145,38 +1145,32 @@ static void GL3_HandleEntityKey (enum gl3_entity t, const char* key, size_t keyl
 			shadowlight = true;
 		}
 		else if (!strncmp(key, "origin", keylen)) {
-			// Cmd_TokenizeString (v);
-			//shadowlightorigin[0] = Q_atof (Cmd_Argv(0));
-			//shadowlightorigin[1] = Q_atof (Cmd_Argv(1));
-			//shadowlightorigin[2] = Q_atof (Cmd_Argv(2));
+			sscanf(v, "%f %f %f", &shadowlightorigin[0], &shadowlightorigin[1], &shadowlightorigin[2]);
 		}
 		else if (!strncmp(key, "mangle", keylen)) {
-			// Cmd_TokenizeString (v);
-			//shadowlightangle[0] = Q_atof (Cmd_Argv(0));
-			//shadowlightangle[1] = Q_atof (Cmd_Argv(1));
-			//shadowlightangle[2] = Q_atof (Cmd_Argv(2));
+			sscanf(v, "%f %f %f", &shadowlightangle[0], &shadowlightangle[1], &shadowlightangle[2]);
 			shadowlightspot = true;
 		}
 		else if (!strncmp(key, "angle", keylen)) {
-			//shadowlightconeangle = Q_atof (v);
+			shadowlightconeangle = atof(v);
 			shadowlightspot = true;
 		}
 		else if (!strncmp(key, "_shadowlightconeangle", keylen)) {
-			//shadowlightconeangle = Q_atof (v);
+			shadowlightconeangle = atof(v);
 			shadowlightspot = true;
 		}
 		else if (!strncmp(key, "_shadowlightradius", keylen)) {
-			//shadowlightradius = Q_atof (v);
+			shadowlightradius = atof(v);
 		}
 	}
-	free (v);
+	free(v);
 }
 
-static void GL3_EndEntity (enum gl3_entity t)
+static void GL3_EndEntity(enum gl3_entity t)
 {
 	if (t == entity_light && shadowlight) {
 		if (shadowlightspot) {
-			// R_Shadow_AddSpotLight (shadowlightorigin, shadowlightangle, shadowlightconeangle, shadowlightradius);
+			GL3_Shadow_AddSpotLight(shadowlightorigin, shadowlightangle, shadowlightconeangle, shadowlightradius);
 		}
 		else {
 			// R_Shadow_AddPointLight (shadowlightorigin, shadowlightradius);
@@ -1242,7 +1236,7 @@ static void GL3_ParseEntities (const char* ent_text)
 			}
 			else if (c == '}') {
 				state = parse_initial;
-				// R_Shadow_EndEntity (current_entity);
+				GL3_EndEntity(current_entity);
 				current_entity = entity_invalid;
 			}
 			break;

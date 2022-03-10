@@ -31,7 +31,6 @@
 
 int c_visible_lightmaps;
 int c_visible_textures;
-static vec3_t modelorg; /* relative to viewpoint */
 static msurface_t *gl3_alpha_surfaces;
 
 gl3lightmapstate_t gl3_lms;
@@ -262,34 +261,6 @@ DrawTriangleOutlines(void)
 #endif // 0
 }
 
-static void
-UpdateLMscales(const hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE], gl3ShaderInfo_t* si)
-{
-	int i;
-	qboolean hasChanged = false;
-
-	for(i=0; i<MAX_LIGHTMAPS_PER_SURFACE; ++i)
-	{
-		if(hasChanged)
-		{
-			si->lmScales[i] = lmScales[i];
-		}
-		else if(   si->lmScales[i].R != lmScales[i].R
-		        || si->lmScales[i].G != lmScales[i].G
-		        || si->lmScales[i].B != lmScales[i].B
-		        || si->lmScales[i].A != lmScales[i].A )
-		{
-			si->lmScales[i] = lmScales[i];
-			hasChanged = true;
-		}
-	}
-
-	if(hasChanged)
-	{
-		glUniform4fv(si->uniLmScales, MAX_LIGHTMAPS_PER_SURFACE, si->lmScales[0].Elements);
-	}
-}
-
 #define MAX_BATCH_INDICES 4096
 
 static unsigned int 	batch_indices[MAX_BATCH_INDICES];
@@ -383,11 +354,9 @@ void GL3_SurfBatch_DrawSingle(msurface_t* fa)
 static void
 RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 {
-	int map;
-
 	c_brush_polys++;
 
-	if (!(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
+	if (!gl3state.current_shadow_light && !(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
 	{
 		GL3_SurfBatch_Flush();
 		batch_lmtexnum = fa->lightmaptexturenum;
@@ -395,8 +364,6 @@ RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 	}
 
 	GL3_SurfBatch_Add(fa);
-
-	// Note: lightmap chains are gone, lightmaps are rendered together with normal texture in one pass
 }
 
 /*
@@ -469,8 +436,8 @@ GL3_DrawAlphaSurfaces(void)
 	gl3_alpha_surfaces = NULL;
 }
 
-static void
-DrawTextureChains(entity_t *currententity)
+void
+GL3_DrawTextureChains(entity_t *currententity)
 {
 	int i;
 	msurface_t *s;
@@ -479,6 +446,12 @@ DrawTextureChains(entity_t *currententity)
 	c_visible_textures = 0;
 
 	GL3_SurfBatch_Begin();
+
+	// Are we rendering a shadow map now?
+	if (gl3state.current_shadow_light)
+	{
+		GL3_Shadow_SetupLightShader(gl3state.current_shadow_light);
+	}
 
 	for (i = 0, image = gl3textures; i < numgl3textures; i++, image++)
 	{
@@ -500,21 +473,24 @@ DrawTextureChains(entity_t *currententity)
 
 		GL3_SurfBatch_Clear();
 
-		if (s->flags & SURF_DRAWTURB)
+		if (!gl3state.current_shadow_light)
 		{
-			GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
-		}
-		else if (s->flags & SURF_DRAWTURBLIT)
-		{
-			GL3_UseProgram(gl3state.si3DlmTurb.shaderProgram);
-		}
-		else if (s->texinfo->flags & SURF_FLOWING)
-		{
-			GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
-		}
-		else
-		{
-			GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
+			if (s->flags & SURF_DRAWTURB)
+			{
+				GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
+			}
+			else if (s->flags & SURF_DRAWTURBLIT)
+			{
+				GL3_UseProgram(gl3state.si3DlmTurb.shaderProgram);
+			}
+			else if (s->texinfo->flags & SURF_FLOWING)
+			{
+				GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
+			}
+			else
+			{
+				GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
+			}
 		}
 
 		for ( ; s; s = s->texturechain)
@@ -531,7 +507,7 @@ DrawTextureChains(entity_t *currententity)
 }
 
 static void
-DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
+DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t modelorg)
 {
 	int i, k;
 	cplane_t *pplane;
@@ -646,6 +622,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		glEnable(GL_POLYGON_OFFSET_FILL);
 	}
 
+	vec3_t modelorg;
 	VectorSubtract(gl3_newrefdef.vieworg, e->origin, modelorg);
 
 	if (rotated)
@@ -660,8 +637,6 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		modelorg[2] = DotProduct(temp, up);
 	}
 
-
-
 	//glPushMatrix();
 	hmm_mat4 oldMat = gl3state.uni3DData.transModelMat4;
 
@@ -671,7 +646,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	e->angles[0] = -e->angles[0];
 	e->angles[2] = -e->angles[2];
 
-	DrawInlineBModel(e, currentmodel);
+	DrawInlineBModel(e, currentmodel, modelorg);
 
 	// glPopMatrix();
 	gl3state.uni3DData.transModelMat4 = oldMat;
@@ -683,8 +658,8 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	}
 }
 
-static void
-RecursiveWorldNode(entity_t *currententity, mnode_t *node)
+void
+GL3_RecursiveWorldNode(entity_t* currententity, mnode_t* node, const vec3_t modelorg)
 {
 	int c, side, sidebit;
 	cplane_t *plane;
@@ -703,7 +678,7 @@ RecursiveWorldNode(entity_t *currententity, mnode_t *node)
 		return;
 	}
 
-	if (CullBox(node->minmaxs, node->minmaxs + 3))
+	if (!gl3state.current_shadow_light && CullBox(node->minmaxs, node->minmaxs + 3))
 	{
 		return;
 	}
@@ -770,7 +745,7 @@ RecursiveWorldNode(entity_t *currententity, mnode_t *node)
 	}
 
 	/* recurse down the children, front side first */
-	RecursiveWorldNode(currententity, node->children[side]);
+	GL3_RecursiveWorldNode(currententity, node->children[side], modelorg);
 
 	/* draw stuff */
 	for (c = node->numsurfaces,
@@ -809,7 +784,7 @@ RecursiveWorldNode(entity_t *currententity, mnode_t *node)
 	}
 
 	/* recurse down the back side */
-	RecursiveWorldNode(currententity, node->children[!side]);
+	GL3_RecursiveWorldNode(currententity, node->children[!side], modelorg);
 }
 
 void
@@ -827,17 +802,18 @@ GL3_DrawWorld(void)
 		return;
 	}
 
+	gl3_alpha_surfaces = NULL;
+
+	vec3_t modelorg;
 	VectorCopy(gl3_newrefdef.vieworg, modelorg);
 
 	/* auto cycle the world frame for texture animation */
 	memset(&ent, 0, sizeof(ent));
-	ent.frame = (int)(gl3_newrefdef.time * 2);
-
-	gl3state.currenttexture = -1;
+	ent.frame = (int)(gl3_newrefdef.time * 2);	
 
 	GL3_ClearSkyBox();
-	RecursiveWorldNode(&ent, gl3_worldmodel->nodes);
-	DrawTextureChains(&ent);
+	GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, modelorg);
+	GL3_DrawTextureChains(&ent);
 	GL3_DrawSkyBox();
 	DrawTriangleOutlines();
 }

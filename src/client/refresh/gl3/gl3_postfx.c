@@ -2,7 +2,7 @@
 
 #define OPENGL_DEPTH_COMPONENT_TYPE GL_DEPTH_COMPONENT32F
 
-static GLuint CreateFramebufferTexture(GLuint target, GLuint width, GLuint height, GLint filter, GLuint format)
+static GLuint CreateFramebufferTexture(GLuint target, GLuint width, GLuint height, GLint filter, GLuint format, qboolean shadowmap)
 {
     GLuint id = 0;
     glGenTextures(1, &id);
@@ -14,6 +14,9 @@ static GLuint CreateFramebufferTexture(GLuint target, GLuint width, GLuint heigh
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    if (shadowmap) {
+        glTexParameteri(target, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    }
 
     if (target == GL_TEXTURE_2D_MULTISAMPLE) {
         glTexImage2DMultisample(target, (int)gl_msaa_samples->value, format, width, height, GL_FALSE);
@@ -42,7 +45,7 @@ void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_texture
     GLuint format = (flags & GL3_FRAMEBUFFER_FLOAT) ? GL_RGBA16F : GL_RGBA8;
 
     for (GLuint i = 0; i < num_color_textures; i++) {
-        out->color_textures[i] = CreateFramebufferTexture(target, width, height, filter, format);
+        out->color_textures[i] = CreateFramebufferTexture(target, width, height, filter, format, false);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, target, out->color_textures[i], 0);
     }
 
@@ -68,7 +71,7 @@ void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_texture
     glDrawBuffers(num_color_textures, framebufferColorAttachments);
 
     if (flags & GL3_FRAMEBUFFER_DEPTH) {
-        out->depth_texture = CreateFramebufferTexture(target, width, height, filter, OPENGL_DEPTH_COMPONENT_TYPE);
+        out->depth_texture = CreateFramebufferTexture(target, width, height, filter, OPENGL_DEPTH_COMPONENT_TYPE, (flags & GL3_FRAMEBUFFER_SHADOWMAP));
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, target, out->depth_texture, 0);
     }
 
@@ -185,10 +188,10 @@ void GL3_PostFx_Init()
     GL3_BindVBO(screen_vbo);
 
     glEnableVertexAttribArray(GL3_ATTRIB_POSITION);
-	qglVertexAttribPointer(GL3_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
+    qglVertexAttribPointer(GL3_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
 
-	glEnableVertexAttribArray(GL3_ATTRIB_TEXCOORD);
-	qglVertexAttribPointer(GL3_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 3 * sizeof(float));
+    glEnableVertexAttribArray(GL3_ATTRIB_TEXCOORD);
+    qglVertexAttribPointer(GL3_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 3 * sizeof(float));
 
     static const float vertices[] = {
         -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
