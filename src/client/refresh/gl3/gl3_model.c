@@ -1118,7 +1118,7 @@ static qboolean shadowlightspot;
 static float shadowlightresolution;
 static float shadowlightdarken;
 
-static void GL3_HandleEntityKey (enum gl3_entity t, const char* key, size_t keylen, const char* value, size_t valuelen)
+static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keylen, const char* value, size_t valuelen)
 {
 	if (keylen == 0) { return; }
 

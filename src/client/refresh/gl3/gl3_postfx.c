@@ -1,5 +1,7 @@
 #include "header/local.h"
 
+// TODO: HDR + tonemapping
+
 #define OPENGL_DEPTH_COMPONENT_TYPE GL_DEPTH_COMPONENT32F
 
 static GLuint CreateFramebufferTexture(GLuint target, GLuint width, GLuint height, GLint filter, GLuint format, qboolean shadowmap)

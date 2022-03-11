@@ -2,6 +2,8 @@
 #include "header/local.h"
 #include "header/HandmadeMath.h"
 
+// TODO: framebuffer pool
+
 enum {
 	SUN_SHADOW_WIDTH = 1024*4,
 	SUN_SHADOW_HEIGHT = 1024*4,
@@ -149,7 +151,7 @@ void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float con
 static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 {
 	if (gl3state.uniShadowsData.num_shadow_maps >= MAX_FRAME_SHADOWS) {
-		R_Printf(PRINT_ALL, "Shadow map limit reached, max: %d\n", MAX_FRAME_SHADOWS);
+		R_Printf(PRINT_ALL, "WARNING: Shadow map limit reached, max: %d\n", MAX_FRAME_SHADOWS);
 		return;
 	}
 
