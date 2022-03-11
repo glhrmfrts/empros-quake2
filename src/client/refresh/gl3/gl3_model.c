@@ -1115,6 +1115,8 @@ static vec3_t shadowlightangle;
 static float shadowlightconeangle;
 static float shadowlightradius;
 static qboolean shadowlightspot;
+static float shadowlightresolution;
+static float shadowlightdarken;
 
 static void GL3_HandleEntityKey (enum gl3_entity t, const char* key, size_t keylen, const char* value, size_t valuelen)
 {
@@ -1162,6 +1164,12 @@ static void GL3_HandleEntityKey (enum gl3_entity t, const char* key, size_t keyl
 		else if (!strncmp(key, "_shadowlightradius", keylen)) {
 			shadowlightradius = atof(v);
 		}
+		else if (!strncmp(key, "_shadowlightresolution", keylen)) {
+			shadowlightresolution = atof(v);
+		}
+		else if (!strncmp(key, "_shadowlightdarken", keylen)) {
+			shadowlightdarken = atof(v);
+		}
 	}
 	free(v);
 }
@@ -1180,10 +1188,12 @@ static void GL3_EndEntity(enum gl3_entity t)
 		// R_Shadow_SetupSun (worldsunangle);
 	}
 
-	memset (shadowlightorigin, 0, sizeof(shadowlightorigin));
-	memset (shadowlightangle, 0, sizeof(shadowlightangle));
+	memset(shadowlightorigin, 0, sizeof(shadowlightorigin));
+	memset(shadowlightangle, 0, sizeof(shadowlightangle));
 	shadowlightconeangle = 0.0f;
 	shadowlightradius = 0.0f;
+	shadowlightresolution = 0.0f;
+	shadowlightdarken = 0.0f;
 	shadowlight = false;
 	worldsun = false;
 }

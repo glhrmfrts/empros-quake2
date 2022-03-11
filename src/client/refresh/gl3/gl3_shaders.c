@@ -288,12 +288,12 @@ static const char* vertexCommon3D = MULTILINE_STRING(#version 150\n
 			float scroll; // for SURF_FLOWING
 			float time;
 			float alpha;
+			float emission;
 			float overbrightbits;
 			float particleFadeFactor;
 
 			float _pad_1;
 			float _pad_2;
-			float _pad_3;
 
 			vec4  fogParams; // .a is density, aligned at 16 bytes
 		};
@@ -314,8 +314,8 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			float intensity2D; // for HUD, menus etc
 
 			vec4 color; // really?
-
 		};
+
 		// for UBO shared between all 3D shaders
 		layout (std140) uniform uni3D
 		{
@@ -326,15 +326,98 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			float scroll; // for SURF_FLOWING
 			float time;
 			float alpha;
+			float emission;
 			float overbrightbits;
 			float particleFadeFactor;
 
 			float _pad_1;
 			float _pad_2;
-			float _pad_3;
 
 			vec4  fogParams; // .a is density, aligned at 16 bytes
 		};
+
+		struct ShadowLight
+		{
+			mat4 view_matrix;
+			mat4 proj_matrix;
+			vec4 light_normal;
+			vec4 light_position;
+			float brighten;
+			float darken;
+			float radius;
+			float bias;
+			float spot_cutoff;
+			float spot_outer_cutoff;
+			int light_type;
+			int cast_shadow;
+		};
+
+		layout (std140) uniform uniShadows
+		{
+			int use_shadow;
+			int num_shadow_maps;
+			ShadowLight shadows[10];
+		};
+
+		uniform sampler2DShadow shadow_map_samplers[10];
+
+		vec2 poissonDisk[16] = vec2[](
+			vec2( -0.94201624, -0.39906216 ),
+			vec2( 0.94558609, -0.76890725 ),
+			vec2( -0.094184101, -0.92938870 ),
+			vec2( 0.34495938, 0.29387760 ),
+			vec2( -0.91588581, 0.45771432 ),
+			vec2( -0.81544232, -0.87912464 ),
+			vec2( -0.38277543, 0.27676845 ),
+			vec2( 0.97484398, 0.75648379 ),
+			vec2( 0.44323325, -0.97511554 ),
+			vec2( 0.53742981, -0.47373420 ),
+			vec2( -0.26496911, -0.41893023 ),
+			vec2( 0.79197514, 0.19090188 ),
+			vec2( -0.24188840, 0.99706507 ),
+			vec2( -0.81409955, 0.91437590 ),
+			vec2( 0.19984126, 0.78641367 ),
+			vec2( 0.14383161, -0.14100790 )
+		);
+
+		// Receives the color and the previous lighting, returns the new lighting with the color applied
+		vec3 CalcSpotShadow(in int idx, in vec3 world_coord, in vec3 world_normal, in vec3 color, in vec3 lighting)
+		{
+			mat4 shadow_matrix = shadows[idx].proj_matrix * shadows[idx].view_matrix;
+			vec4 shadow_coord_v4 = (shadow_matrix * vec4(world_coord, 1.0));
+			vec3 shadow_coord = 0.5*(shadow_coord_v4.xyz/shadow_coord_v4.w)+0.5;
+			float dist_factor = length(world_coord - shadows[idx].light_position.xyz) / shadows[idx].radius;
+			float radinfluence = 1.0 - clamp(dist_factor*dist_factor, 0.0, 1.0);
+			
+			float theta        = dot(normalize(world_coord - shadows[idx].light_position.xyz), shadows[idx].light_normal.xyz);
+			float epsilon      = shadows[idx].spot_cutoff - shadows[idx].spot_outer_cutoff;
+			float light_factor = clamp((theta - shadows[idx].spot_outer_cutoff) / epsilon, 0.0, 1.0);
+
+			// float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
+			// if (norm_factor < 0) { return 0.0f; }
+
+			//float result = light_factor * radinfluence;
+			if (shadows[idx].cast_shadow > 0) {
+				float bias = shadows[idx].bias*light_factor;
+				float darken = shadows[idx].darken/6.0;
+				// float brighten = shadows[idx].brighten/6.0;
+				float result = 0.0f;
+				for (int j=0;j<6;j++) {
+					int index = j;     //int(floor(16.0*texture2D(random_tex, (WorldCoord.xy+WorldCoord.z)*j).r));
+					if (texture(shadow_map_samplers[idx], vec3(shadow_coord.xy+poissonDisk[index]/800.0,shadow_coord.z-bias)) < 1.0) {
+						result += darken*light_factor*radinfluence;
+					} else {
+						// result += brighten*light_factor*radinfluence;
+					}
+				}
+				return lighting * (1.0f - result);
+			}
+			else {
+				// No shadows, just lighting
+				float intensity = 2.0f;
+				return lighting + (color*intensity*light_factor*radinfluence);
+			}
+		}
 );
 
 static const char* vertexSrc3D = MULTILINE_STRING(
@@ -511,30 +594,6 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			vec4 lightstyles[256];
 		};
 
-		struct ShadowLight
-		{
-			mat4 view_matrix;
-			mat4 proj_matrix;
-			vec4 light_normal;
-			vec4 light_position;
-			float brighten;
-			float darken;
-			float radius;
-			float bias;
-			float spot_cutoff;
-			float spot_outer_cutoff;
-			int light_type;
-		};
-
-		layout (std140) uniform uniShadows
-		{
-			int use_shadow;
-			int num_shadow_maps;
-			ShadowLight shadows[10];
-		};
-
-		uniform sampler2DShadow shadow_map_samplers[10];
-
 		uniform sampler2D tex;
 
 		uniform sampler2D lightmap0;
@@ -552,58 +611,10 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 		flat in uint pass_style2;
 		flat in uint pass_style3;
 
-		vec2 poissonDisk[16] = vec2[](
-			vec2( -0.94201624, -0.39906216 ),
-			vec2( 0.94558609, -0.76890725 ),
-			vec2( -0.094184101, -0.92938870 ),
-			vec2( 0.34495938, 0.29387760 ),
-			vec2( -0.91588581, 0.45771432 ),
-			vec2( -0.81544232, -0.87912464 ),
-			vec2( -0.38277543, 0.27676845 ),
-			vec2( 0.97484398, 0.75648379 ),
-			vec2( 0.44323325, -0.97511554 ),
-			vec2( 0.53742981, -0.47373420 ),
-			vec2( -0.26496911, -0.41893023 ),
-			vec2( 0.79197514, 0.19090188 ),
-			vec2( -0.24188840, 0.99706507 ),
-			vec2( -0.81409955, 0.91437590 ),
-			vec2( 0.19984126, 0.78641367 ),
-			vec2( 0.14383161, -0.14100790 )
-		);
-
-		float CalcSpotShadow(in int idx, in vec3 world_coord, in vec3 world_normal)
-		{
-			mat4 shadow_matrix = shadows[idx].proj_matrix * shadows[idx].view_matrix;
-			vec4 shadow_coord_v4 = (shadow_matrix * vec4(world_coord, 1.0));
-			vec3 shadow_coord = 0.5*(shadow_coord_v4.xyz/shadow_coord_v4.w)+0.5;
-			float dist_factor = length(world_coord - shadows[idx].light_position.xyz) / shadows[idx].radius;
-			float radinfluence = 1.0 - clamp(dist_factor*dist_factor, 0.0, 1.0);
-			
-			float theta        = dot(normalize(world_coord - shadows[idx].light_position.xyz), shadows[idx].light_normal.xyz);
-			float epsilon      = shadows[idx].spot_cutoff - shadows[idx].spot_outer_cutoff;
-			float light_factor = clamp((theta - shadows[idx].spot_outer_cutoff) / epsilon, 0.0, 1.0);
-
-			// float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
-			// if (norm_factor < 0) { return 0.0f; }
-
-			float bias = shadows[idx].bias*(theta);
-			float darken = shadows[idx].darken/6.0;
-			float brighten = shadows[idx].brighten/6.0;
-			float result = 0.0f;
-			for (int j=0;j<6;j++) {
-				int index = j;     //int(floor(16.0*texture2D(random_tex, (WorldCoord.xy+WorldCoord.z)*j).r));
-				if (texture(shadow_map_samplers[idx], vec3(shadow_coord.xy+poissonDisk[index]/800.0,shadow_coord.z-bias)) < 1.0) {
-					result += darken*light_factor*radinfluence;
-				} else {
-					result -= brighten*light_factor*radinfluence;
-				}
-			}
-			return result;
-		}
-
 		void main()
 		{
 			vec4 texel = texture(tex, passTexCoord);
+			vec4 albedo = texel;
 
 			// apply intensity
 			texel.rgb *= intensity;
@@ -642,10 +653,12 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 				lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
 			}
 
-			for(int i=0; i<num_shadow_maps; ++i)
+			if (emission == 0.0f)
 			{
-				float shadow_factor = CalcSpotShadow(i, passWorldCoord, passNormal);
-				lmTex.rgb *= 1.0 - shadow_factor;
+				for(int i=0; i<num_shadow_maps; ++i)
+				{
+					lmTex.rgb = CalcSpotShadow(i, passWorldCoord, passNormal, albedo.rgb, lmTex.rgb);
+				}
 			}
 
 			lmTex.rgb *= overbrightbits;
@@ -716,6 +729,7 @@ static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
 			// tc *= 1.0/64.0; // do this last
 
 			vec4 texel = texture(tex, ntc);
+			vec4 albedo = texel;
 
 			// apply intensity
 			texel.rgb *= intensity;
@@ -755,6 +769,14 @@ static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
 
 
 					lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
+				}
+			}
+
+			if (emission == 0.0f)
+			{
+				for(int i=0; i<num_shadow_maps; ++i)
+				{
+					lmTex.rgb = CalcSpotShadow(i, passWorldCoord, passNormal, albedo.rgb, lmTex.rgb);
 				}
 			}
 
@@ -889,13 +911,23 @@ static const char* vertexSrcAlias = MULTILINE_STRING(
 
 		// it gets attributes and uniforms from vertexCommon3D
 
+		out vec3 passWorldCoord;
+		out vec3 passNormal;
+
 		out vec4 passColor;
 
 		void main()
 		{
+			vec4 worldCoord = transModel * vec4(position, 1.0);
+			vec4 worldNormal = transModel * vec4(normal, 0.0f);
+
 			passColor = vertColor*overbrightbits;
 			passTexCoord = texCoord;
-			gl_Position = transProj * transView * transModel * vec4(position, 1.0);
+			passWorldCoord = worldCoord.xyz;
+			passNormal = normalize(worldNormal.xyz);
+
+			gl_Position = transProj * transView * worldCoord;
+
 			passFogCoord = gl_Position.w;
 		}
 );
@@ -907,15 +939,26 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 		uniform sampler2D tex;
 
 		in vec4 passColor;
+		in vec3 passWorldCoord;
+		in vec3 passNormal;
 
 		void main()
 		{
 			vec4 texel = texture(tex, passTexCoord);
+			vec4 albedo = texel;
 
 			// apply gamma correction and intensity
 			texel.rgb *= intensity;
 			texel.a *= alpha; // is alpha even used here?
 			texel *= min(vec4(1.5), passColor);
+
+			if (emission == 0.0f)
+			{
+				for(int i=0; i<num_shadow_maps; ++i)
+				{
+					texel.rgb = CalcSpotShadow(i, passWorldCoord, passNormal, albedo.rgb, texel.rgb);
+				}
+			}
 
 			outColor = texel;
 

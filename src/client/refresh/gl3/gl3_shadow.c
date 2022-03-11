@@ -19,9 +19,37 @@ enum {
 
 #define POINT_SHADOW_BIAS SPOT_SHADOW_BIAS
 
+cvar_t* r_flashlight;
+
 qboolean gl3_rendering_shadow_maps;
 
 static int shadow_light_id_gen;
+
+void GL3_Shadow_Init()
+{
+	vec3_t origin = {0};
+	vec3_t angles = {0};
+	GL3_Shadow_AddSpotLight(origin, angles, 70.0f, 600.0f);
+	gl3state.flashlight = gl3state.first_shadow_light;
+	gl3state.flashlight->cast_shadow = false; // until we have better shadows
+}
+
+void GL3_Shadow_Shutdown()
+{
+	gl3_shadow_light_t* light;
+	gl3_shadow_light_t* next;
+
+	for (light = gl3state.first_shadow_light; light; light = next)
+	{
+		GL3_DestroyFramebuffer(&light->shadow_map_fbo);
+		next = light->next;
+		free(light);
+	}
+
+	gl3state.first_shadow_light = NULL;
+	gl3state.current_shadow_light = NULL;
+	gl3state.last_shadow_light_rendered = NULL;
+}
 
 static void SetupShadowViewCluster(const gl3_shadow_light_t* light)
 {
@@ -86,6 +114,7 @@ void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float con
 	gl3_shadow_light_t* l = calloc(1, sizeof(gl3_shadow_light_t));
 	l->id = shadow_light_id_gen++;
 	l->enabled = true;
+	l->cast_shadow = true;
 	l->type = gl3_shadow_light_type_spot;
 	l->bias = SPOT_SHADOW_BIAS;
 	l->coneangle = coneangle;
@@ -101,10 +130,10 @@ void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float con
 	l->light_angles[2] = angles[2];
 
 	vec3_t fwd, right, up;
-	AngleVectors(l->light_angles, fwd, right, up);
+	AngleVectors(angles, fwd, right, up);
 	l->light_normal[0] = fwd[0];
-	l->light_normal[1] = fwd[2];
-	l->light_normal[2] = fwd[1];
+	l->light_normal[1] = fwd[1];
+	l->light_normal[2] = fwd[2];
 
 	const gl3_framebuffer_flag_t fbo_flags = GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_SHADOWMAP;
 	GL3_CreateFramebuffer(SPOT_SHADOW_WIDTH, SPOT_SHADOW_HEIGHT, 1, fbo_flags, &l->shadow_map_fbo);
@@ -136,6 +165,7 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 	VectorCopy(light->light_normal, ((float*)&ldata->light_normal));
 	ldata->view_matrix = light->view_matrix;
 	ldata->proj_matrix = light->proj_matrix;
+	ldata->cast_shadow = (int)light->cast_shadow;
 
 	int idx = gl3state.uniShadowsData.num_shadow_maps - 1;
 	if (false)
@@ -238,6 +268,7 @@ static void RenderSpotShadowMap(gl3_shadow_light_t* light)
 
 	GL3_UseProgram(gl3state.siShadowMap.shaderProgram);
 	GL3_DrawTextureChains(&ent);
+	GL3_DrawEntitiesOnList();
 }
 
 static qboolean CullLight(const gl3_shadow_light_t* light)
@@ -256,6 +287,16 @@ void GL3_Shadow_RenderShadowMaps()
 
 	for (gl3_shadow_light_t* light = gl3state.first_shadow_light; light; light = light->next)
 	{
+		light->rendered = false;
+
+		if (!light->enabled) { continue; }
+
+		if (!light->cast_shadow)
+		{
+			light->rendered = true;
+			continue;
+		}
+
 		if (CullLight(light))
 		{
 			gl3state.current_shadow_light = light;
@@ -265,11 +306,12 @@ void GL3_Shadow_RenderShadowMaps()
 		}
 	}
 
+	AddLightsToUBO();
+
 	// At least one shadow map was rendered?
 	if (gl3state.last_shadow_light_rendered)
 	{
 		GL3_UnbindFramebuffer();
-		AddLightsToUBO();
 
 		// Restore the original viewport
 		// glDrawBuffer(GL_FRONT_AND_BACK);

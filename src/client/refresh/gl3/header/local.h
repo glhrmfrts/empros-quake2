@@ -151,10 +151,11 @@ typedef struct
 	GLfloat scroll; // for SURF_FLOWING
 	GLfloat time; // for warping surfaces like water & possibly other things
 	GLfloat alpha; // for translucent surfaces (water, glass, ..)
+	GLfloat emission; // for light surfaces
 	GLfloat overbrightbits; // gl3_overbrightbits, applied to lightmaps (and elsewhere to models)
 	GLfloat particleFadeFactor; // gl3_particle_fade_factor, higher => less fading out towards edges
 
-	GLfloat _padding[3]; // again, some padding to ensure this has right size
+	GLfloat _padding[2]; // again, some padding to ensure this has right size
 
 	hmm_vec4 fogParams; // RGB + density
 } gl3Uni3D_t;
@@ -197,7 +198,7 @@ typedef struct {
 	float spot_cutoff;
 	float spot_outer_cutoff;
 	int light_type;
-	int pad1;
+	int cast_shadow;
 } gl3UniShadowSingle_t;
 
 typedef struct
@@ -312,6 +313,7 @@ typedef struct
 	struct gl3_shadow_light_s* first_shadow_light;
 	struct gl3_shadow_light_s* last_shadow_light_rendered;
 	struct gl3_shadow_light_s* current_shadow_light;
+	struct gl3_shadow_light_s* flashlight;
 	struct gl3_shadow_frame_texture shadow_frame_textures[MAX_FRAME_SHADOWS];
 
 } gl3state_t;
@@ -482,6 +484,8 @@ extern void GL3_RotateForEntity(entity_t *e);
 
 extern hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar);
 
+extern void GL3_DrawEntitiesOnList(void);
+
 // gl3_fog.c
 
 // gnemeth: Command to set the renderer fog
@@ -599,6 +603,7 @@ extern void GL3_DrawGLPoly(msurface_t *fa);
 extern void GL3_DrawGLFlowingPoly(msurface_t *fa);
 extern void GL3_DrawTriangleOutlines(void);
 extern void GL3_DrawAlphaSurfaces(void);
+extern void GL3_DrawEmissiveSurfaces(void);
 extern void GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel);
 extern void GL3_DrawWorld(void);
 extern void GL3_MarkLeaves(void);
@@ -726,6 +731,7 @@ typedef struct gl3_shadow_light_s {
 	gl3_shadow_light_type_t type;
 	qboolean enabled;
 	qboolean rendered; // rendered this frame?
+	qboolean cast_shadow;
 	vec3_t light_position;
 	vec3_t light_normal;
 	vec3_t light_angles; // (pitch yaw roll)
@@ -750,6 +756,10 @@ typedef struct gl3_shadow_light_s {
 void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float coneangle, float zfar);
 void GL3_Shadow_SetupLightShader(gl3_shadow_light_t* light);
 void GL3_Shadow_RenderShadowMaps();
+void GL3_Shadow_Init();
+void GL3_Shadow_Shutdown();
+
+extern cvar_t* r_flashlight;
 
 void GL3_BindShadowmap(int shadowmap);
 

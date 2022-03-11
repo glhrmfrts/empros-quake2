@@ -152,13 +152,16 @@ DrawAliasFrameLerp(dmdl_t *paliashdr, entity_t* entity, vec3_t shadelight)
 		alpha = 1.0;
 	}
 
-	if (colorOnly)
+	if (!gl3state.current_shadow_light)
 	{
-		GL3_UseProgram(gl3state.si3DaliasColor.shaderProgram);
-	}
-	else
-	{
-		GL3_UseProgram(gl3state.si3Dalias.shaderProgram);
+		if (colorOnly)
+		{
+			GL3_UseProgram(gl3state.si3DaliasColor.shaderProgram);
+		}
+		else
+		{
+			GL3_UseProgram(gl3state.si3Dalias.shaderProgram);
+		}
 	}
 
 	/* move should be the delta back to the previous frame * backlerp */
@@ -183,7 +186,7 @@ DrawAliasFrameLerp(dmdl_t *paliashdr, entity_t* entity, vec3_t shadelight)
 
 	LerpVerts(colorOnly, paliashdr->num_xyz, v, ov, verts, lerp, move, frontv, backv);
 
-	assert(sizeof(gl3_alias_vtx_t) == 9*sizeof(GLfloat));
+	assert(sizeof(gl3_alias_vtx_t) == 12*sizeof(GLfloat));
 
 	// all the triangle fans and triangle strips of this model will be converted to
 	// just triangles: the vertices stay the same and are batched in vtxBuf,
@@ -237,6 +240,10 @@ DrawAliasFrameLerp(dmdl_t *paliashdr, entity_t* entity, vec3_t shadelight)
 					cur->color[j] = shadelight[j];
 				}
 				cur->color[3] = alpha;
+
+				// gnemeth: normal needed for shadow rendering
+				const float* normal = r_avertexnormals[verts[index_xyz].lightnormalindex];
+				VectorCopy(normal, cur->normal);
 			}
 		}
 		else
@@ -265,6 +272,10 @@ DrawAliasFrameLerp(dmdl_t *paliashdr, entity_t* entity, vec3_t shadelight)
 					cur->color[j] = l * shadelight[j];
 				}
 				cur->color[3] = alpha;
+
+				// gnemeth: normal needed for shadow rendering
+				const float* normal = r_avertexnormals[verts[index_xyz].lightnormalindex];
+				VectorCopy(normal, cur->normal);
 			}
 		}
 
@@ -648,7 +659,7 @@ GL3_DrawAliasModel(entity_t *entity)
 	// used to restore ModelView matrix after changing it for this entities position/rotation
 	hmm_mat4 origModelMat = {0};
 
-	if (!(entity->flags & RF_WEAPONMODEL))
+	if (!(entity->flags & RF_WEAPONMODEL) && !gl3state.current_shadow_light)
 	{
 		if (CullAliasModel(bbox, entity))
 		{
@@ -658,6 +669,11 @@ GL3_DrawAliasModel(entity_t *entity)
 
 	if (entity->flags & RF_WEAPONMODEL)
 	{
+		if (gl3state.current_shadow_light)
+		{
+			return;
+		}
+		
 		if (gl_lefthand->value == 2)
 		{
 			return;

@@ -105,13 +105,16 @@ void GL3_SurfInit(void)
 	GL3_BindVBO(gl3state.vboAlias);
 
 	glEnableVertexAttribArray(GL3_ATTRIB_POSITION);
-	qglVertexAttribPointer(GL3_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 9*sizeof(GLfloat), 0);
+	qglVertexAttribPointer(GL3_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(gl3_alias_vtx_t), 0);
 
 	glEnableVertexAttribArray(GL3_ATTRIB_TEXCOORD);
-	qglVertexAttribPointer(GL3_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 9*sizeof(GLfloat), 3*sizeof(GLfloat));
+	qglVertexAttribPointer(GL3_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(gl3_alias_vtx_t), 3*sizeof(GLfloat));
 
 	glEnableVertexAttribArray(GL3_ATTRIB_COLOR);
-	qglVertexAttribPointer(GL3_ATTRIB_COLOR, 4, GL_FLOAT, GL_FALSE, 9*sizeof(GLfloat), 5*sizeof(GLfloat));
+	qglVertexAttribPointer(GL3_ATTRIB_COLOR, 4, GL_FLOAT, GL_FALSE, sizeof(gl3_alias_vtx_t), 5*sizeof(GLfloat));
+
+	glEnableVertexAttribArray(GL3_ATTRIB_NORMAL);
+	qglVertexAttribPointer(GL3_ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(gl3_alias_vtx_t), 9*sizeof(GLfloat));
 
 	glGenBuffers(1, &gl3state.eboAlias);
 
@@ -489,6 +492,8 @@ GL3_DrawTextureChains(entity_t *currententity)
 			}
 			else
 			{
+				gl3state.uni3DData.emission = (s->texinfo->flags & SURF_LIGHT) ? 1.0f : 0.0f;
+				GL3_UpdateUBO3D();
 				GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
 			}
 		}
@@ -546,30 +551,38 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 		{
 			gl3image_t *image = TextureAnimation(currententity, psurf->texinfo);
 
-			if (psurf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
+			if (!gl3state.current_shadow_light)
 			{
-				/* add to the translucent chain */
-				psurf->texturechain = gl3_alpha_surfaces;
-				gl3_alpha_surfaces = psurf;
-			}
-			else if (!(psurf->flags & SURF_DRAWTURB))
-			{
-				GL3_Bind(image->texnum);
-				GL3_BindLightmap(psurf->lightmaptexturenum);
-				if (psurf->texinfo->flags & SURF_FLOWING)
+				if (psurf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
 				{
-					GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
+					/* add to the translucent chain */
+					psurf->texturechain = gl3_alpha_surfaces;
+					gl3_alpha_surfaces = psurf;
+				}
+				else if (!(psurf->flags & SURF_DRAWTURB))
+				{
+					GL3_Bind(image->texnum);
+					GL3_BindLightmap(psurf->lightmaptexturenum);
+					if (psurf->texinfo->flags & SURF_FLOWING)
+					{
+						GL3_UseProgram(gl3state.si3DlmFlow.shaderProgram);
+					}
+					else
+					{
+						GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
+					}
+					GL3_SurfBatch_DrawSingle(psurf);
 				}
 				else
 				{
-					GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
+					GL3_Bind(image->texnum);
+					GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
+					GL3_SurfBatch_DrawSingle(psurf);
 				}
-				GL3_SurfBatch_DrawSingle(psurf);
 			}
 			else
 			{
-				GL3_Bind(image->texnum);
-				GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
+				// rendering the shadow map, so no binding anything, just render it
 				GL3_SurfBatch_DrawSingle(psurf);
 			}
 		}
@@ -623,7 +636,14 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	}
 
 	vec3_t modelorg;
-	VectorSubtract(gl3_newrefdef.vieworg, e->origin, modelorg);
+	if (gl3state.current_shadow_light)
+	{
+		VectorSubtract(gl3state.current_shadow_light->light_position, e->origin, modelorg);
+	}
+	else
+	{
+		VectorSubtract(gl3_newrefdef.vieworg, e->origin, modelorg);
+	}
 
 	if (rotated)
 	{
@@ -809,7 +829,7 @@ GL3_DrawWorld(void)
 
 	/* auto cycle the world frame for texture animation */
 	memset(&ent, 0, sizeof(ent));
-	ent.frame = (int)(gl3_newrefdef.time * 2);	
+	ent.frame = (int)(gl3_newrefdef.time * 2);
 
 	GL3_ClearSkyBox();
 	GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, modelorg);

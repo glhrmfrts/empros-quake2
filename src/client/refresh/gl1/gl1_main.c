@@ -1425,16 +1425,16 @@ RI_Init()
 	/* get our various GL strings */
 	R_Printf(PRINT_ALL, "\nOpenGL setting:\n");
 
-	// gl_config.vendor_string = (char *)glGetString(GL_VENDOR);
+	gl_config.vendor_string = (char *)glGetString(GL_VENDOR);
 	// R_Printf(PRINT_ALL, "GL_VENDOR: %s\n", gl_config.vendor_string);
 
-	// gl_config.renderer_string = (char *)glGetString(GL_RENDERER);
+	gl_config.renderer_string = (char *)glGetString(GL_RENDERER);
 	// R_Printf(PRINT_ALL, "GL_RENDERER: %s\n", gl_config.renderer_string);
 
-	// gl_config.version_string = (char *)glGetString(GL_VERSION);
+	gl_config.version_string = (char *)glGetString(GL_VERSION);
 	// R_Printf(PRINT_ALL, "GL_VERSION: %s\n", gl_config.version_string);
 
-	// gl_config.extensions_string = (char *)glGetString(GL_EXTENSIONS);
+	gl_config.extensions_string = (char *)glGetString(GL_EXTENSIONS);
 	// R_Printf(PRINT_ALL, "GL_EXTENSIONS: %s\n", gl_config.extensions_string);
 
 	sscanf(gl_config.version_string, "%d.%d", &gl_config.major_version, &gl_config.minor_version);

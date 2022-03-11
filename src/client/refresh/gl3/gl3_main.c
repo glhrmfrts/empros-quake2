@@ -221,6 +221,7 @@ GL3_Register(void)
 	gl_finish = ri.Cvar_Get("gl_finish", "0", CVAR_ARCHIVE);
 
 	r_motionblur = ri.Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
+	r_flashlight = ri.Cvar_Get("r_flashlight", "0", CVAR_ARCHIVE);
 
 #if 0 // TODO!
 	//gl_lefthand = ri.Cvar_Get("hand", "0", CVAR_USERINFO | CVAR_ARCHIVE);
@@ -570,6 +571,8 @@ GL3_Init(void)
 
 	GL3_SurfInit();
 
+	GL3_Shadow_Init();
+
 	R_Printf(PRINT_ALL, "\n");
 	return true;
 }
@@ -587,6 +590,7 @@ GL3_Shutdown(void)
 	// randomly chose one function that should always be there to test..
 	if(glDeleteBuffers != NULL)
 	{
+		GL3_Shadow_Shutdown();
 		GL3_PostFx_Shutdown();
 		GL3_Mod_FreeAll();
 		GL3_ShutdownMeshes();
@@ -949,7 +953,7 @@ GL3_DrawParticles(void)
 	}
 }
 
-static void
+void
 GL3_DrawEntitiesOnList(void)
 {
 	int i;
@@ -1368,6 +1372,23 @@ SetupGL(void)
 
 extern int c_visible_lightmaps, c_visible_textures;
 
+static void
+UpdateFlashlight()
+{
+	gl3state.flashlight->enabled = (int)r_flashlight->value;
+	VectorCopy(gl3_newrefdef.vieworg, gl3state.flashlight->light_position);
+	gl3state.flashlight->light_angles[0] = -gl3_newrefdef.viewangles[1];
+	gl3state.flashlight->light_angles[1] = -gl3_newrefdef.viewangles[0];
+	gl3state.flashlight->light_angles[2] = gl3_newrefdef.viewangles[2];
+
+	vec3_t fwd, right, up;
+	AngleVectors(gl3_newrefdef.viewangles, fwd, right, up);
+	VectorNormalize(fwd);
+	gl3state.flashlight->light_normal[0] = fwd[0];
+	gl3state.flashlight->light_normal[1] = fwd[1];
+	gl3state.flashlight->light_normal[2] = fwd[2];
+}
+
 /*
  * gl3_newrefdef must be set before the first call
  */
@@ -1509,6 +1530,7 @@ GL3_RenderView(refdef_t *fd)
 		glFinish();
 	}
 
+	UpdateFlashlight();
 	GL3_Shadow_RenderShadowMaps();
 
 	SetupFrame();
