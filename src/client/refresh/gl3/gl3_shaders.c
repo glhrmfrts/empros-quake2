@@ -217,6 +217,7 @@ static const char* fragmentSrc2D = MULTILINE_STRING(#version 150\n
 			// apply gamma correction and intensity
 			texel.rgb *= intensity2D;
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
+			outColor.rgb = texel.rgb;
 			outColor.a = texel.a; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -256,6 +257,7 @@ static const char* fragmentSrc2Dcolor = MULTILINE_STRING(#version 150\n
 		{
 			vec3 col = color.rgb * intensity2D;
 			outColor.rgb = pow(col, vec3(gamma));
+			outColor.rgb = col;
 			outColor.a = color.a;
 		}
 );
@@ -534,7 +536,7 @@ static const char* fragmentSrc3D = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -564,7 +566,7 @@ static const char* fragmentSrc3Dwater = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -620,10 +622,10 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			texel.rgb *= intensity;
 
 			// apply lightmap
-			vec4 lmTex = texture(lightmap0, passLMcoord) * lightstyles[pass_style0];
-			lmTex     += texture(lightmap1, passLMcoord) * lightstyles[pass_style1];
-			lmTex     += texture(lightmap2, passLMcoord) * lightstyles[pass_style2];
-			lmTex     += texture(lightmap3, passLMcoord) * lightstyles[pass_style3];
+			vec4 lmTex = (texture(lightmap0, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style0];
+			lmTex     += (texture(lightmap1, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style1];
+			lmTex     += (texture(lightmap2, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style2];
+			lmTex     += (texture(lightmap3, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style3];
 
 			// TODO: or is hardcoding 32 better?
 			for(uint i=0u; i<numDynLights; ++i)
@@ -669,7 +671,7 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
 
 			outColor.a = 1; // lightmaps aren't used with translucent surfaces
 		}
@@ -788,7 +790,7 @@ static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
 
 			outColor.a = alpha; // lightmaps aren't used with translucent surfaces (gnemeth: yes, they are)
 		}
@@ -811,7 +813,7 @@ static const char* fragmentSrc3Dcolor = MULTILINE_STRING(
 
 			// apply gamma correction and intensity
 			// texel.rgb *= intensity; TODO: use intensity here? (this is used for beams)
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -832,7 +834,7 @@ static const char* fragmentSrc3Dsky = MULTILINE_STRING(
 			// texel.rgb *= intensity; // TODO: really no intensity for sky?
 
 			outColor = texel;
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 
 			float fogDensity = fogParams.w/64.0;
 			float fog = exp(-fogDensity * fogDensity * passFogCoord * passFogCoord);
@@ -862,7 +864,7 @@ static const char* fragmentSrc3Dsprite = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -890,7 +892,7 @@ static const char* fragmentSrc3DspriteAlpha = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -967,7 +969,8 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
+
 			outColor.a = texel.a; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -993,7 +996,7 @@ static const char* fragmentSrcAliasColor = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 			outColor.a = texel.a; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -1041,7 +1044,7 @@ static const char* fragmentSrcParticles = MULTILINE_STRING(
 
 			// apply gamma correction and intensity
 			//texel.rgb *= intensity; TODO: intensity? Probably not?
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 
 			// I want the particles to fade out towards the edge, the following seems to look nice
 			outColor.a *= min(1.0, particleFadeFactor*(1.0 - distSquared));
@@ -1067,7 +1070,7 @@ static const char* fragmentSrcParticlesSquare = MULTILINE_STRING(
 			fog = clamp(fog, 0.0, 1.0);
 			outColor.rgb = mix(fogParams.xyz, outColor.rgb, fog);
 
-			outColor.rgb = pow(outColor.rgb, vec3(gamma));
+			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 			outColor.a = passColor.a;
 		}
 );
@@ -1134,6 +1137,8 @@ static const char* fragmentSrcPostfxResolveMultisample = MULTILINE_STRING(#versi
 	uniform sampler2DMS u_FboSampler0;
 	uniform sampler2DMS u_DepthSampler0;
 	uniform int u_SampleCount;
+	uniform float u_Intensity; // HDR exposure
+	uniform float u_HDR; // 0.0 or 1.0 for branchless toggling HDR
 
 	in vec2 v_TexCoord;
 
@@ -1162,9 +1167,30 @@ static const char* fragmentSrcPostfxResolveMultisample = MULTILINE_STRING(#versi
 
 		float invSampleCount = 1.0f / float(u_SampleCount);
 
-		outColor[0] = invSampleCount * combinedColor;
+		// write out the depth
 		outColor[1] = invSampleCount * combinedDepth;
+
+		vec4 orgColor = invSampleCount * combinedColor;
+
+		// go ahead and perform the hdr tonemapping in this shader as well
+		float exposure = u_Intensity;
+	
+		// exposure tone mapping
+		vec3 hdrColor = orgColor.rgb;
+		vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+
+		// Branchless enable/disable HDR
+		mapped = mix(clamp(orgColor.rgb, 0.0, 1.0), mapped, u_HDR);
+
+		// gamma correction
+		mapped = pow(mapped, vec3(gamma));
+	
+		outColor[0] = vec4(mapped, 1.0);
 	}
+);
+
+static const char* fragmentSrcPostfxHDR = MULTILINE_STRING(#version 150\n
+
 );
 
 static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
@@ -1761,6 +1787,11 @@ static qboolean createShaders(void)
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for resolve multisample postfx!\n");
 		return false;
 	}
+	// if (!initShaderPostfx(&gl3state.siPostfxHDR, vertexSrcPostfxCommon, fragmentSrcPostfxHDR))
+	// {
+	// 	R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for resolve multisample postfx!\n");
+	// 	return false;
+	// }
 	if (!initShaderPostfx(&gl3state.siPostfxMotionBlur, vertexSrcPostfxCommon, fragmentSrcPostfxMotionBlur))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for motion blur postfx!\n");

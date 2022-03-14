@@ -2,7 +2,9 @@
 #include "header/local.h"
 #include "header/HandmadeMath.h"
 
+// TODO: static shadows (baked in the first frame) to improve lightmapping
 // TODO: framebuffer pool
+// TODO: texture atlasing for shadows
 
 enum {
 	SUN_SHADOW_WIDTH = 1024*4,
@@ -242,7 +244,7 @@ static void PrepareToRender(gl3_shadow_light_t* light)
 	viewMat = HMM_MultiplyMat4( viewMat, rotMat );
 
 	// .. and apply translation for current position
-	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);
+	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);	
 	light->view_matrix = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
 	light->proj_matrix = GL3_MYgluPerspective(light->coneangle, (float)gl3_newrefdef.width / (float)gl3_newrefdef.height, 1.0f, light->radius);
 }
@@ -260,16 +262,17 @@ static void RenderSpotShadowMap(gl3_shadow_light_t* light)
 
 	PrepareToRender(light);
 
-	entity_t ent = {0};
-	ent.frame = (int)(gl3_newrefdef.time * 2);
-	GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->light_position);
-
 	gl3state.uni3DData.transViewMat4 = light->view_matrix;
 	gl3state.uni3DData.transProjMat4 = light->proj_matrix;
 	GL3_UpdateUBO3D();
 
 	GL3_UseProgram(gl3state.siShadowMap.shaderProgram);
+
+	entity_t ent = {0};
+	ent.frame = (int)(gl3_newrefdef.time * 2);
+	GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->light_position);
 	GL3_DrawTextureChains(&ent);
+
 	GL3_DrawEntitiesOnList();
 }
 

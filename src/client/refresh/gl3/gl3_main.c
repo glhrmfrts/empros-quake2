@@ -221,6 +221,8 @@ GL3_Register(void)
 	gl_finish = ri.Cvar_Get("gl_finish", "0", CVAR_ARCHIVE);
 
 	r_motionblur = ri.Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
+	r_hdr = ri.Cvar_Get("r_hdr", "1", CVAR_ARCHIVE);
+	r_hdr_exposure = ri.Cvar_Get("r_hdr_exposure", "1", CVAR_ARCHIVE);
 	r_flashlight = ri.Cvar_Get("r_flashlight", "0", CVAR_ARCHIVE);
 
 #if 0 // TODO!

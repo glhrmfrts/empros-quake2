@@ -31,7 +31,7 @@
 
 int c_visible_lightmaps;
 int c_visible_textures;
-static msurface_t *gl3_alpha_surfaces;
+msurface_t *gl3_alpha_surfaces;
 
 gl3lightmapstate_t gl3_lms;
 
@@ -507,6 +507,8 @@ GL3_DrawTextureChains(entity_t *currententity)
 
 		image->texturechain = NULL;
 	}
+
+	gl3state.uni3DData.emission = 0.0f;
 
 	// TODO: maybe one loop for normal faces and one for SURF_DRAWTURB ???
 }

@@ -276,6 +276,7 @@ typedef struct
 	gl3ShaderInfo_t siParticle; // for particles. surprising, right?
 
 	gl3ShaderInfo_t siPostfxResolveMultisample;
+	gl3ShaderInfo_t siPostfxHDR;
 	gl3ShaderInfo_t siPostfxMotionBlur;
 
 	gl3ShaderInfo_t siShadowMap;
@@ -679,8 +680,12 @@ extern cvar_t *r_fixsurfsky;
 extern cvar_t *gl3_debugcontext;
 
 extern cvar_t *r_motionblur;
+extern cvar_t *r_hdr;
+extern cvar_t *r_hdr_exposure;
 
 extern entity_t* weapon_model_entity;
+
+extern msurface_t *gl3_alpha_surfaces;
 
 // gl3_postfx.c
 

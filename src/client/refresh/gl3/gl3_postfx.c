@@ -1,6 +1,8 @@
 #include "header/local.h"
 
 // TODO: HDR + tonemapping
+// TODO: bloom
+// TODO: volumetric lighting
 
 #define OPENGL_DEPTH_COMPONENT_TYPE GL_DEPTH_COMPONENT32F
 
@@ -140,6 +142,7 @@ static GLuint screen_vbo;
 typedef struct {
     GLint u_SampleCount;
     GLint u_Intensity;
+    GLint u_HDR;
     GLint u_FboSampler[MAX_COLOR_TEXTURES];
     GLint u_DepthSampler0;
     GLint u_ViewProjectionInverseMatrix;
@@ -147,13 +150,17 @@ typedef struct {
 } uniforms_t;
 
 static uniforms_t resolve_multisample_uniforms;
+//static uniforms_t hdr_uniforms;
 static uniforms_t motion_blur_uniforms;
 
 static gl3_framebuffer_t resolve_multisample_fbo;
+//static gl3_framebuffer_t hdr_fbo;
 static gl3_framebuffer_t motion_blur_mask_fbo;
 static gl3_framebuffer_t motion_blur_fbo;
 
 cvar_t* r_motionblur;
+cvar_t* r_hdr;
+cvar_t* r_hdr_exposure;
 entity_t* weapon_model_entity;
 
 static GLint GetUniform(const gl3ShaderInfo_t* si, const char* name, const char* shader)
@@ -169,6 +176,7 @@ static void GetUniforms(const gl3ShaderInfo_t* si, const char* shadername, unifo
 {
     uniforms->u_SampleCount = GetUniform(si, "u_SampleCount", shadername);
     uniforms->u_Intensity = GetUniform(si, "u_Intensity", shadername);
+    uniforms->u_HDR = GetUniform(si, "u_HDR", shadername);
 
     for (int i = 0; i < MAX_COLOR_TEXTURES; i++) {
         char uname[] = "u_FboSampler#";
@@ -208,11 +216,13 @@ void GL3_PostFx_Init()
 
     GLuint width = gl3_newrefdef.width;
     GLuint height = gl3_newrefdef.height;
-    GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH, &resolve_multisample_fbo);
+    GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_FLOAT, &resolve_multisample_fbo);
+    //GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_FLOAT, &hdr_fbo);
     GL3_CreateFramebuffer(width, height, 1, GL3_FRAMEBUFFER_DEPTH, &motion_blur_mask_fbo);
     GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_NONE, &motion_blur_fbo);
 
     GetUniforms(&gl3state.siPostfxResolveMultisample, "ResolveMultisample", &resolve_multisample_uniforms);
+    //GetUniforms(&gl3state.siPostfxHDR, "HDR", &hdr_uniforms);
     GetUniforms(&gl3state.siPostfxMotionBlur, "MotionBlur", &motion_blur_uniforms);
 }
 
@@ -249,34 +259,53 @@ void GL3_PostFx_AfterScene()
 // resolve multisample -- 2 outputs (color + depth)
     if (r_motionblur->value > 0.0f)
     {
+        //GL3_BindFramebuffer(&hdr_fbo);
         GL3_BindFramebuffer(&motion_blur_fbo);
     }
     else
     {
         GL3_UnbindFramebuffer();
     }
-
     GL3_UseProgram(gl3state.siPostfxResolveMultisample.shaderProgram);
     glUniform1i(resolve_multisample_uniforms.u_FboSampler[0], 0);
     glUniform1i(resolve_multisample_uniforms.u_DepthSampler0, 1);
     glUniform1i(resolve_multisample_uniforms.u_SampleCount, gl_msaa_samples->value);
+    glUniform1f(resolve_multisample_uniforms.u_HDR, r_hdr->value);
+    glUniform1f(resolve_multisample_uniforms.u_Intensity, r_hdr_exposure->value);
     GL3_BindFramebufferTexture(&resolve_multisample_fbo, 0, 0);
     GL3_BindFramebufferDepthTexture(&resolve_multisample_fbo, 1);
     GL3_BindVAO(screen_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
-// motion blur mask
-    if (r_motionblur->value > 0.0f && weapon_model_entity)
-    {
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        GL3_BindFramebuffer(&motion_blur_mask_fbo);
-        GL3_DrawAliasModel(weapon_model_entity);
-        glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
-    }
+// // hdr tonemapping
+//     if (r_motionblur->value > 0.0f)
+//     {
+//         GL3_BindFramebuffer(&motion_blur_fbo);
+//     }
+//     else
+//     {
+//         GL3_UnbindFramebuffer();
+//     }
+//     GL3_UseProgram(gl3state.siPostfxHDR.shaderProgram);
+//     glUniform1i(hdr_uniforms.u_FboSampler[0], 0);
+//     glUniform1i(hdr_uniforms.u_DepthSampler0, 1);
+//     glUniform1f(hdr_uniforms.u_Intensity, 1.0f); // exposure
+//     GL3_BindFramebufferTexture(&hdr_fbo, 0, 0);
+//     GL3_BindFramebufferTexture(&hdr_fbo, 1, 1);
+//     GL3_BindVAO(screen_vao);
+//     glDrawArrays(GL_TRIANGLES, 0, 6);
 
 // motion blur -- 2 outputs (color + depth)
     if (r_motionblur->value > 0.0f)
     {
+        if (weapon_model_entity)
+        {
+            glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+            GL3_BindFramebuffer(&motion_blur_mask_fbo);
+            GL3_DrawAliasModel(weapon_model_entity);
+            glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+        }
+
         GL3_UnbindFramebuffer();
 
         GL3_UseProgram(gl3state.siPostfxMotionBlur.shaderProgram);
