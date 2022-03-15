@@ -294,8 +294,8 @@ static const char* vertexCommon3D = MULTILINE_STRING(#version 150\n
 			float overbrightbits;
 			float particleFadeFactor;
 
+			float ssao;
 			float _pad_1;
-			float _pad_2;
 
 			vec4  fogParams; // .a is density, aligned at 16 bytes
 		};
@@ -307,6 +307,8 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 		in float passFogCoord;
 
 		out vec4 outColor;
+
+		uniform sampler2D ssao_sampler;
 
 		// for UBO shared between all shaders (incl. 2D)
 		layout (std140) uniform uniCommon
@@ -331,9 +333,9 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			float emission;
 			float overbrightbits;
 			float particleFadeFactor;
+			float ssao;
 
 			float _pad_1;
-			float _pad_2;
 
 			vec4  fogParams; // .a is density, aligned at 16 bytes
 		};
@@ -400,7 +402,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 
 			//float result = light_factor * radinfluence;
 			if (shadows[idx].cast_shadow > 0) {
-				float bias = shadows[idx].bias*light_factor;
+				float bias = 0.0001f;//shadows[idx].bias*light_factor;
 				float darken = shadows[idx].darken/6.0;
 				// float brighten = shadows[idx].brighten/6.0;
 				float result = 0.0f;
@@ -626,6 +628,12 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			lmTex     += (texture(lightmap1, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style1];
 			lmTex     += (texture(lightmap2, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style2];
 			lmTex     += (texture(lightmap3, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style3];
+
+			if (ssao == 1.0f)
+			{
+				vec2 fragCoord = gl_FragCoord.xy / vec2(1440, 900);
+				lmTex.rgb *= texture(ssao_sampler, fragCoord).rgb;
+			}
 
 			// TODO: or is hardcoding 32 better?
 			for(uint i=0u; i<numDynLights; ++i)
@@ -1075,11 +1083,9 @@ static const char* fragmentSrcParticlesSquare = MULTILINE_STRING(
 		}
 );
 
-
 //
 // Shadow maps
 //
-
 
 static const char* vertexSrcShadowMap = MULTILINE_STRING(
 		// it gets attributes and uniforms from vertexCommon3D
@@ -1114,6 +1120,43 @@ static const char* fragmentSrcShadowMap = MULTILINE_STRING(
 		}
 );
 
+//
+// SSAO
+//
+
+static const char* vertexSrc3DSSAO = MULTILINE_STRING(
+		// it gets attributes and uniforms from vertexCommon3D
+
+		out vec3 passViewCoord;
+		out vec3 passNormal;
+
+		void main()
+		{
+			passTexCoord = texCoord;
+
+			vec4 worldCoord = transModel * vec4(position, 1.0);
+			passViewCoord = (transView * worldCoord).xyz;
+
+			vec4 worldNormal = transModel * vec4(normal, 0.0f);
+			passNormal = normalize(worldNormal.xyz);
+
+			gl_Position = transProj * transView * worldCoord;
+
+			passFogCoord = gl_Position.w;
+		}
+);
+
+static const char* fragmentSrc3DSSAO = MULTILINE_STRING(
+		in vec3 passViewCoord;
+		in vec3 passNormal;
+
+		uniform sampler2D tex;
+
+		void main()
+		{
+			outColor = vec4(passViewCoord, 1.0);
+		}
+);
 
 //
 // Post FX
@@ -1189,8 +1232,95 @@ static const char* fragmentSrcPostfxResolveMultisample = MULTILINE_STRING(#versi
 	}
 );
 
-static const char* fragmentSrcPostfxHDR = MULTILINE_STRING(#version 150\n
+static const char* vertexSrcPostfxSSAO = MULTILINE_STRING(#version 150\n
 
+	in vec3 position;
+	in vec2 texCoord;
+
+	uniform float u_AspectRatio;
+	uniform float u_TanHalfFOV;
+
+	out vec2 v_TexCoord;
+	out vec2 v_ViewRay;
+
+	void main() {
+		gl_Position = vec4(position, 1.0);
+		v_TexCoord = texCoord;
+		v_ViewRay.x = position.x * u_AspectRatio * u_TanHalfFOV;
+		v_ViewRay.y = position.y * u_TanHalfFOV;
+	}
+);
+
+static const char* fragmentSrcPostfxSSAO = MULTILINE_STRING(#version 150\n
+	uniform sampler2D u_FboSampler0; // position
+	//uniform sampler2D u_DepthSampler0; // depth
+
+	uniform mat4 u_ProjectionMatrix;
+	uniform float u_Intensity;
+
+	in vec2 v_TexCoord;
+	in vec2 v_ViewRay;
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 color;
+	};
+
+	const int MAX_KERNEL_SIZE = 64;
+
+	layout (std140) uniform uniSSAO
+	{
+		vec3 kernel[MAX_KERNEL_SIZE]; // needs to be vec4 in CPU
+	};
+
+	out vec4 outColor;
+
+	// float GetViewZ(in vec2 texCoord)
+	// {
+	// 	float depth = texture2D(u_DepthSampler0, texCoord).r;
+	// 	float viewZ = u_ProjectionMatrix[3][2] / (2 * depth - 1 - u_ProjectionMatrix[2][2]);
+	// 	return viewZ;
+	// }
+
+	vec3 GetViewPos(in vec2 texCoord)
+	{
+		//float viewZ = GetViewZ(texCoord);
+		//return vec3(v_ViewRay.x * viewZ, v_ViewRay.y * viewZ, viewZ);
+
+		return texture(u_FboSampler0, texCoord).xyz;
+	}
+
+	void main()
+	{
+		vec3  fragPos = GetViewPos(v_TexCoord);
+
+		float AO = 0.0;
+
+		float bias = 0.01;
+		float radius = 2.0;
+
+		for (int i = 0 ; i < MAX_KERNEL_SIZE ; i++) {
+			vec3 samplePos = fragPos + kernel[i] * radius;
+			vec4 offset = vec4(samplePos, 1.0);
+			offset = u_ProjectionMatrix * offset;
+			offset.xy /= offset.w;
+			offset.xy = offset.xy * 0.5 + vec2(0.5);
+
+			float sampleDepth = GetViewPos(offset.xy).z;
+
+			float rangeCheck = smoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth));
+			AO += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;
+		}
+
+		AO = 1.0 - AO/64.0;
+
+		outColor = vec4(pow(AO, 2.0));
+	}
 );
 
 static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
@@ -1274,15 +1404,6 @@ static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
 );
 
 #undef MULTILINE_STRING
-
-enum {
-	GL3_BINDINGPOINT_UNICOMMON,
-	GL3_BINDINGPOINT_UNI2D,
-	GL3_BINDINGPOINT_UNI3D,
-	GL3_BINDINGPOINT_UNILIGHTS,
-	GL3_BINDINGPOINT_UNISTYLES,
-	GL3_BINDINGPOINT_UNISHADOWS,
-};
 
 static qboolean
 initShaderPostfx(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragSrc)
@@ -1601,6 +1722,8 @@ initShader3D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragS
 		}
 	}
 
+	glUniform1i(glGetUniformLocation(prog, "ssao_sampler"), GL3_SSAO_MAP_TEXTURE_UNIT - GL_TEXTURE0);
+
 	GLint lmScalesLoc = glGetUniformLocation(prog, "lmScales");
 	shaderInfo->uniLmScales = lmScalesLoc;
 	if(lmScalesLoc != -1)
@@ -1768,6 +1891,11 @@ static qboolean createShaders(void)
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
 		return false;
 	}
+	if(!initShader3D(&gl3state.si3DSSAO, vertexSrc3DSSAO, fragmentSrc3DSSAO))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
+		return false;
+	}
 
 	const char* particleFrag = fragmentSrcParticles;
 	if(gl3_particle_square->value != 0.0f)
@@ -1787,11 +1915,11 @@ static qboolean createShaders(void)
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for resolve multisample postfx!\n");
 		return false;
 	}
-	// if (!initShaderPostfx(&gl3state.siPostfxHDR, vertexSrcPostfxCommon, fragmentSrcPostfxHDR))
-	// {
-	// 	R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for resolve multisample postfx!\n");
-	// 	return false;
-	// }
+	if (!initShaderPostfx(&gl3state.siPostfxSSAO, vertexSrcPostfxSSAO, fragmentSrcPostfxSSAO))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for SSAO postfx!\n");
+		return false;
+	}
 	if (!initShaderPostfx(&gl3state.siPostfxMotionBlur, vertexSrcPostfxCommon, fragmentSrcPostfxMotionBlur))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for motion blur postfx!\n");

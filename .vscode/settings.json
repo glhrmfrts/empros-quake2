@@ -2,6 +2,7 @@
     "files.associations": {
         "*.qc": "c",
         "*.cb": "carbon",
-        "xutility": "c"
+        "xutility": "c",
+        "shared.h": "c"
     }
 }

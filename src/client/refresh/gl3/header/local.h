@@ -85,6 +85,16 @@ enum {
 	GL3_ATTRIB_STYLE3     = 9,
 };
 
+enum {
+	GL3_BINDINGPOINT_UNICOMMON,
+	GL3_BINDINGPOINT_UNI2D,
+	GL3_BINDINGPOINT_UNI3D,
+	GL3_BINDINGPOINT_UNILIGHTS,
+	GL3_BINDINGPOINT_UNISTYLES,
+	GL3_BINDINGPOINT_UNISHADOWS,
+	GL3_BINDINGPOINT_UNISSAO,
+};
+
 // TODO: do we need the following configurable?
 static const int gl3_solid_format = GL_RGB;
 static const int gl3_alpha_format = GL_RGBA;
@@ -154,8 +164,9 @@ typedef struct
 	GLfloat emission; // for light surfaces
 	GLfloat overbrightbits; // gl3_overbrightbits, applied to lightmaps (and elsewhere to models)
 	GLfloat particleFadeFactor; // gl3_particle_fade_factor, higher => less fading out towards edges
+	GLfloat ssao;
 
-	GLfloat _padding[2]; // again, some padding to ensure this has right size
+	GLfloat _padding[1]; // again, some padding to ensure this has right size
 
 	hmm_vec4 fogParams; // RGB + density
 } gl3Uni3D_t;
@@ -184,7 +195,10 @@ typedef struct
 
 enum { MAX_FRAME_SHADOWS = 10 };
 
-enum { GL3_SHADOW_MAP_TEXTURE_UNIT = GL_TEXTURE5 };
+enum {
+	GL3_SHADOW_MAP_TEXTURE_UNIT = GL_TEXTURE5,
+	GL3_SSAO_MAP_TEXTURE_UNIT = GL_TEXTURE15,
+};
 
 typedef struct {
 	hmm_mat4 view_matrix;
@@ -228,6 +242,12 @@ struct gl3_shadow_frame_texture {
 	GLuint unit;
 };
 
+typedef enum gl3_render_pass_e {
+	RENDER_PASS_SHADOW,
+	RENDER_PASS_SSAO,
+	RENDER_PASS_SCENE,
+} gl3_render_pass_t;
+
 typedef struct
 {
 	// TODO: what of this do we need?
@@ -243,6 +263,8 @@ typedef struct
 	GLuint currenttexture; // bound to GL_TEXTURE0
 	int currentlightmap; // lightmap_textureIDs[currentlightmap] bound to GL_TEXTURE1
 	GLuint currenttmu; // GL_TEXTURE0 or GL_TEXTURE1
+
+	gl3_render_pass_t render_pass;
 
 	//float camera_separation;
 	//enum stereo_modes stereo_mode;
@@ -272,11 +294,13 @@ typedef struct
 	gl3ShaderInfo_t si3Dalias;      // for models
 	gl3ShaderInfo_t si3DaliasColor; // for models w/ flat colors
 
+	gl3ShaderInfo_t si3DSSAO;
+
 	// NOTE: make sure siParticle is always the last shaderInfo (or adapt GL3_ShutdownShaders())
 	gl3ShaderInfo_t siParticle; // for particles. surprising, right?
 
 	gl3ShaderInfo_t siPostfxResolveMultisample;
-	gl3ShaderInfo_t siPostfxHDR;
+	gl3ShaderInfo_t siPostfxSSAO;
 	gl3ShaderInfo_t siPostfxMotionBlur;
 
 	gl3ShaderInfo_t siShadowMap;
@@ -680,6 +704,7 @@ extern cvar_t *r_fixsurfsky;
 extern cvar_t *gl3_debugcontext;
 
 extern cvar_t *r_motionblur;
+extern cvar_t *r_ssao;
 extern cvar_t *r_hdr;
 extern cvar_t *r_hdr_exposure;
 

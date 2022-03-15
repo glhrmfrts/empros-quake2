@@ -529,6 +529,7 @@ set(GL3-Source
 	${REF_SRC_DIR}/files/wal.c
 	${REF_SRC_DIR}/files/pvs.c
 	${COMMON_SRC_DIR}/shared/shared.c
+	${COMMON_SRC_DIR}/shared/rand.c
 	${COMMON_SRC_DIR}/md4.c
 	)
 

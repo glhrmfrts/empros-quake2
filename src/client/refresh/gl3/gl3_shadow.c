@@ -283,6 +283,8 @@ static qboolean CullLight(const gl3_shadow_light_t* light)
 
 void GL3_Shadow_RenderShadowMaps()
 {
+	gl3state.render_pass = RENDER_PASS_SHADOW;
+
 	glEnable(GL_DEPTH_TEST);
 
 	hmm_mat4 old_view = gl3state.uni3DData.transViewMat4;

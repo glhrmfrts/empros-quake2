@@ -1331,6 +1331,7 @@ GL3_BeginRegistration(char *model)
 
 	gl3_viewcluster = -1;
 
+	GL3_Shadow_Shutdown();
 	GL3_Fog_Set(0.3f, 0.3f, 0.3f, 0.0f);
 	GL3_ParseEntities(gl3_worldmodel->entities);
 }

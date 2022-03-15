@@ -359,7 +359,7 @@ RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 {
 	c_brush_polys++;
 
-	if (!gl3state.current_shadow_light && !(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
+	if ((gl3state.render_pass == RENDER_PASS_SCENE) && !(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
 	{
 		GL3_SurfBatch_Flush();
 		batch_lmtexnum = fa->lightmaptexturenum;
@@ -451,10 +451,10 @@ GL3_DrawTextureChains(entity_t *currententity)
 	GL3_SurfBatch_Begin();
 
 	// Are we rendering a shadow map now?
-	if (gl3state.current_shadow_light)
-	{
-		GL3_Shadow_SetupLightShader(gl3state.current_shadow_light);
-	}
+	// if (gl3state.current_shadow_light)
+	// {
+	// 	GL3_Shadow_SetupLightShader(gl3state.current_shadow_light);
+	// }
 
 	for (i = 0, image = gl3textures; i < numgl3textures; i++, image++)
 	{
@@ -476,7 +476,7 @@ GL3_DrawTextureChains(entity_t *currententity)
 
 		GL3_SurfBatch_Clear();
 
-		if (!gl3state.current_shadow_light)
+		if (gl3state.render_pass == RENDER_PASS_SCENE)
 		{
 			if (s->flags & SURF_DRAWTURB)
 			{
@@ -553,7 +553,7 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 		{
 			gl3image_t *image = TextureAnimation(currententity, psurf->texinfo);
 
-			if (!gl3state.current_shadow_light)
+			if (gl3state.render_pass == RENDER_PASS_SCENE)
 			{
 				if (psurf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
 				{
@@ -638,7 +638,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	}
 
 	vec3_t modelorg;
-	if (gl3state.current_shadow_light)
+	if (gl3state.render_pass == RENDER_PASS_SHADOW && gl3state.current_shadow_light)
 	{
 		VectorSubtract(gl3state.current_shadow_light->light_position, e->origin, modelorg);
 	}
@@ -700,7 +700,7 @@ GL3_RecursiveWorldNode(entity_t* currententity, mnode_t* node, const vec3_t mode
 		return;
 	}
 
-	if (!gl3state.current_shadow_light && CullBox(node->minmaxs, node->minmaxs + 3))
+	if (!(gl3state.render_pass == RENDER_PASS_SHADOW) && CullBox(node->minmaxs, node->minmaxs + 3))
 	{
 		return;
 	}

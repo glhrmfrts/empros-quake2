@@ -152,7 +152,7 @@ DrawAliasFrameLerp(dmdl_t *paliashdr, entity_t* entity, vec3_t shadelight)
 		alpha = 1.0;
 	}
 
-	if (!gl3state.current_shadow_light)
+	if (gl3state.render_pass == RENDER_PASS_SCENE)
 	{
 		if (colorOnly)
 		{
@@ -659,7 +659,7 @@ GL3_DrawAliasModel(entity_t *entity)
 	// used to restore ModelView matrix after changing it for this entities position/rotation
 	hmm_mat4 origModelMat = {0};
 
-	if (!(entity->flags & RF_WEAPONMODEL) && !gl3state.current_shadow_light)
+	if (!(entity->flags & RF_WEAPONMODEL) && !(gl3state.render_pass == RENDER_PASS_SHADOW))
 	{
 		if (CullAliasModel(bbox, entity))
 		{
@@ -669,7 +669,7 @@ GL3_DrawAliasModel(entity_t *entity)
 
 	if (entity->flags & RF_WEAPONMODEL)
 	{
-		if (gl3state.current_shadow_light)
+		if (gl3state.render_pass == RENDER_PASS_SHADOW)
 		{
 			return;
 		}
