@@ -1,6 +1,7 @@
 #include "header/local.h"
 
-// TODO: HDR + tonemapping
+// X TODO: HDR + tonemapping
+// TODO: optimize SSAO geometry pass rendering (no need for multiple draw calls in texture chains)
 // TODO: bloom
 // TODO: volumetric lighting
 
@@ -143,6 +144,7 @@ typedef struct {
     GLint u_SampleCount;
     GLint u_Intensity;
     GLint u_HDR;
+    GLint u_Size;
     GLint u_AspectRatio;
     GLint u_TanHalfFOV;
     GLint u_FboSampler[MAX_COLOR_TEXTURES];
@@ -155,16 +157,19 @@ typedef struct {
 
 static uniforms_t resolve_multisample_uniforms;
 static uniforms_t ssao_map_uniforms;
+static uniforms_t ssao_blur_uniforms;
 static uniforms_t motion_blur_uniforms;
 
 static gl3_framebuffer_t resolve_multisample_fbo;
 static gl3_framebuffer_t ssao_geom_fbo;
 static gl3_framebuffer_t ssao_map_fbo;
+static gl3_framebuffer_t ssao_blur_fbo;
 static gl3_framebuffer_t motion_blur_mask_fbo;
 static gl3_framebuffer_t motion_blur_fbo;
 
 enum { SSAO_KERNEL_SIZE = 64 };
 
+static GLuint ssao_noise_texture; 
 static GLuint ssao_kernel_ubo;
 static hmm_vec4 ssao_kernel[SSAO_KERNEL_SIZE];
 
@@ -195,6 +200,7 @@ static void GetUniforms(const gl3ShaderInfo_t* si, const char* shadername, unifo
     uniforms->u_ViewProjectionInverseMatrix = GetUniform(si, "u_ViewProjectionInverseMatrix", shadername);
     uniforms->u_PreviousViewProjectionMatrix = GetUniform(si, "u_PreviousViewProjectionMatrix", shadername);
     uniforms->u_DepthSampler0 = GetUniform(si, "u_DepthSampler0", shadername);
+    uniforms->u_Size = GetUniform(si, "u_Size", shadername);
     for (int i = 0; i < MAX_COLOR_TEXTURES; i++) {
         char uname[] = "u_FboSampler#";
         uname[strlen(uname) - 1] = '0' + i;
@@ -230,21 +236,23 @@ void GL3_PostFx_Init()
     GLuint width = gl3_newrefdef.width;
     GLuint height = gl3_newrefdef.height;
     GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_FLOAT, &resolve_multisample_fbo);
-    GL3_CreateFramebuffer(width, height, 1, GL3_FRAMEBUFFER_FLOAT | GL3_FRAMEBUFFER_DEPTH, &ssao_geom_fbo);
+    GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_FLOAT | GL3_FRAMEBUFFER_DEPTH, &ssao_geom_fbo);
     GL3_CreateFramebuffer(width, height, 1, GL3_FRAMEBUFFER_FILTERED, &ssao_map_fbo);
+    GL3_CreateFramebuffer(width/2, height/2, 1, GL3_FRAMEBUFFER_FILTERED, &ssao_blur_fbo);
     GL3_CreateFramebuffer(width, height, 1, GL3_FRAMEBUFFER_DEPTH, &motion_blur_mask_fbo);
     GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_NONE, &motion_blur_fbo);
 
     GetUniforms(&gl3state.siPostfxResolveMultisample, "ResolveMultisample", &resolve_multisample_uniforms);
     GetUniforms(&gl3state.siPostfxSSAO, "SSAO", &ssao_map_uniforms);
+    GetUniforms(&gl3state.siPostfxSSAOBlur, "SSAOBlur", &ssao_blur_uniforms);
     GetUniforms(&gl3state.siPostfxMotionBlur, "MotionBlur", &motion_blur_uniforms);
 
     for (int i = 0; i < SSAO_KERNEL_SIZE; i++)
     {
         ssao_kernel[i] = HMM_Vec4(
-            crandk(),
-            crandk(),
-            crandk(),
+            crandk(), // between -1 and 1
+            crandk(), // between -1 and 1
+            frandk(), // between 0 and 1
             0.0f
         );
     }
@@ -257,6 +265,24 @@ void GL3_PostFx_Init()
     glBufferData(GL_UNIFORM_BUFFER, sizeof(ssao_kernel), (const void*)ssao_kernel, GL_STATIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, GL3_BINDINGPOINT_UNISSAO, ssao_kernel_ubo);
     gl3state.currentUBO = ssao_kernel_ubo;
+
+    hmm_vec3 ssao_noise[16];
+    for (unsigned int i = 0; i < 16; i++)
+    {
+        ssao_noise[i] = HMM_Vec3(
+            crandk(),
+            crandk(),
+            0.0f
+        );
+    }
+
+    glGenTextures(1, &ssao_noise_texture);
+    glBindTexture(GL_TEXTURE_2D, ssao_noise_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssao_noise[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 }
 
 void GL3_PostFx_Shutdown()
@@ -298,20 +324,37 @@ void GL3_PostFx_BeforeScene()
         GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, gl3_newrefdef.vieworg);
         GL3_DrawTextureChains(&ent);
 
+        hmm_vec2 noise_scale;
+        noise_scale.X = (float)gl3_newrefdef.width / 4.0f;
+        noise_scale.Y = (float)gl3_newrefdef.height / 4.0f;
+
         GL3_BindFramebuffer(&ssao_map_fbo);
         GL3_UseProgram(gl3state.siPostfxSSAO.shaderProgram);
         glUniform1i(ssao_map_uniforms.u_FboSampler[0], 0);
-        //glUniform1i(ssao_map_uniforms.u_DepthSampler0, 0);
+        glUniform1i(ssao_map_uniforms.u_FboSampler[1], 1);
+        glUniform1i(ssao_map_uniforms.u_FboSampler[2], 2);
         glUniform1f(ssao_map_uniforms.u_Intensity, 1.0f);
+        glUniform2f(ssao_map_uniforms.u_Size, noise_scale.X, noise_scale.Y);
         glUniform1f(ssao_map_uniforms.u_AspectRatio, (float)gl3_newrefdef.width / (float)gl3_newrefdef.height);
         glUniform1f(ssao_map_uniforms.u_TanHalfFOV, HMM_TanF(HMM_ToRadians(gl3_newrefdef.fov_x/2.0f)));
         glUniformMatrix4fv(ssao_map_uniforms.u_ProjectionMatrix, 1, false, (const GLfloat*)gl3state.uni3DData.transProjMat4.Elements);
-        //GL3_BindFramebufferDepthTexture(&ssao_geom_fbo, 0);
         GL3_BindFramebufferTexture(&ssao_geom_fbo, 0, 0);
+        GL3_BindFramebufferTexture(&ssao_geom_fbo, 1, 1);
+        glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, ssao_noise_texture);
         GL3_BindVAO(screen_vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        GL3_BindFramebufferTexture(&ssao_map_fbo, 0, GL3_SSAO_MAP_TEXTURE_UNIT - GL_TEXTURE0);
+        GL3_BindFramebuffer(&ssao_blur_fbo);
+        GL3_UseProgram(gl3state.siPostfxSSAOBlur.shaderProgram);
+        glUniform1i(ssao_blur_uniforms.u_FboSampler[0], 0);
+        //glUniform1i(ssao_blur_uniforms.u_FboSampler[1], 1);
+        glUniform2f(ssao_blur_uniforms.u_Size, ssao_blur_fbo.width, ssao_blur_fbo.height);
+        GL3_BindFramebufferTexture(&ssao_map_fbo, 0, 0);
+        //glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, ssao_noise_texture);
+        GL3_BindVAO(screen_vao);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        GL3_BindFramebufferTexture(&ssao_blur_fbo, 0, GL3_SSAO_MAP_TEXTURE_UNIT - GL_TEXTURE0);
 
         GL3_InvalidateTextureBindings();
     }

@@ -301,6 +301,7 @@ typedef struct
 
 	gl3ShaderInfo_t siPostfxResolveMultisample;
 	gl3ShaderInfo_t siPostfxSSAO;
+	gl3ShaderInfo_t siPostfxSSAOBlur;
 	gl3ShaderInfo_t siPostfxMotionBlur;
 
 	gl3ShaderInfo_t siShadowMap;

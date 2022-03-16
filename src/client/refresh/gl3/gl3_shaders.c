@@ -631,7 +631,8 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 
 			if (ssao == 1.0f)
 			{
-				vec2 fragCoord = gl_FragCoord.xy / vec2(1440, 900);
+				vec2 fragCoord = gl_FragCoord.xy / textureSize(ssao_sampler, 0).xy;
+				fragCoord *= 0.5;
 				lmTex.rgb *= texture(ssao_sampler, fragCoord).rgb;
 			}
 
@@ -1137,8 +1138,8 @@ static const char* vertexSrc3DSSAO = MULTILINE_STRING(
 			vec4 worldCoord = transModel * vec4(position, 1.0);
 			passViewCoord = (transView * worldCoord).xyz;
 
-			vec4 worldNormal = transModel * vec4(normal, 0.0f);
-			passNormal = normalize(worldNormal.xyz);
+			vec4 viewNormal = transView * transModel * vec4(normal, 0.0f);
+			passNormal = normalize(viewNormal.xyz);
 
 			gl_Position = transProj * transView * worldCoord;
 
@@ -1152,9 +1153,12 @@ static const char* fragmentSrc3DSSAO = MULTILINE_STRING(
 
 		uniform sampler2D tex;
 
+		out vec4 outColor2;
+
 		void main()
 		{
 			outColor = vec4(passViewCoord, 1.0);
+			outColor2 = vec4(passNormal, 1.0);
 		}
 );
 
@@ -1253,10 +1257,14 @@ static const char* vertexSrcPostfxSSAO = MULTILINE_STRING(#version 150\n
 
 static const char* fragmentSrcPostfxSSAO = MULTILINE_STRING(#version 150\n
 	uniform sampler2D u_FboSampler0; // position
+	uniform sampler2D u_FboSampler1; // normal
+	uniform sampler2D u_FboSampler2; // noise
 	//uniform sampler2D u_DepthSampler0; // depth
 
 	uniform mat4 u_ProjectionMatrix;
 	uniform float u_Intensity;
+
+	uniform vec2 u_Size; // noise scale
 
 	in vec2 v_TexCoord;
 	in vec2 v_ViewRay;
@@ -1295,17 +1303,29 @@ static const char* fragmentSrcPostfxSSAO = MULTILINE_STRING(#version 150\n
 		return texture(u_FboSampler0, texCoord).xyz;
 	}
 
+	vec3 GetViewNormal(in vec2 texCoord)
+	{
+		return texture(u_FboSampler1, texCoord).xyz;
+	}
+
 	void main()
 	{
-		vec3  fragPos = GetViewPos(v_TexCoord);
+		vec3 fragPos = GetViewPos(v_TexCoord);
+		vec3 fragNormal = GetViewNormal(v_TexCoord);
+
+		vec3 randomVec = texture(u_FboSampler2, v_TexCoord * u_Size).rgb;
+		vec3 tangent   = normalize(randomVec - fragNormal * dot(randomVec, fragNormal));
+		vec3 bitangent = cross(fragNormal, tangent);
+		mat3 TBN       = mat3(tangent, bitangent, fragNormal);
 
 		float AO = 0.0;
 
 		float bias = 0.01;
-		float radius = 2.0;
+		float radius = 4.0;
 
 		for (int i = 0 ; i < MAX_KERNEL_SIZE ; i++) {
-			vec3 samplePos = fragPos + kernel[i] * radius;
+			vec3 kernelPos = TBN * kernel[i];
+			vec3 samplePos = fragPos + kernelPos * radius;
 			vec4 offset = vec4(samplePos, 1.0);
 			offset = u_ProjectionMatrix * offset;
 			offset.xy /= offset.w;
@@ -1319,7 +1339,7 @@ static const char* fragmentSrcPostfxSSAO = MULTILINE_STRING(#version 150\n
 
 		AO = 1.0 - AO/64.0;
 
-		outColor = vec4(pow(AO, 2.0));
+		outColor = vec4(pow(AO, 1.0));
 	}
 );
 
@@ -1402,6 +1422,141 @@ static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
 		outColor[1] = texture2D(u_FboSampler1, v_TexCoord);
 	}
 );
+
+#if 0
+static const char* fragmentSrcPostfxSSAOBlur = MULTILINE_STRING(#version 150\n
+
+	const int MAX_SIZE = 5;
+	const int MAX_KERNEL_SIZE = ((MAX_SIZE * 2 + 1) * (MAX_SIZE * 2 + 1));
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 commoncolor;
+	};
+
+	uniform sampler2D u_FboSampler0;
+
+	uniform vec2 u_Size;
+
+	out vec4 fragColor;
+
+	vec2 texSize  = textureSize(u_FboSampler0, 0).xy;
+	vec2 texCoord = gl_FragCoord.xy / texSize;
+
+	int i     = 0;
+	int j     = 0;
+	int count = 0;
+
+	vec3  valueRatios = vec3(0.3, 0.59, 0.11);
+
+	float values[MAX_KERNEL_SIZE];
+
+	vec4  color       = vec4(0.0);
+	vec4  meanTemp    = vec4(0.0);
+	vec4  mean        = vec4(0.0);
+	float valueMean   =  0.0;
+	float variance    =  0.0;
+	float minVariance = -1.0;
+
+	void findMean(int i0, int i1, int j0, int j1) {
+		meanTemp = vec4(0);
+		count    = 0;
+
+		for (i = i0; i <= i1; ++i) {
+			for (j = j0; j <= j1; ++j) {
+				color = texture(u_FboSampler0, (gl_FragCoord.xy + vec2(i, j)) / texSize);
+
+				meanTemp += color;
+
+				values[count] = dot(color.rgb, valueRatios);
+
+				count += 1;
+			}
+		}
+
+		meanTemp.rgb /= count;
+		valueMean     = dot(meanTemp.rgb, valueRatios);
+
+		for (i = 0; i < count; ++i) {
+			variance += pow(values[i] - valueMean, 2);
+		}
+
+		variance /= count;
+
+		if (variance < minVariance || minVariance <= -1) {
+			mean = meanTemp;
+			minVariance = variance;
+		}
+	}
+
+	void main() {
+		fragColor = texture(u_FboSampler0, texCoord);
+
+		int size = int(u_Size.x);
+		if (size <= 0) { return; }
+
+		// Lower Left
+
+		findMean(-size, 0, -size, 0);
+
+		// Upper Right
+
+		findMean(0, size, 0, size);
+
+		// Upper Left
+
+		findMean(-size, 0, 0, size);
+
+		// Lower Right
+
+		findMean(0, size, -size, 0);
+
+		fragColor.rgb = mean.rgb;
+	}
+
+);
+#else
+
+static const char* fragmentSrcPostfxSSAOBlur = MULTILINE_STRING(#version 150\n
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 commoncolor;
+	};
+
+	out vec4 FragColor;
+	
+	in vec2 v_TexCoord;
+	
+	uniform sampler2D u_FboSampler0;
+
+	void main() {
+		vec2 texelSize = 1.0 / vec2(textureSize(u_FboSampler0, 0));
+		float result = 0.0;
+		for (int x = -2; x < 2; ++x) 
+		{
+			for (int y = -2; y < 2; ++y) 
+			{
+				vec2 offset = vec2(float(x), float(y)) * texelSize;
+				result += texture(u_FboSampler0, v_TexCoord + offset).r;
+			}
+		}
+		FragColor = vec4(vec3(result / (4.0 * 4.0)), 1.0);
+	}
+
+);
+
+#endif
 
 #undef MULTILINE_STRING
 
@@ -1916,6 +2071,11 @@ static qboolean createShaders(void)
 		return false;
 	}
 	if (!initShaderPostfx(&gl3state.siPostfxSSAO, vertexSrcPostfxSSAO, fragmentSrcPostfxSSAO))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for SSAO postfx!\n");
+		return false;
+	}
+	if (!initShaderPostfx(&gl3state.siPostfxSSAOBlur, vertexSrcPostfxCommon, fragmentSrcPostfxSSAOBlur))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for SSAO postfx!\n");
 		return false;
