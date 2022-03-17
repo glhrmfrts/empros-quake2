@@ -32,6 +32,7 @@
 int c_visible_lightmaps;
 int c_visible_textures;
 msurface_t *gl3_alpha_surfaces;
+msurface_t *g_ssao_surfaces;
 
 gl3lightmapstate_t gl3_lms;
 
@@ -450,6 +451,17 @@ GL3_DrawTextureChains(entity_t *currententity)
 
 	GL3_SurfBatch_Begin();
 
+	if (gl3state.render_pass == RENDER_PASS_SSAO)
+	{
+		for (msurface_t* surf = g_ssao_surfaces; surf; surf = surf->texturechain)
+		{
+			GL3_SurfBatch_Add(surf);
+		}
+		GL3_SurfBatch_Flush();
+		g_ssao_surfaces = NULL;
+		return;
+	}
+
 	// Are we rendering a shadow map now?
 	// if (gl3state.current_shadow_light)
 	// {
@@ -582,9 +594,15 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 					GL3_SurfBatch_DrawSingle(psurf);
 				}
 			}
+			else if (gl3state.render_pass == RENDER_PASS_SHADOW)
+			{
+				// shadow map
+				GL3_Bind(image->texnum);
+				GL3_SurfBatch_DrawSingle(psurf);
+			}
 			else
 			{
-				// rendering the shadow map, so no binding anything, just render it
+				// ssao
 				GL3_SurfBatch_DrawSingle(psurf);
 			}
 		}
@@ -627,7 +645,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		VectorAdd(e->origin, currentmodel->maxs, maxs);
 	}
 
-	if (CullBox(mins, maxs))
+	if (gl3state.render_pass != RENDER_PASS_SHADOW && CullBox(mins, maxs))
 	{
 		return;
 	}
@@ -784,24 +802,33 @@ GL3_RecursiveWorldNode(entity_t* currententity, mnode_t* node, const vec3_t mode
 			continue; /* wrong side */
 		}
 
-		if (surf->texinfo->flags & SURF_SKY)
+		if (gl3state.render_pass == RENDER_PASS_SSAO)
 		{
-			/* just adds to visible sky bounds */
-			GL3_AddSkySurface(surf);
-		}
-		else if (surf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
-		{
-			/* add to the translucent chain */
-			surf->texturechain = gl3_alpha_surfaces;
-			gl3_alpha_surfaces = surf;
-			gl3_alpha_surfaces->texinfo->image = TextureAnimation(currententity, surf->texinfo);
+			surf->texturechain = g_ssao_surfaces;
+			g_ssao_surfaces = surf;
 		}
 		else
 		{
-			/* the polygon is visible, so add it to the texture sorted chain */
-			image = TextureAnimation(currententity, surf->texinfo);
-			surf->texturechain = image->texturechain;
-			image->texturechain = surf;
+			surf->texturechain = NULL;
+			if (surf->texinfo->flags & SURF_SKY)
+			{
+				/* just adds to visible sky bounds */
+				GL3_AddSkySurface(surf);
+			}
+			else if (surf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
+			{
+				/* add to the translucent chain */
+				surf->texturechain = gl3_alpha_surfaces;
+				gl3_alpha_surfaces = surf;
+				gl3_alpha_surfaces->texinfo->image = TextureAnimation(currententity, surf->texinfo);
+			}
+			else
+			{
+				/* the polygon is visible, so add it to the texture sorted chain */
+				image = TextureAnimation(currententity, surf->texinfo);
+				surf->texturechain = image->texturechain;
+				image->texturechain = surf;
+			}
 		}
 	}
 

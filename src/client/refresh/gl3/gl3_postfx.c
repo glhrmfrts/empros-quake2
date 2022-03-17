@@ -323,6 +323,7 @@ void GL3_PostFx_BeforeScene()
         ent.frame = (int)(gl3_newrefdef.time * 2);
         GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, gl3_newrefdef.vieworg);
         GL3_DrawTextureChains(&ent);
+        GL3_DrawEntitiesOnList();
 
         hmm_vec2 noise_scale;
         noise_scale.X = (float)gl3_newrefdef.width / 4.0f;
