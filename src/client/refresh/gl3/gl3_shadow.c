@@ -33,7 +33,7 @@ void GL3_Shadow_Init()
 {
 	vec3_t origin = {0};
 	vec3_t angles = {0};
-	GL3_Shadow_AddSpotLight(origin, angles, 70.0f, 600.0f);
+	GL3_Shadow_AddSpotLight(origin, angles, 70.0f, 600.0f, SPOT_SHADOW_WIDTH, 0.7f, false);
 	gl3state.flashlight = gl3state.first_shadow_light;
 	gl3state.flashlight->cast_shadow = false; // until we have better shadows
 }
@@ -109,7 +109,14 @@ static void SetupShadowViewCluster(const gl3_shadow_light_t* light)
 	}
 }
 
-void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float coneangle, float zfar)
+void GL3_Shadow_AddSpotLight(
+	const vec3_t origin,
+	const vec3_t angles,
+	float coneangle,
+	float zfar,
+	int resolution,
+	float darken,
+	qboolean is_static)
 {
 	if (!zfar) {
 		zfar = 600;
@@ -126,6 +133,7 @@ void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float con
 	l->radius = zfar;
 	l->shadow_map_width = SPOT_SHADOW_WIDTH;
 	l->shadow_map_height = SPOT_SHADOW_HEIGHT;
+	l->is_static = is_static;
 
 	VectorCopy(origin, l->light_position);
 
@@ -296,7 +304,11 @@ void GL3_Shadow_RenderShadowMaps()
 	{
 		light->rendered = false;
 
-		if (!light->enabled) { continue; }
+		if (!light->enabled)
+		{
+			light->rendered = light->is_static;
+			continue;
+		}
 
 		if (!light->cast_shadow)
 		{
@@ -310,6 +322,11 @@ void GL3_Shadow_RenderShadowMaps()
 			RenderSpotShadowMap(light);
 			light->rendered = true;
 			gl3state.last_shadow_light_rendered = light;
+
+			if (light->is_static)
+			{
+				light->enabled = false;
+			}
 		}
 	}
 

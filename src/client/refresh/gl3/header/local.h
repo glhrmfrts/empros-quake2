@@ -763,6 +763,7 @@ typedef struct gl3_shadow_light_s {
 	qboolean enabled;
 	qboolean rendered; // rendered this frame?
 	qboolean cast_shadow;
+	qboolean is_static;
 	vec3_t light_position;
 	vec3_t light_normal;
 	vec3_t light_angles; // (pitch yaw roll)
@@ -784,7 +785,14 @@ typedef struct gl3_shadow_light_s {
 	struct gl3_shadow_light_s* next;
 } gl3_shadow_light_t;
 
-void GL3_Shadow_AddSpotLight(const vec3_t origin, const vec3_t angles, float coneangle, float zfar);
+void GL3_Shadow_AddSpotLight(
+	const vec3_t origin,
+	const vec3_t angles,
+	float coneangle,
+	float zfar,
+	int resolution,
+	float darken,
+	qboolean isstatic);
 void GL3_Shadow_SetupLightShader(gl3_shadow_light_t* light);
 void GL3_Shadow_RenderShadowMaps();
 void GL3_Shadow_Init();

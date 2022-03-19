@@ -1115,8 +1115,9 @@ static vec3_t shadowlightangle;
 static float shadowlightconeangle;
 static float shadowlightradius;
 static qboolean shadowlightspot;
-static float shadowlightresolution;
+static int shadowlightresolution;
 static float shadowlightdarken;
+static qboolean shadowlightstatic;
 
 static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keylen, const char* value, size_t valuelen)
 {
@@ -1142,7 +1143,7 @@ static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keyle
 			GL3_Fog_Set(r, g, b, d);
 		}
 	}
-	else if (t == entity_light) {
+	else {
 		if (!strncmp(key, "_shadowlight", keylen)) {
 			shadowlight = true;
 		}
@@ -1165,10 +1166,13 @@ static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keyle
 			shadowlightradius = atof(v);
 		}
 		else if (!strncmp(key, "_shadowlightresolution", keylen)) {
-			shadowlightresolution = atof(v);
+			shadowlightresolution = atoi(v);
 		}
 		else if (!strncmp(key, "_shadowlightdarken", keylen)) {
 			shadowlightdarken = atof(v);
+		}
+		else if (!strncmp(key, "_shadowlightstatic", keylen)) {
+			shadowlightstatic = (qboolean)atoi(v);
 		}
 	}
 	free(v);
@@ -1178,7 +1182,15 @@ static void GL3_EndEntity(enum gl3_entity t)
 {
 	if (t == entity_light && shadowlight) {
 		if (shadowlightspot) {
-			GL3_Shadow_AddSpotLight(shadowlightorigin, shadowlightangle, shadowlightconeangle, shadowlightradius);
+			GL3_Shadow_AddSpotLight(
+				shadowlightorigin,
+				shadowlightangle,
+				shadowlightconeangle,
+				shadowlightradius,
+				shadowlightresolution,
+				shadowlightdarken,
+				shadowlightstatic
+			);
 		}
 		else {
 			// R_Shadow_AddPointLight (shadowlightorigin, shadowlightradius);
@@ -1192,8 +1204,10 @@ static void GL3_EndEntity(enum gl3_entity t)
 	memset(shadowlightangle, 0, sizeof(shadowlightangle));
 	shadowlightconeangle = 0.0f;
 	shadowlightradius = 0.0f;
-	shadowlightresolution = 0.0f;
+	shadowlightresolution = 0;
 	shadowlightdarken = 0.0f;
+	shadowlightspot = false;
+	shadowlightstatic = false;
 	shadowlight = false;
 	worldsun = false;
 }

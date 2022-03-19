@@ -384,7 +384,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			vec2( 0.14383161, -0.14100790 )
 		);
 
-		// Receives the color and the previous lighting, returns the new lighting with the color applied
+		// Receives the color and the previous lighting, returns the new lighting
 		vec3 CalcSpotShadow(in int idx, in vec3 world_coord, in vec3 world_normal, in vec3 color, in vec3 lighting)
 		{
 			mat4 shadow_matrix = shadows[idx].proj_matrix * shadows[idx].view_matrix;
@@ -397,29 +397,30 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			float epsilon      = shadows[idx].spot_cutoff - shadows[idx].spot_outer_cutoff;
 			float light_factor = clamp((theta - shadows[idx].spot_outer_cutoff) / epsilon, 0.0, 1.0);
 
-			// float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
-			// if (norm_factor < 0) { return 0.0f; }
+			float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
+			if (norm_factor < 0.0) { return lighting; }
 
 			//float result = light_factor * radinfluence;
 			if (shadows[idx].cast_shadow > 0) {
 				float bias = 0.0001f;//shadows[idx].bias*light_factor;
 				float darken = shadows[idx].darken/6.0;
 				// float brighten = shadows[idx].brighten/6.0;
-				float result = 0.0f;
+				float intensity = 0.0f;
 				for (int j=0;j<6;j++) {
 					int index = j;     //int(floor(16.0*texture2D(random_tex, (WorldCoord.xy+WorldCoord.z)*j).r));
 					if (texture(shadow_map_samplers[idx], vec3(shadow_coord.xy+poissonDisk[index]/800.0,shadow_coord.z-bias)) < 1.0) {
-						result += darken*light_factor*radinfluence;
+						//result += darken*light_factor*radinfluence;
 					} else {
-						// result += brighten*light_factor*radinfluence;
+						intensity += norm_factor*light_factor*radinfluence;
 					}
 				}
-				return lighting * (1.0f - result);
+				// return lighting * (1.0f - result);
+				return lighting + (vec3(0.25)*(intensity/6.0)*light_factor*radinfluence);
 			}
 			else {
 				// No shadows, just lighting
 				float intensity = 2.0f;
-				return lighting + (color*intensity*light_factor*radinfluence);
+				return lighting + (vec3(0.25)*intensity*light_factor*radinfluence);
 			}
 		}
 );
@@ -955,8 +956,8 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 
 		void main()
 		{
-			vec4 texel = texture(tex, passTexCoord);
-			vec4 albedo = texel;
+			vec4 albedo = texture(tex, passTexCoord);
+			vec4 texel = vec4(1.0);
 
 			// apply gamma correction and intensity
 			texel.rgb *= intensity;
@@ -971,7 +972,7 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 				}
 			}
 
-			outColor = texel;
+			outColor = albedo*texel;
 
 			float fogDensity = fogParams.w/64.0;
 			float fog = exp(-fogDensity * fogDensity * passFogCoord * passFogCoord);
@@ -980,7 +981,7 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 
 			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 
-			outColor.a = texel.a; // I think alpha shouldn't be modified by gamma and intensity
+			outColor.a = albedo.a; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
 
