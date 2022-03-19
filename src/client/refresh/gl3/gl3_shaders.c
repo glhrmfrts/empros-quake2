@@ -415,12 +415,12 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 					}
 				}
 				// return lighting * (1.0f - result);
-				return lighting + (vec3(0.25)*(intensity/6.0)*light_factor*radinfluence);
+				return lighting + (vec3(0.25)*(intensity/6.0)*norm_factor*light_factor*radinfluence);
 			}
 			else {
 				// No shadows, just lighting
 				float intensity = 2.0f;
-				return lighting + (vec3(0.25)*intensity*light_factor*radinfluence);
+				return lighting + (vec3(0.25)*intensity*norm_factor*light_factor*radinfluence);
 			}
 		}
 );
