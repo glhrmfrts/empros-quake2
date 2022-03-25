@@ -843,7 +843,7 @@ static const char* fragmentSrc3Dsky = MULTILINE_STRING(
 			// apply gamma correction
 			// texel.rgb *= intensity; // TODO: really no intensity for sky?
 
-			outColor = texel;
+			outColor = texel * (1.0f+emission);
 			//outColor.rgb = pow(outColor.rgb, vec3(gamma));
 
 			float fogDensity = fogParams.w/64.0;
@@ -1215,20 +1215,46 @@ static const char* fragmentSrcPostfxResolveMultisample = MULTILINE_STRING(#versi
 
 		float invSampleCount = 1.0f / float(u_SampleCount);
 
+		outColor[0] = invSampleCount * combinedColor;
+
 		// write out the depth
 		outColor[1] = invSampleCount * combinedDepth;
+	}
+);
 
-		vec4 orgColor = invSampleCount * combinedColor;
+static const char* fragmentSrcPostfxResolveHDR = MULTILINE_STRING(#version 150\n
 
-		// go ahead and perform the hdr tonemapping in this shader as well
-		float exposure = u_Intensity;
+	uniform sampler2D u_FboSampler0; // hdr scene
+	uniform sampler2D u_FboSampler1; // bloom blurred texture
+	uniform int u_SampleCount;
+	uniform float u_Intensity; // Bloom intensity
+	uniform float u_HDR; // HDR exposure
+
+	in vec2 v_TexCoord;
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 color;
+	};
+
+	out vec4 outColor[2];
+
+	void main()
+	{
+		float bloomIntensity = u_Intensity;
+		float exposure = u_HDR;
 	
 		// exposure tone mapping
-		vec3 hdrColor = orgColor.rgb;
-		vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+		vec3 hdrColor = texture(u_FboSampler0, v_TexCoord).rgb;
+		vec3 bloomColor = texture(u_FboSampler1, v_TexCoord).rgb;
+		hdrColor += bloomColor * bloomIntensity;
 
-		// Branchless enable/disable HDR
-		mapped = mix(clamp(orgColor.rgb, 0.0, 1.0), mapped, u_HDR);
+		vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
 
 		// gamma correction
 		mapped = pow(mapped, vec3(gamma));
@@ -1350,6 +1376,7 @@ static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
 	uniform sampler2D u_FboSampler1; // depth
 	uniform sampler2D u_FboSampler2; // mask
 	uniform float u_Intensity;
+	uniform int u_SampleCount;
 
 	uniform mat4 u_ViewProjectionInverseMatrix;
 	uniform mat4 u_PreviousViewProjectionMatrix;
@@ -1403,8 +1430,8 @@ static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
 		vec4 color = texture2D(u_FboSampler0, texCoord);
 		texCoord += velocity.xy;
 
-		const int numSamples = 8;
-		int numAvgSamples = 8;
+		int numSamples = u_SampleCount;
+		int numAvgSamples = u_SampleCount;
 
 		for(int i = 1; i < numSamples; ++i) {
 			// Sample the color buffer along the velocity vector.
@@ -1456,6 +1483,108 @@ static const char* fragmentSrcPostfxSSAOBlur = MULTILINE_STRING(#version 150\n
 		FragColor = vec4(vec3(result / (4.0 * 4.0)), 1.0);
 	}
 
+);
+
+static const char* fragmentSrcPostfxBloomFilter = MULTILINE_STRING(#version 150\n
+
+	uniform sampler2D u_FboSampler0; // hdr scene
+	uniform float u_Intensity; // Bloom threshold
+
+	in vec2 v_TexCoord;
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 color;
+	};
+
+	out vec4 outColor;
+
+	void main()
+	{
+		vec3 hdrColor = texture(u_FboSampler0, v_TexCoord).rgb;
+		
+		float brightness = dot(hdrColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+		if(brightness > u_Intensity)
+			outColor = vec4(hdrColor.rgb, 1.0);
+		else
+			outColor = vec4(0.0, 0.0, 0.0, 1.0);
+	}
+);
+
+static const char* fragmentSrcPostfxBloomBlur = MULTILINE_STRING(#version 150\n
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 commoncolor;
+	};
+
+	out vec4 FragColor;
+	
+	in vec2 v_TexCoord;
+
+	uniform sampler2D u_FboSampler0;
+	
+	uniform int u_SampleCount;
+	uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+	void main()
+	{             
+		vec2 tex_offset = 1.0 / textureSize(u_FboSampler0, 0); // gets size of single texel
+		vec3 result = texture(u_FboSampler0, v_TexCoord).rgb * weight[0]; // current fragment's contribution
+		bool horizontal = u_SampleCount > 0;
+		if(horizontal)
+		{
+			for(int i = 1; i < 5; ++i)
+			{
+				result += texture(u_FboSampler0, v_TexCoord + vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+				result += texture(u_FboSampler0, v_TexCoord - vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+			}
+		}
+		else
+		{
+			for(int i = 1; i < 5; ++i)
+			{
+				result += texture(u_FboSampler0, v_TexCoord + vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+				result += texture(u_FboSampler0, v_TexCoord - vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+			}
+		}
+		FragColor = vec4(result, 1.0);
+	}
+
+);
+
+static const char* fragmentSrcPostfxBlit = MULTILINE_STRING(#version 150\n
+
+	uniform sampler2D u_FboSampler0;
+
+	in vec2 v_TexCoord;
+
+	// for UBO shared between all shaders (incl. 2D)
+	layout (std140) uniform uniCommon
+	{
+		float gamma;
+		float intensity;
+		float intensity2D; // for HUD, menu etc
+
+		vec4 color;
+	};
+
+	out vec4 outColor;
+
+	void main()
+	{
+		outColor = texture(u_FboSampler0, v_TexCoord);
+	}
 );
 
 #undef MULTILINE_STRING
@@ -1970,6 +2099,21 @@ static qboolean createShaders(void)
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for resolve multisample postfx!\n");
 		return false;
 	}
+	if (!initShaderPostfx(&gl3state.siPostfxResolveHDR, vertexSrcPostfxCommon, fragmentSrcPostfxResolveHDR))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for resolve HDR postfx!\n");
+		return false;
+	}
+	if (!initShaderPostfx(&gl3state.siPostfxBloomFilter, vertexSrcPostfxCommon, fragmentSrcPostfxBloomFilter))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for bloom filter postfx!\n");
+		return false;
+	}
+	if (!initShaderPostfx(&gl3state.siPostfxBloomBlur, vertexSrcPostfxCommon, fragmentSrcPostfxBloomBlur))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for bloom blur postfx!\n");
+		return false;
+	}
 	if (!initShaderPostfx(&gl3state.siPostfxSSAO, vertexSrcPostfxSSAO, fragmentSrcPostfxSSAO))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for SSAO postfx!\n");
@@ -1985,7 +2129,11 @@ static qboolean createShaders(void)
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for motion blur postfx!\n");
 		return false;
 	}
-
+	if (!initShaderPostfx(&gl3state.siPostfxBlit, vertexSrcPostfxCommon, fragmentSrcPostfxBlit))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for motion blur postfx!\n");
+		return false;
+	}
 
 	gl3state.currentShaderProgram = 0;
 
