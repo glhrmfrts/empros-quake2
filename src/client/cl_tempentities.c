@@ -535,6 +535,7 @@ CL_ParseSteam(void)
 		{
 			s->id = id;
 			s->count = MSG_ReadByte(&net_message);
+			s->count *= 2;
 			MSG_ReadPos(&net_message, s->org);
 			MSG_ReadDir(&net_message, s->dir);
 			r = MSG_ReadByte(&net_message);
@@ -559,6 +560,7 @@ CL_ParseSteam(void)
 	{
 		/* instant */
 		cnt = MSG_ReadByte(&net_message);
+		cnt *= 2;
 		MSG_ReadPos(&net_message, pos);
 		MSG_ReadDir(&net_message, dir);
 		r = MSG_ReadByte(&net_message);

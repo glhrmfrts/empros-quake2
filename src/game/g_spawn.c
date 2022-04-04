@@ -89,6 +89,7 @@ void SP_target_earthquake(edict_t *ent);
 void SP_target_character(edict_t *ent);
 void SP_target_string(edict_t *ent);
 void SP_target_fog(edict_t* ent);
+void SP_target_steam(edict_t *self);
 
 void SP_worldspawn(edict_t *ent);
 void SP_viewthing(edict_t *ent);
@@ -207,6 +208,7 @@ spawn_t spawns[] = {
 	{"target_character", SP_target_character},
 	{"target_string", SP_target_string},
 	{"target_fog", SP_target_fog},
+	{"target_steam", SP_target_steam},
 
 	{"worldspawn", SP_worldspawn},
 	{"viewthing", SP_viewthing},

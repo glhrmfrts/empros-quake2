@@ -3,6 +3,8 @@
         "*.qc": "c",
         "*.cb": "carbon",
         "xutility": "c",
-        "shared.h": "c"
+        "shared.h": "c",
+        "vector": "c",
+        "xstring": "c"
     }
 }

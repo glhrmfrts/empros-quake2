@@ -1495,6 +1495,10 @@ soldier_die(edict_t *self, edict_t *inflictor /* unused */,
 	self->takedamage = DAMAGE_YES;
 	self->s.skinnum |= 1;
 
+	/* gnemeth: make soldier non-solid as soon as they die */
+	self->svflags |= SVF_DEADMONSTER;
+	gi.linkentity(self);
+
 	if (self->s.skinnum == 1)
 	{
 		gi.sound(self, CHAN_VOICE, sound_death_light, 1, ATTN_NORM, 0);

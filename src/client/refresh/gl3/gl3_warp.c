@@ -663,6 +663,7 @@ GL3_DrawSkyBox(void)
 		modMVmat = HMM_MultiplyMat4(modMVmat, HMM_Rotate(gl3_newrefdef.time * skyrotate, rotAxis));
 	}
 	gl3state.uni3DData.transModelMat4 = modMVmat;
+	gl3state.uni3DData.emission = r_hdr->value;
 	GL3_UpdateUBO3D();
 
 	GL3_UseProgram(gl3state.si3Dsky.shaderProgram);
@@ -701,5 +702,6 @@ GL3_DrawSkyBox(void)
 
 	// glPopMatrix();
 	gl3state.uni3DData.transModelMat4 = origModelMat;
+	gl3state.uni3DData.emission = 0.0f;
 	GL3_UpdateUBO3D();
 }

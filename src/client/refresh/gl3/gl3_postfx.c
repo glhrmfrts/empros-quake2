@@ -200,7 +200,7 @@ static GLint GetUniform(const gl3ShaderInfo_t* si, const char* name, const char*
 {
     int u = glGetUniformLocation(si->shaderProgram, name);
     if (u == -1) {
-        R_Printf(PRINT_ALL, "WARNING: Failed to find uniform %s in shader %s\n", name, shader);
+        //R_Printf(PRINT_ALL, "WARNING: Failed to find uniform %s in shader %s\n", name, shader);
     }
     return u;
 }

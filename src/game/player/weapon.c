@@ -1647,7 +1647,7 @@ Weapon_Shotgun(edict_t *ent)
 		return;
 	}
 
-	Weapon_Generic(ent, 7, 18, 36, 39, pause_frames,
+	Weapon_Generic(ent, 7, 15, 36, 39, pause_frames,
 			fire_frames, weapon_shotgun_fire);
 }
 
