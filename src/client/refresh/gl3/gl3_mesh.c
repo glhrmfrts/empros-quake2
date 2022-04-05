@@ -892,13 +892,14 @@ GL3_DrawAliasModel(entity_t *entity)
 		skin = gl3_notexture; /* fallback... */
 	}
 
-	GL3_Bind(skin->texnum);
+	//GL3_Bind(skin->texnum);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, skin->texnum);
 
 	if (entity->flags & RF_TRANSLUCENT)
 	{
 		glEnable(GL_BLEND);
 	}
-
 
 	if ((entity->frame >= paliashdr->num_frames) ||
 		(entity->frame < 0))

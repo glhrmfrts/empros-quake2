@@ -1433,7 +1433,7 @@ static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
 		int numSamples = u_SampleCount;
 		int numAvgSamples = u_SampleCount;
 
-		for(int i = 1; i < numSamples; ++i) {
+		for (int i = 1; i < numSamples; ++i) {
 			// Sample the color buffer along the velocity vector.
 			vec4 currentColor = texture2D(u_FboSampler0, texCoord);
 			
