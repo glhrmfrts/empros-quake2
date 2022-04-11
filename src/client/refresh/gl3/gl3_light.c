@@ -220,13 +220,13 @@ RecursiveLightPoint(mnode_t *node, vec3_t start, vec3_t end)
 			return 0;
 		}
 
-		ds >>= 4;
-		dt >>= 4;
+		ds /= gl3state.lightmap_step;
+		dt /= gl3state.lightmap_step;
 
 		lightmap = surf->samples;
 		VectorCopy(vec3_origin, pointcolor);
 
-		lightmap += 3 * (dt * ((surf->extents[0] >> 4) + 1) + ds);
+		lightmap += 3 * (dt * ((surf->extents[0] / gl3state.lightmap_step) + 1) + ds);
 
 		for (maps = 0; maps < MAX_LIGHTMAPS_PER_SURFACE && surf->styles[maps] != 255;
 			 maps++)
@@ -240,8 +240,8 @@ RecursiveLightPoint(mnode_t *node, vec3_t start, vec3_t end)
 			pointcolor[0] += lightmap[0] * scale[0] * (1.0 / 255);
 			pointcolor[1] += lightmap[1] * scale[1] * (1.0 / 255);
 			pointcolor[2] += lightmap[2] * scale[2] * (1.0 / 255);
-			lightmap += 3 * ((surf->extents[0] >> 4) + 1) *
-						((surf->extents[1] >> 4) + 1);
+			lightmap += 3 * ((surf->extents[0] / gl3state.lightmap_step) + 1) *
+						((surf->extents[1] / gl3state.lightmap_step) + 1);
 		}
 
 		return 1;
@@ -309,7 +309,7 @@ GL3_LightPoint(entity_t *currententity, vec3_t p, vec3_t color)
  * Combine and scale multiple lightmaps into the floating format in blocklights
  */
 void
-GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride)
+GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride, int step)
 {
 	int smax, tmax;
 	int r, g, b, a, max;
@@ -321,15 +321,15 @@ GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride)
 		ri.Sys_Error(ERR_DROP, "GL3_BuildLightMap called for non-lit surface");
 	}
 
-	smax = (surf->extents[0] >> 4) + 1;
-	tmax = (surf->extents[1] >> 4) + 1;
+	smax = (surf->extents[0] / step) + 1;
+	tmax = (surf->extents[1] / step) + 1;
 	size = smax * tmax;
 
 	stride -= (smax << 2);
 
 	if (size > 34*34*3)
 	{
-		ri.Sys_Error(ERR_DROP, "Bad s_blocklights size");
+		//ri.Sys_Error(ERR_DROP, "Bad s_blocklights size");
 	}
 
 	// count number of lightmaps surf actually has

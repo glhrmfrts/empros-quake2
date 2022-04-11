@@ -46,8 +46,8 @@ typedef struct
 	int			contents;
 	int			cluster;
 	int			area;
-	unsigned short	firstleafbrush;
-	unsigned short	numleafbrushes;
+	unsigned int	firstleafbrush;
+	unsigned int	numleafbrushes;
 } cleaf_t;
 
 typedef struct
@@ -72,17 +72,17 @@ byte map_visibility[MAX_MAP_VISIBILITY];
 static YQ2_ALIGNAS_TYPE(int32_t) byte pvsrow[MAX_MAP_LEAFS / 8];
 byte phsrow[MAX_MAP_LEAFS / 8];
 carea_t	map_areas[MAX_MAP_AREAS];
-cbrush_t map_brushes[MAX_MAP_BRUSHES];
-cbrushside_t map_brushsides[MAX_MAP_BRUSHSIDES];
+cbrush_t map_brushes[MAX_MAP_BRUSHES_QBSP];
+cbrushside_t map_brushsides[MAX_MAP_BRUSHSIDES_QBSP];
 char map_name[MAX_QPATH];
 char map_entitystring[MAX_MAP_ENTSTRING];
 cbrush_t *box_brush;
 cleaf_t	*box_leaf;
-cleaf_t	map_leafs[MAX_MAP_LEAFS];
+cleaf_t	map_leafs[MAX_MAP_LEAFS_QBSP];
 cmodel_t map_cmodels[MAX_MAP_MODELS];
-cnode_t	map_nodes[MAX_MAP_NODES+6]; /* extra for box hull */
+cnode_t	map_nodes[MAX_MAP_NODES_QBSP+6]; /* extra for box hull */
 cplane_t *box_planes;
-cplane_t map_planes[MAX_MAP_PLANES+6]; /* extra for box hull */
+cplane_t map_planes[MAX_MAP_PLANES_QBSP+6]; /* extra for box hull */
 cvar_t *map_noareas;
 dareaportal_t map_areaportals[MAX_MAP_AREAPORTALS];
 dvis_t *map_vis = (dvis_t *)map_visibility;
@@ -113,7 +113,7 @@ mapsurface_t nullsurface;
 qboolean portalopen[MAX_MAP_AREAPORTALS];
 qboolean trace_ispoint; /* optimized case */
 trace_t trace_trace;
-unsigned short	map_leafbrushes[MAX_MAP_LEAFBRUSHES];
+unsigned int	map_leafbrushes[MAX_MAP_LEAFBRUSHES];
 vec3_t trace_start, trace_end;
 vec3_t trace_mins, trace_maxs;
 vec3_t trace_extents;
@@ -1304,6 +1304,49 @@ CMod_LoadNodes(lump_t *l)
 }
 
 void
+CMod_LoadNodes_QBSP(lump_t *l)
+{
+	dnode_tx *in;
+	int child;
+	cnode_t *out;
+	int i, j, count;
+
+	in = (void *)(cmod_base + l->fileofs);
+
+	if (l->filelen % sizeof(*in))
+	{
+		Com_Error(ERR_DROP, "Mod_LoadNodes: funny lump size");
+	}
+
+	count = l->filelen / sizeof(*in);
+
+	if (count < 1)
+	{
+		Com_Error(ERR_DROP, "Map has no nodes");
+	}
+
+	if (count > MAX_MAP_NODES)
+	{
+		Com_Error(ERR_DROP, "Map has too many nodes");
+	}
+
+	out = map_nodes;
+
+	numnodes = count;
+
+	for (i = 0; i < count; i++, out++, in++)
+	{
+		out->plane = map_planes + LittleLong(in->planenum);
+
+		for (j = 0; j < 2; j++)
+		{
+			child = LittleLong(in->children[j]);
+			out->children[j] = child;
+		}
+	}
+}
+
+void
 CMod_LoadBrushes(lump_t *l)
 {
 	dbrush_t *in;
@@ -1406,6 +1449,75 @@ CMod_LoadLeafs(lump_t *l)
 }
 
 void
+CMod_LoadLeafs_QBSP(lump_t *l)
+{
+	int i;
+	cleaf_t *out;
+	dleaf_tx *in;
+	int count;
+
+	in = (void *)(cmod_base + l->fileofs);
+
+	if (l->filelen % sizeof(*in))
+	{
+		Com_Error(ERR_DROP, "Mod_LoadLeafs: funny lump size");
+	}
+
+	count = l->filelen / sizeof(*in);
+
+	if (count < 1)
+	{
+		Com_Error(ERR_DROP, "Map with no leafs");
+	}
+
+	/* need to save space for box planes */
+	if (count > MAX_MAP_PLANES_QBSP)
+	{
+		Com_Error(ERR_DROP, "Map has too many planes");
+	}
+
+	out = map_leafs;
+	numleafs = count;
+	numclusters = 0;
+
+	for (i = 0; i < count; i++, in++, out++)
+	{
+		out->contents = LittleLong(in->contents);
+		out->cluster = LittleLong(in->cluster);
+		out->area = LittleLong(in->area);
+		out->firstleafbrush = LittleLong(in->firstleafbrush);
+		out->numleafbrushes = LittleLong(in->numleafbrushes);
+
+		if (out->cluster >= numclusters)
+		{
+			numclusters = out->cluster + 1;
+		}
+	}
+
+	if (map_leafs[0].contents != CONTENTS_SOLID)
+	{
+		Com_Error(ERR_DROP, "Map leaf 0 is not CONTENTS_SOLID");
+	}
+
+	solidleaf = 0;
+	emptyleaf = -1;
+
+	for (i = 1; i < numleafs; i++)
+	{
+		if (!map_leafs[i].contents)
+		{
+			emptyleaf = i;
+			break;
+		}
+	}
+
+	if (emptyleaf == -1)
+	{
+		Com_Error(ERR_DROP, "Map does not have an empty leaf");
+	}
+}
+
+void
 CMod_LoadPlanes(lump_t *l)
 {
 	int i, j;
@@ -1429,7 +1541,7 @@ CMod_LoadPlanes(lump_t *l)
 	}
 
 	/* need to save space for box planes */
-	if (count > MAX_MAP_PLANES)
+	if (count > MAX_MAP_PLANES_QBSP)
 	{
 		Com_Error(ERR_DROP, "Map has too many planes");
 	}
@@ -1461,7 +1573,7 @@ void
 CMod_LoadLeafBrushes(lump_t *l)
 {
 	int i;
-	unsigned short *out;
+	unsigned int *out;
 	unsigned short *in;
 	int count;
 
@@ -1491,6 +1603,43 @@ CMod_LoadLeafBrushes(lump_t *l)
 	for (i = 0; i < count; i++, in++, out++)
 	{
 		*out = LittleShort(*in);
+	}
+}
+
+void
+CMod_LoadLeafBrushes_QBSP(lump_t *l)
+{
+	int i;
+	unsigned int *out;
+	unsigned int *in;
+	int count;
+
+	in = (void *)(cmod_base + l->fileofs);
+
+	if (l->filelen % sizeof(*in))
+	{
+		Com_Error(ERR_DROP, "Mod_LoadLeafBrushes: funny lump size");
+	}
+
+	count = l->filelen / sizeof(*in);
+
+	if (count < 1)
+	{
+		Com_Error(ERR_DROP, "Map with no planes");
+	}
+
+	/* need to save space for box planes */
+	if (count > MAX_MAP_LEAFBRUSHES_QBSP)
+	{
+		Com_Error(ERR_DROP, "Map has too many leafbrushes");
+	}
+
+	out = map_leafbrushes;
+	numleafbrushes = count;
+
+	for (i = 0; i < count; i++, in++, out++)
+	{
+		*out = LittleLong(*in);
 	}
 }
 
@@ -1526,6 +1675,48 @@ CMod_LoadBrushSides(lump_t *l)
 		num = LittleShort(in->planenum);
 		out->plane = &map_planes[num];
 		j = LittleShort(in->texinfo);
+
+		if (j >= numtexinfo)
+		{
+			Com_Error(ERR_DROP, "Bad brushside texinfo");
+		}
+
+		out->surface = (j >= 0) ? &map_surfaces[j] : &nullsurface;
+	}
+}
+
+void
+CMod_LoadBrushSides_QBSP(lump_t *l)
+{
+	int i, j;
+	cbrushside_t *out;
+	dbrushside_tx *in;
+	int count;
+	int num;
+
+	in = (void *)(cmod_base + l->fileofs);
+
+	if (l->filelen % sizeof(*in))
+	{
+		Com_Error(ERR_DROP, "Mod_LoadBrushSides: funny lump size");
+	}
+
+	count = l->filelen / sizeof(*in);
+
+	/* need to save space for box planes */
+	if (count > MAX_MAP_BRUSHSIDES_QBSP)
+	{
+		Com_Error(ERR_DROP, "Map has too many planes");
+	}
+
+	out = map_brushsides;
+	numbrushsides = count;
+
+	for (i = 0; i < count; i++, in++, out++)
+	{
+		num = LittleLong(in->planenum);
+		out->plane = &map_planes[num];
+		j = LittleLong(in->texinfo);
 
 		if (j >= numtexinfo)
 		{
@@ -1735,7 +1926,7 @@ CM_LoadMap(char *name, qboolean clientload, unsigned *checksum)
         break;
     case QBSPHEADER:
         use_qbsp = true;
-        Com_Error(ERR_DROP, "unsupported QBSP format: %s", name);
+        //Com_Error(ERR_DROP, "unsupported QBSP format: %s", name);
         break;
     default:
         Com_Error(ERR_DROP, "unsupported unknown BSP format: %s", name);
@@ -1751,20 +1942,40 @@ CM_LoadMap(char *name, qboolean clientload, unsigned *checksum)
 
 	cmod_base = (byte *)buf;
 
-	/* load into heap */
-	CMod_LoadSurfaces(&header.lumps[LUMP_TEXINFO]);
-	CMod_LoadLeafs(&header.lumps[LUMP_LEAFS]);
-	CMod_LoadLeafBrushes(&header.lumps[LUMP_LEAFBRUSHES]);
-	CMod_LoadPlanes(&header.lumps[LUMP_PLANES]);
-	CMod_LoadBrushes(&header.lumps[LUMP_BRUSHES]);
-	CMod_LoadBrushSides(&header.lumps[LUMP_BRUSHSIDES]);
-	CMod_LoadSubmodels(&header.lumps[LUMP_MODELS]);
-	CMod_LoadNodes(&header.lumps[LUMP_NODES]);
-	CMod_LoadAreas(&header.lumps[LUMP_AREAS]);
-	CMod_LoadAreaPortals(&header.lumps[LUMP_AREAPORTALS]);
-	CMod_LoadVisibility(&header.lumps[LUMP_VISIBILITY]);
-	/* From kmquake2: adding an extra parameter for .ent support. */
-	CMod_LoadEntityString(&header.lumps[LUMP_ENTITIES], name);
+	if (use_qbsp)
+	{
+		/* load into heap */
+		CMod_LoadSurfaces(&header.lumps[LUMP_TEXINFO]);
+		CMod_LoadLeafs_QBSP(&header.lumps[LUMP_LEAFS]);
+		CMod_LoadLeafBrushes_QBSP(&header.lumps[LUMP_LEAFBRUSHES]);
+		CMod_LoadPlanes(&header.lumps[LUMP_PLANES]);
+		CMod_LoadBrushes(&header.lumps[LUMP_BRUSHES]);
+		CMod_LoadBrushSides_QBSP(&header.lumps[LUMP_BRUSHSIDES]);
+		CMod_LoadSubmodels(&header.lumps[LUMP_MODELS]);
+		CMod_LoadNodes_QBSP(&header.lumps[LUMP_NODES]);
+		CMod_LoadAreas(&header.lumps[LUMP_AREAS]);
+		CMod_LoadAreaPortals(&header.lumps[LUMP_AREAPORTALS]);
+		CMod_LoadVisibility(&header.lumps[LUMP_VISIBILITY]);
+		/* From kmquake2: adding an extra parameter for .ent support. */
+		CMod_LoadEntityString(&header.lumps[LUMP_ENTITIES], name);
+	}
+	else
+	{
+		/* load into heap */
+		CMod_LoadSurfaces(&header.lumps[LUMP_TEXINFO]);
+		CMod_LoadLeafs(&header.lumps[LUMP_LEAFS]);
+		CMod_LoadLeafBrushes(&header.lumps[LUMP_LEAFBRUSHES]);
+		CMod_LoadPlanes(&header.lumps[LUMP_PLANES]);
+		CMod_LoadBrushes(&header.lumps[LUMP_BRUSHES]);
+		CMod_LoadBrushSides(&header.lumps[LUMP_BRUSHSIDES]);
+		CMod_LoadSubmodels(&header.lumps[LUMP_MODELS]);
+		CMod_LoadNodes(&header.lumps[LUMP_NODES]);
+		CMod_LoadAreas(&header.lumps[LUMP_AREAS]);
+		CMod_LoadAreaPortals(&header.lumps[LUMP_AREAPORTALS]);
+		CMod_LoadVisibility(&header.lumps[LUMP_VISIBILITY]);
+		/* From kmquake2: adding an extra parameter for .ent support. */
+		CMod_LoadEntityString(&header.lumps[LUMP_ENTITIES], name);
+	}
 
 	FS_FreeFile(buf);
 

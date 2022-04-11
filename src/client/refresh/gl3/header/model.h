@@ -27,6 +27,9 @@
 #ifndef SRC_CLIENT_REFRESH_GL3_HEADER_MODEL_H_
 #define SRC_CLIENT_REFRESH_GL3_HEADER_MODEL_H_
 
+#define LMSTEP                  16 // qb: lightmap step.  Default generates 1/16 of texture scale.
+#define QBSP_LMSTEP             4  // qb: higher res lightmap
+
 enum {
 	SIDE_FRONT = 0,
 	SIDE_BACK = 1,
@@ -79,7 +82,7 @@ typedef struct
 
 typedef struct
 {
-	unsigned short v[2];
+	unsigned int v[2];
 	unsigned int cachededgeoffset;
 } medge_t;
 

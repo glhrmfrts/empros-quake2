@@ -230,7 +230,7 @@ enum {
 	BLOCK_WIDTH = 1024,
 	BLOCK_HEIGHT = 512,
 	LIGHTMAP_BYTES = 4,
-	MAX_LIGHTMAPS = 4,
+	MAX_LIGHTMAPS = 16,
 	MAX_LIGHTMAPS_PER_SURFACE = MAXLIGHTMAPS // 4
 };
 
@@ -316,6 +316,8 @@ typedef struct
 	struct gl3_3D_vtx_s* world_vertices;
 	unsigned int num_world_vertices;
 	unsigned int cap_world_vertices;
+
+	int lightmap_step;
 
 	qboolean postfx_initialized;
 
@@ -602,7 +604,7 @@ extern void GL3_ImageList_f(void);
 extern void GL3_MarkLights(dlight_t *light, int bit, mnode_t *node);
 extern void GL3_PushDlights(void);
 extern void GL3_LightPoint(entity_t *currententity, vec3_t p, vec3_t color);
-extern void GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride);
+extern void GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride, int step);
 
 // gl3_lightmap.c
 #define GL_LIGHTMAP_FORMAT GL_RGBA
@@ -610,9 +612,9 @@ extern void GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride);
 extern void GL3_LM_InitBlock(void);
 extern void GL3_LM_UploadBlock(void);
 extern qboolean GL3_LM_AllocBlock(int w, int h, int *x, int *y);
-extern void GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa);
+extern void GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa, int step);
 extern void GL3_LM_BuildPolygonFromWarpSurface(gl3model_t *currentmodel, msurface_t *fa);
-extern void GL3_LM_CreateSurfaceLightmap(msurface_t *surf);
+extern void GL3_LM_CreateSurfaceLightmap(msurface_t *surf, int step);
 extern void GL3_LM_BeginBuildingLightmaps(gl3model_t *m);
 extern void GL3_LM_EndBuildingLightmaps(void);
 

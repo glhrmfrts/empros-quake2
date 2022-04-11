@@ -27,6 +27,8 @@
 #ifndef CO_FILES_H
 #define CO_FILES_H
 
+#include <stdint.h>
+
 /* The .pak files are just a linear collapse of a directory tree */
 
 #define IDPAKHEADER (('K' << 24) + ('C' << 16) + ('A' << 8) + 'P')
@@ -228,6 +230,28 @@ typedef struct m8tex_s
 #define MAX_MAP_LIGHTING 0x200000
 #define MAX_MAP_VISIBILITY 0x100000
 
+// qb: qbsp limits
+#define WARN_MAP_MODELS_QBSP     32768
+#define MAX_MAP_MODELS_QBSP      131072
+#define MAX_MAP_BRUSHES_QBSP     1048576
+#define WARN_MAP_ENTITIES_QBSP   32768
+#define MAX_MAP_ENTITIES_QBSP    131072
+#define MAX_MAP_ENTSTRING_QBSP   13631488
+#define MAX_MAP_TEXINFO_QBSP     1048576
+#define MAX_MAP_PLANES_QBSP      1048576
+#define MAX_MAP_NODES_QBSP       1048576
+#define MAX_MAP_LEAFS_QBSP       1048576
+#define MAX_MAP_VERTS_QBSP       4194304
+#define MAX_MAP_FACES_QBSP       1048576
+#define MAX_MAP_LEAFFACES_QBSP   1048576
+#define MAX_MAP_LEAFBRUSHES_QBSP 1048576
+#define MAX_MAP_EDGES_QBSP       1048576
+#define MAX_MAP_BRUSHSIDES_QBSP  4194304
+#define MAX_MAP_PORTALS_QBSP     1048576
+#define MAX_MAP_SURFEDGES_QBSP   4194304
+#define MAX_MAP_LIGHTING_QBSP    54525952
+#define MAX_MAP_VISIBILITY_QBSP  0x8000000
+
 /* key / value pair sizes */
 
 #define MAX_KEY 32
@@ -358,6 +382,16 @@ typedef struct
 	unsigned short numfaces; /* counting both sides */
 } dnode_t;
 
+typedef struct
+{
+    int32_t planenum;
+    int32_t children[2]; // negative numbers are -(leafs+1), not nodes
+    float mins[3];       // for frustom culling
+    float maxs[3];
+    uint32_t firstface;
+    uint32_t numfaces; // counting both sides
+} dnode_tx;            // qb: qbsp
+
 typedef struct texinfo_s
 {
 	float vecs[2][4]; /* [s/t][xyz offset] */
@@ -375,6 +409,11 @@ typedef struct
 	unsigned short v[2]; /* vertex numbers */
 } dedge_t;
 
+typedef struct
+{
+    uint32_t v[2]; // vertex numbers
+} dedge_tx;        // qb: qbsp
+
 #define MAXLIGHTMAPS 4
 typedef struct
 {
@@ -389,6 +428,20 @@ typedef struct
 	byte styles[MAXLIGHTMAPS];
 	int lightofs; /* start of [numstyles*surfsize] samples */
 } dface_t;
+
+typedef struct
+{
+    uint32_t planenum;
+    int32_t side;
+
+    int32_t firstedge; // we must support > 64k edges
+    int32_t numedges;
+    int32_t texinfo;
+
+    // lighting info
+    byte styles[MAXLIGHTMAPS];
+    int32_t lightofs; // start of [numstyles*surfsize] samples
+} dface_tx;           // qb: qbsp
 
 typedef struct
 {
@@ -409,9 +462,32 @@ typedef struct
 
 typedef struct
 {
+    int32_t contents; // OR of all brushes (not needed?)
+
+    int32_t cluster;
+    int32_t area;
+
+    float mins[3]; // for frustum culling
+    float maxs[3];
+
+    uint32_t firstleafface;
+    uint32_t numleaffaces;
+
+    uint32_t firstleafbrush;
+    uint32_t numleafbrushes;
+} dleaf_tx; // qb: qbsp
+
+typedef struct
+{
 	unsigned short planenum; /* facing out of the leaf */
 	short texinfo;
 } dbrushside_t;
+
+typedef struct
+{
+    uint32_t planenum; // facing out of the leaf
+    int32_t texinfo;
+} dbrushside_tx; // qb: qbsp
 
 typedef struct
 {

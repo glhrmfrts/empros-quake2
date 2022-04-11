@@ -118,7 +118,7 @@ GL3_LM_AllocBlock(int w, int h, int *x, int *y)
 }
 
 static void
-BuildWorldVertex(const vec3_t vec, const vec3_t normal, const msurface_t* fa, gl3_3D_vtx_t* vert)
+BuildWorldVertex(const vec3_t vec, const vec3_t normal, const msurface_t* fa, gl3_3D_vtx_t* vert, int step)
 {
 	float s, t;
 
@@ -135,15 +135,15 @@ BuildWorldVertex(const vec3_t vec, const vec3_t normal, const msurface_t* fa, gl
 	/* lightmap texture coordinates */
 	s = DotProduct(vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
 	s -= fa->texturemins[0];
-	s += fa->light_s * 16;
-	s += 8;
-	s /= BLOCK_WIDTH * 16; /* fa->texinfo->texture->width; */
+	s += fa->light_s * step;
+	s += (step/2);
+	s /= BLOCK_WIDTH * step; /* fa->texinfo->texture->width; */
 
 	t = DotProduct(vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
 	t -= fa->texturemins[1];
-	t += fa->light_t * 16;
-	t += 8;
-	t /= BLOCK_HEIGHT * 16; /* fa->texinfo->texture->height; */
+	t += fa->light_t * step;
+	t += (step/2);
+	t /= BLOCK_HEIGHT * step; /* fa->texinfo->texture->height; */
 
 	vert->lmTexCoord[0] = s;
 	vert->lmTexCoord[1] = t;
@@ -152,7 +152,7 @@ BuildWorldVertex(const vec3_t vec, const vec3_t normal, const msurface_t* fa, gl
 	vert->lightFlags = 0;
 
 	// gnemeth: light styles as attributes (for batch rendering)
-	for (int map = 0; map < MAX_LIGHTMAPS_PER_SURFACE; map++) {
+	for (int map = 0; map < 4; map++) {
 		vert->styles[map] = fa->styles[map];
 	}
 }
@@ -183,7 +183,7 @@ AddPolyToWorldVBO(glpoly_t* poly, size_t lnumverts)
 }
 
 void
-GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
+GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa, int step)
 {
 	int i, lindex, lnumverts;
 	medge_t *pedges, *r_pedge;
@@ -229,7 +229,7 @@ GL3_LM_BuildPolygonFromSurface(gl3model_t *currentmodel, msurface_t *fa)
 			vec = currentmodel->vertexes[r_pedge->v[1]].position;
 		}
 
-		BuildWorldVertex(vec, normal, fa, vert);
+		BuildWorldVertex(vec, normal, fa, vert, step);
 	}
 
 	AddPolyToWorldVBO(poly, lnumverts);
@@ -245,15 +245,15 @@ GL3_LM_BuildPolygonFromWarpSurface(gl3model_t *currentmodel, msurface_t *fa)
 }
 
 void
-GL3_LM_CreateSurfaceLightmap(msurface_t *surf)
+GL3_LM_CreateSurfaceLightmap(msurface_t *surf, int step)
 {
 	int smax, tmax;
 
 	if (surf->flags & SURF_DRAWTURB) { return; }
 	if (surf->texinfo->flags & SURF_SKY) { return; }
 
-	smax = (surf->extents[0] >> 4) + 1;
-	tmax = (surf->extents[1] >> 4) + 1;
+	smax = (surf->extents[0] / step) + 1;
+	tmax = (surf->extents[1] / step) + 1;
 
 	if (!GL3_LM_AllocBlock(smax, tmax, &surf->light_s, &surf->light_t))
 	{
@@ -269,7 +269,7 @@ GL3_LM_CreateSurfaceLightmap(msurface_t *surf)
 
 	surf->lightmaptexturenum = gl3_lms.current_lightmap_texture;
 
-	GL3_BuildLightMap(surf, (surf->light_t * BLOCK_WIDTH + surf->light_s) * LIGHTMAP_BYTES, BLOCK_WIDTH * LIGHTMAP_BYTES);
+	GL3_BuildLightMap(surf, (surf->light_t * BLOCK_WIDTH + surf->light_s) * LIGHTMAP_BYTES, BLOCK_WIDTH * LIGHTMAP_BYTES, step);
 }
 
 void
