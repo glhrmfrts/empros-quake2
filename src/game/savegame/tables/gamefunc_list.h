@@ -1050,4 +1050,11 @@
 {"ai_move", (byte *)ai_move},
 {"AI_SetSightClient", (byte *)AI_SetSightClient},
 {"wait_and_change_think", (byte *)wait_and_change_think},
+
+// gnemeth
+{"SP_target_fog", (byte *)SP_target_fog},
+{"SP_target_steam", (byte *)SP_target_steam},
+{"use_target_steam", (byte *)use_target_steam},
+{"target_fog_use", (byte *)target_fog_use},
+
 {0, 0}

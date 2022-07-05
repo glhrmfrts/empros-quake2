@@ -730,24 +730,10 @@ SDL_AddLoopSounds(void)
 		ent = &cl_parse_entities[num];
 
 		/* find the total contribution of all sounds of this type */
-		SDL_SpatializeOrigin(ent->origin, 255.0f, SDL_LOOPATTENUATE, &left_total, &right_total);
+		const float custom_att = 0.000001f;
+		SDL_SpatializeOrigin(ent->origin, 255.0f, custom_att, &left_total, &right_total);
 
-		for (j = i + 1; j < cl.frame.num_entities; j++)
-		{
-			if (sounds[j] != sounds[i])
-			{
-				continue;
-			}
 
-			sounds[j] = 0; /* don't check this again later */
-			num = (cl.frame.parse_entities + j) & (MAX_PARSE_ENTITIES - 1);
-			ent = &cl_parse_entities[num];
-
-			SDL_SpatializeOrigin(ent->origin, 255.0f, SDL_LOOPATTENUATE, &left, &right);
-
-			left_total += left;
-			right_total += right;
-		}
 
 		if ((left_total == 0) && (right_total == 0))
 		{

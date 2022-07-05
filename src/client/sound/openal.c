@@ -498,7 +498,7 @@ AL_AddLoopSounds(void)
 		ch->sfx = sfx;
 		ch->entnum = ent->number;
 		ch->master_vol = 1;
-		ch->dist_mult = SOUND_LOOPATTENUATE;
+		ch->dist_mult = 0.001f;// SOUND_LOOPATTENUATE;
 		ch->end = paintedtime + sc->length;
 
 		/* it seems like looped sounds are always played at full volume
@@ -702,9 +702,9 @@ AL_Update(void)
 			}
 		}
 
-		if (s_show->value)
+		if (s_show->value == 1)
 		{
-			Com_Printf("%3i %s\n", ch->master_vol, ch->sfx->name);
+			Com_Printf("AL_Update %3i %s\n", ch->master_vol, ch->sfx->name);
 		}
 
 		/* respatialize channel */

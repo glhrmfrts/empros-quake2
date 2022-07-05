@@ -776,6 +776,7 @@ typedef struct gl3_shadow_light_s {
 	vec3_t light_position;
 	vec3_t light_normal;
 	vec3_t light_angles; // (pitch yaw roll)
+	//vec4_t light_color; // alpha is intensity
 	float brighten;
 	float darken;
 	float radius;

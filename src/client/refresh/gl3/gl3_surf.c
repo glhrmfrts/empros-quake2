@@ -488,6 +488,8 @@ GL3_DrawTextureChains(entity_t *currententity)
 
 		GL3_SurfBatch_Clear();
 
+		int is_emissive = (s->texinfo->flags & SURF_LIGHT);
+
 		if (gl3state.render_pass == RENDER_PASS_SCENE)
 		{
 			if (s->flags & SURF_DRAWTURB)
@@ -504,7 +506,7 @@ GL3_DrawTextureChains(entity_t *currententity)
 			}
 			else
 			{
-				gl3state.uni3DData.emission = (s->texinfo->flags & SURF_LIGHT) ? 1.0f : 0.0f;
+				gl3state.uni3DData.emission = is_emissive ? 1.0f : 0.0f;
 				GL3_UpdateUBO3D();
 				GL3_UseProgram(gl3state.si3Dlm.shaderProgram);
 			}
@@ -512,6 +514,12 @@ GL3_DrawTextureChains(entity_t *currententity)
 
 		for ( ; s; s = s->texturechain)
 		{
+			if ((s->texinfo->flags & SURF_LIGHT) != is_emissive)
+			{
+				is_emissive = (s->texinfo->flags & SURF_LIGHT);
+				gl3state.uni3DData.emission = is_emissive ? 1.0f : 0.0f;
+				GL3_UpdateUBO3D();
+			}
 			RenderWorldPoly(currententity, image, s);
 		}
 

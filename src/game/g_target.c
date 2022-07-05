@@ -1242,7 +1242,7 @@ SP_target_earthquake(edict_t *self)
  *  "move_origin" RGB color of the fog 					 	 (default: 0.0 0.0 0.0)
  */
 
-static void target_fog_use(edict_t *self, edict_t *other /* unused */, edict_t *activator)
+void target_fog_use(edict_t *self, edict_t *other /* unused */, edict_t *activator)
 {
 	char text[200];
 	snprintf(text, sizeof(text), "foglerp %f %f %f %f %f\n", self->speed, self->wait,
@@ -1280,7 +1280,7 @@ enum { TARGET_STEAM_CONTINUOUS = 1, TARGET_STEAM_START_ON = 2 };
 
 static int steam_sustain_id;
 
-static void
+void
 G_SteamParticles(int id, int count, const vec3_t origin, const vec3_t dir, int speed, int sustain)
 {
 	int color = 0;
@@ -1299,8 +1299,7 @@ G_SteamParticles(int id, int count, const vec3_t origin, const vec3_t dir, int s
 	gi.multicast(origin, MULTICAST_PVS);
 }
 
-void
-use_target_steam(edict_t *self, edict_t *other /* unused */, edict_t *activator /* unused */)
+void use_target_steam(edict_t *self, edict_t *other /* unused */, edict_t *activator /* unused */)
 {
 	if (!self || !activator)
 	{
@@ -1342,8 +1341,7 @@ use_target_steam(edict_t *self, edict_t *other /* unused */, edict_t *activator 
 	}
 }
 
-void
-SP_target_steam(edict_t *self)
+void SP_target_steam(edict_t *self)
 {
 	if (!self)
 	{

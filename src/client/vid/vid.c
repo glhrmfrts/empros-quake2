@@ -186,7 +186,7 @@ void VID_WriteScreenshot(int width, int height, int comp, const void* data)
 
 	if(success)
 	{
-		Com_Printf("Wrote %s\n", picname);
+		Com_Printf("Wrote %s\n", checkname);
 	}
 	else
 	{

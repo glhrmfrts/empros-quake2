@@ -801,6 +801,13 @@ void ChaseNext(edict_t *ent);
 void ChasePrev(edict_t *ent);
 void GetChaseTarget(edict_t *ent);
 
+/* gnemeth */
+
+void target_fog_use(edict_t *self, edict_t *other /* unused */, edict_t *activator);
+void SP_target_fog(edict_t* self);
+void use_target_steam(edict_t *self, edict_t *other /* unused */, edict_t *activator /* unused */);
+void SP_target_steam(edict_t *self);
+
 /* ============================================================================ */
 
 /* client_t->anim_priority */

@@ -640,7 +640,7 @@ SV_BuildClientFrame(client_t *client)
 					VectorSubtract(org, ent->s.origin, delta);
 					len = VectorLength(delta);
 
-					if (len > 400)
+					if (len > 1000)
 					{
 						continue;
 					}
