@@ -222,9 +222,9 @@ GL3_Register(void)
 
 	r_motionblur = ri.Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
 	r_motionblur_samples = ri.Cvar_Get("r_motionblur_samples", "4", CVAR_ARCHIVE);
-	r_bloom = ri.Cvar_Get("r_bloom", "0", CVAR_ARCHIVE);
+	r_bloom = ri.Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
 	r_bloom_threshold = ri.Cvar_Get("r_bloom_threshold", "1", CVAR_ARCHIVE);
-	r_ssao = ri.Cvar_Get("r_ssao", "1", CVAR_ARCHIVE);
+	r_ssao = ri.Cvar_Get("r_ssao", "0", CVAR_ARCHIVE);
 	r_hdr = ri.Cvar_Get("r_hdr", "1", CVAR_ARCHIVE);
 	r_hdr_exposure = ri.Cvar_Get("r_hdr_exposure", "1", CVAR_ARCHIVE);
 	r_flashlight = ri.Cvar_Get("r_flashlight", "0", CVAR_ARCHIVE);
@@ -1118,7 +1118,7 @@ SetFrustum(void)
 
 void
 GL3_SetupViewCluster()
-{	
+{
 	mleaf_t *leaf;
 
 	/* build the transformation matrix for the given view angles */
@@ -1353,14 +1353,17 @@ SetupGL(void)
 	GL3_UpdateUBO3D();
 
 // gnemeth: light styles as attributes
-	for (int i = 0; i < MAX_LIGHTSTYLES; i++)
+	if (gl3_newrefdef.lightstyles != NULL)
 	{
-		gl3state.uniStylesData.lightstyles[i] = HMM_Vec4(
-			gl3_newrefdef.lightstyles[i].rgb[0],
-			gl3_newrefdef.lightstyles[i].rgb[1],
-			gl3_newrefdef.lightstyles[i].rgb[2],
-			1.0f
-		);
+		for (int i = 0; i < MAX_LIGHTSTYLES; i++)
+		{
+			gl3state.uniStylesData.lightstyles[i] = HMM_Vec4(
+				gl3_newrefdef.lightstyles[i].rgb[0],
+				gl3_newrefdef.lightstyles[i].rgb[1],
+				gl3_newrefdef.lightstyles[i].rgb[2],
+				1.0f
+			);
+		}
 	}
 	GL3_UpdateUBOStyles();
 

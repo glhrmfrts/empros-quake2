@@ -46,6 +46,7 @@ static cvar_t *r_vsync;
 static cvar_t *gl_anisotropic;
 static cvar_t *gl_msaa_samples;
 static cvar_t *r_motionblur;
+static cvar_t *r_bloom;
 
 static menuframework_s s_opengl_menu;
 
@@ -60,6 +61,7 @@ static menulist_s s_fs_box;
 static menulist_s s_vsync_list;
 static menulist_s s_af_list;
 static menulist_s s_msaa_list;
+static menulist_s s_bloom_list;
 static menuaction_s s_defaults_action;
 static menuaction_s s_apply_action;
 
@@ -81,13 +83,6 @@ static void
 Renderer_FillRenderdef(void)
 {
 	numrenderer = -1;
-
-	if (VID_HasRenderer("gl1"))
-	{
-		numrenderer++;
-		rendererlist[numrenderer].boxstr = "[OpenGL 1.4]";
-		rendererlist[numrenderer].cvarstr = "gl1";
-	}
 
 	if (VID_HasRenderer("gl3"))
 	{
@@ -300,6 +295,8 @@ ApplyChanges(void *unused)
 		}
 	}
 
+	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
+
 	if (restart)
 	{
 		Cbuf_AddText("vid_restart\n");
@@ -463,6 +460,11 @@ VID_MenuInit(void)
 		r_motionblur = Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
 	}
 
+	if (!r_bloom)
+	{
+		r_bloom = Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
+	}
+
 	s_opengl_menu.x = viddef.width * 0.50;
 	s_opengl_menu.nitems = 0;
 
@@ -594,6 +596,15 @@ VID_MenuInit(void)
 		s_msaa_list.curvalue--;
 	}
 
+	static const char* off_on_names[] = { "off", "on", NULL };
+
+	s_bloom_list.generic.type = MTYPE_SPINCONTROL;
+	s_bloom_list.generic.name = "bloom";
+	s_bloom_list.generic.x = 0;
+	s_bloom_list.generic.y = (y += 10);
+	s_bloom_list.itemnames = off_on_names;
+	s_bloom_list.curvalue = (r_bloom->value == 0.0f) ? 0 : 1;
+
 	s_motionblur_slider.generic.type = MTYPE_SLIDER;
 	s_motionblur_slider.generic.name = "motion blur";
 	s_motionblur_slider.generic.x = 0;
@@ -631,6 +642,7 @@ VID_MenuInit(void)
 	Menu_AddItem(&s_opengl_menu, (void *)&s_vsync_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_af_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_msaa_list);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_bloom_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_motionblur_slider);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_defaults_action);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_apply_action);

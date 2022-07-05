@@ -50,6 +50,11 @@ void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_texture
     GLint filter = (flags & GL3_FRAMEBUFFER_FILTERED) ? GL_LINEAR : GL_NEAREST;
     GLuint format = (flags & GL3_FRAMEBUFFER_FLOAT) ? GL_RGBA16F : GL_RGBA8;
 
+    if (gl_msaa_samples->value == 0.0f)
+    {
+        target = GL_TEXTURE_2D;
+    }
+
     for (GLuint i = 0; i < num_color_textures; i++) {
         out->color_textures[i] = CreateFramebufferTexture(target, width, height, filter, format, false);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, target, out->color_textures[i], 0);
@@ -113,7 +118,7 @@ void GL3_BindFramebuffer(const gl3_framebuffer_t* fb)
         GL3_UnbindFramebuffer();
         return;
     }
-    
+
     glBindFramebuffer(GL_FRAMEBUFFER, fb->id);
     glViewport(0, 0, fb->width, fb->height);
 
@@ -183,7 +188,7 @@ static gl3_framebuffer_t motion_blur_mask_fbo;
 
 enum { SSAO_KERNEL_SIZE = 64 };
 
-static GLuint ssao_noise_texture; 
+static GLuint ssao_noise_texture;
 static GLuint ssao_kernel_ubo;
 static hmm_vec4 ssao_kernel[SSAO_KERNEL_SIZE];
 
@@ -264,11 +269,11 @@ void GL3_PostFx_Init()
 
     GLuint width = gl3_newrefdef.width;
     GLuint height = gl3_newrefdef.height;
-    GL3_CreateFramebuffer(width, height, 2, 
-        GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_FLOAT, 
+    GL3_CreateFramebuffer(width, height, 2,
+        GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_FLOAT,
         &scene_fbo);
     GL3_CreateFramebuffer(width, height, 2, GL3_FRAMEBUFFER_FLOAT, &resolve_multisample_fbo);
-    
+
     GL3_CreateFramebuffer(width/2, height/2, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_FLOAT, &bloom_filter_fbo);
     GL3_CreateFramebuffer(width/2, height/2, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_FLOAT, &bloom_blur_fbo[0]);
     GL3_CreateFramebuffer(width/2, height/2, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_FLOAT, &bloom_blur_fbo[1]);
@@ -497,7 +502,7 @@ static gl3_framebuffer_t* RenderMotionBlur(
     glUniform1i(motion_blur_uniforms.u_FboSampler[0], 0);
     glUniform1i(motion_blur_uniforms.u_FboSampler[1], 1);
     glUniform1i(motion_blur_uniforms.u_FboSampler[2], 2);
-    glUniform1f(motion_blur_uniforms.u_Intensity, r_motionblur->value);
+    glUniform1f(motion_blur_uniforms.u_Intensity, r_motionblur->value * 0.2f);
     glUniform1i(motion_blur_uniforms.u_SampleCount, (int)r_motionblur_samples->value);
     glUniformMatrix4fv(motion_blur_uniforms.u_ViewProjectionInverseMatrix, 1, false, (const GLfloat*)viewprojinv.Elements);
     glUniformMatrix4fv(motion_blur_uniforms.u_PreviousViewProjectionMatrix, 1, false, (const GLfloat*)previousviewproj.Elements);
@@ -530,7 +535,7 @@ void GL3_PostFx_AfterScene()
     scene_texture = output->color_textures[0];
     depth_texture = output->depth_texture;
 
-    qboolean multisampled = true;
+    qboolean multisampled = gl_msaa_samples->value > 0.0f;
     if (multisampled)
     {
         output = RenderResolveMultisample(scene_texture, depth_texture);
