@@ -620,7 +620,7 @@ SV_Init(void)
 
 /*
  * Used by SV_Shutdown to send a final message to all
- * connected clients before the server goes down. The 
+ * connected clients before the server goes down. The
  * messages are sent immediately, not just stuck on the
  * outgoing message list, because the server is going
  * to totally exit after returning from this function.
