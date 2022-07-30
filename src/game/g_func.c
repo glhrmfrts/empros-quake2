@@ -1295,7 +1295,7 @@ door_hit_top(edict_t *self)
 					1, ATTN_STATIC, 0);
 		}
 
-		self->s.sound = 0;
+		self->enemy->s.sound = 0;
 	}
 
 	self->moveinfo.state = STATE_TOP;
@@ -1329,7 +1329,7 @@ door_hit_bottom(edict_t *self)
 					ATTN_STATIC, 0);
 		}
 
-		self->s.sound = 0;
+		self->enemy->s.sound = 0;
 	}
 
 	self->moveinfo.state = STATE_BOTTOM;
@@ -1353,7 +1353,7 @@ door_go_down(edict_t *self)
 					ATTN_STATIC, 0);
 		}
 
-		self->s.sound = self->moveinfo.sound_middle;
+		self->enemy->s.sound = self->moveinfo.sound_middle;
 	}
 
 	if (self->max_health)
@@ -1407,7 +1407,7 @@ door_go_up(edict_t *self, edict_t *activator)
 					ATTN_STATIC, 0);
 		}
 
-		self->s.sound = self->moveinfo.sound_middle;
+		self->enemy->s.sound = self->moveinfo.sound_middle;
 	}
 
 	self->moveinfo.state = STATE_UP;
@@ -1712,6 +1712,20 @@ door_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */, csurface
 	gi.sound(other, CHAN_AUTO, gi.soundindex("misc/talk1.wav"), 1, ATTN_NORM, 0);
 }
 
+// gnemeth: hack around the bmodel sound issue
+static void CreateDoorSoundEnt(edict_t* ent)
+{
+	vec3_t actual_org;
+	VectorCopy(ent->mins, actual_org);
+	VectorAdd(ent->maxs, actual_org, actual_org);
+	VectorScale(actual_org, 0.5f, actual_org);
+
+	edict_t* soundent = G_Spawn();
+	VectorCopy(actual_org, soundent->s.origin);
+	ent->enemy = soundent;
+	gi.linkentity(soundent);
+}
+
 void
 SP_func_door(edict_t *ent)
 {
@@ -1828,6 +1842,8 @@ SP_func_door(edict_t *ent)
 	{
 		ent->teammaster = ent;
 	}
+
+	CreateDoorSoundEnt(ent);
 
 	gi.linkentity(ent);
 
@@ -2000,6 +2016,7 @@ SP_func_door_rotating(edict_t *ent)
 		ent->teammaster = ent;
 	}
 
+	CreateDoorSoundEnt(ent);
 	gi.linkentity(ent);
 
 	ent->nextthink = level.time + FRAMETIME;
@@ -2966,6 +2983,7 @@ SP_func_door_secret(edict_t *ent)
 
 	ent->classname = "func_door";
 
+	CreateDoorSoundEnt(ent);
 	gi.linkentity(ent);
 }
 
