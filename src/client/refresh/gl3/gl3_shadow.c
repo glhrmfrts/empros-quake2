@@ -2,6 +2,9 @@
 #include "header/local.h"
 #include "header/HandmadeMath.h"
 
+// TODO: add color to dynamic lights
+// TODO: fix shadow light not being applied to parallel surfaces
+// TODO: fix the entity culling when rendering shadow maps
 // TODO: static shadows (baked in the first frame) to improve lightmapping
 // TODO: framebuffer pool
 // TODO: texture atlasing for shadows
@@ -220,7 +223,7 @@ static void PrepareToRender(gl3_shadow_light_t* light)
 	else
 	{
 		GL3_BindFramebuffer(&light->shadow_map_fbo);
-		
+
 		if (false)
 		{   //(light->type == r_shadow_light_type_point) {
 			// GL_FramebufferTexture2DFunc (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
@@ -252,7 +255,7 @@ static void PrepareToRender(gl3_shadow_light_t* light)
 	viewMat = HMM_MultiplyMat4( viewMat, rotMat );
 
 	// .. and apply translation for current position
-	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);	
+	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);
 	light->view_matrix = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
 	light->proj_matrix = GL3_MYgluPerspective(light->coneangle, (float)gl3_newrefdef.width / (float)gl3_newrefdef.height, 1.0f, light->radius);
 }

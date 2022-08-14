@@ -3262,15 +3262,6 @@
 ( 1000 536 392 ) ( 1001 536 392 ) ( 1000 536 393 ) e1u1/wbasic1_7 [ -1 0 0 -32 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
 ( 1000 536 392 ) ( 1000 536 393 ) ( 1000 537 392 ) e1u1/wbasic1_7 [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
 }
-// brush 363
-{
-( 512 704 64 ) ( 512 705 64 ) ( 512 704 65 ) e1u1/trigger [ 0 -1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
-( 512 704 64 ) ( 512 704 65 ) ( 513 704 64 ) e1u1/trigger [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
-( 512 704 64 ) ( 513 704 64 ) ( 512 705 64 ) e1u1/trigger [ -1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 0 0
-( 640 800 128 ) ( 640 801 128 ) ( 641 800 128 ) e1u1/trigger [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 0 0
-( 640 800 96 ) ( 641 800 96 ) ( 640 800 97 ) e1u1/trigger [ -1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
-( 640 800 96 ) ( 640 800 97 ) ( 640 801 96 ) e1u1/trigger [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
-}
 }
 // entity 1
 {
@@ -4770,15 +4761,17 @@
 // entity 54
 {
 "classname" "monster_flyer"
-"origin" "816 240 536"
-"spawnflags" "5"
+"origin" "816 160 536"
+"spawnflags" "7"
+"targetname" "pipeflyers"
 }
 // entity 55
 {
 "classname" "monster_flyer"
-"origin" "816 288 536"
+"origin" "816 336 536"
 "angle" "0"
-"spawnflags" "5"
+"spawnflags" "7"
+"targetname" "pipeflyers"
 }
 // entity 56
 {
@@ -5851,25 +5844,41 @@
 }
 // entity 105
 {
-"classname" "func_group"
-"_tb_type" "_tb_layer"
-"_tb_name" "details"
-"_tb_id" "7"
-"_tb_layer_sort_index" "0"
-"_tb_layer_omit_from_export" "1"
+"classname" "trigger_once"
+"spawnflags" "4"
+"targetname" "pipehatch"
+"target" "pipeflyers"
+// brush 0
+{
+( 512 704 64 ) ( 512 705 64 ) ( 512 704 65 ) e1u1/trigger [ 0 -1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( 512 704 64 ) ( 512 704 65 ) ( 513 704 64 ) e1u1/trigger [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( 512 704 64 ) ( 513 704 64 ) ( 512 705 64 ) e1u1/trigger [ -1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 0 0
+( 640 800 128 ) ( 640 801 128 ) ( 641 800 128 ) e1u1/trigger [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 0 0
+( 640 800 96 ) ( 641 800 96 ) ( 640 800 97 ) e1u1/trigger [ -1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( 640 800 96 ) ( 640 800 97 ) ( 640 801 96 ) e1u1/trigger [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+}
 }
 // entity 106
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
-"_tb_name" "maybeobjects"
-"_tb_id" "8"
-"_tb_layer_sort_index" "1"
+"_tb_name" "details"
+"_tb_id" "11"
+"_tb_layer_sort_index" "0"
+"_tb_layer_omit_from_export" "1"
 }
 // entity 107
 {
 "classname" "func_group"
-"_tb_layer" "8"
+"_tb_type" "_tb_layer"
+"_tb_name" "maybeobjects"
+"_tb_id" "12"
+"_tb_layer_sort_index" "1"
+}
+// entity 108
+{
+"classname" "func_group"
+"_tb_layer" "12"
 // brush 0
 {
 ( -736 656 256 ) ( -736 688 192 ) ( -736 688 256 ) e2u3/metal1_1 [ 0 1 0 16 ] [ 0 0 -1 0 ] 180 1 1 134217728 0 0

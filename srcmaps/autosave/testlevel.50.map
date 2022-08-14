@@ -3555,7 +3555,7 @@
 // entity 1
 {
 "classname" "info_player_start"
-"origin" "240 -400 152"
+"origin" "256 368 104"
 "angle" "90"
 }
 // entity 2
@@ -3632,6 +3632,7 @@
 "_shadowlightconeangle" "90"
 "mangle" "0 0 0"
 "_shadowlightintensity" "0.2"
+"_shadowlightcolor" "21 0 255"
 }
 // entity 4
 {
@@ -7017,13 +7018,6 @@
 }
 // entity 131
 {
-"classname" "target_speaker"
-"noise" "world/amb14.wav"
-"origin" "248 512 248"
-"spawnflags" "2049"
-}
-// entity 132
-{
 "classname" "trigger_once"
 "spawnflags" "4"
 "targetname" "pipehatch"
@@ -7038,7 +7032,7 @@
 ( 1184 1248 416 ) ( 1184 1248 417 ) ( 1184 1249 416 ) e1u1/trigger [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
 }
 }
-// entity 133
+// entity 132
 {
 "classname" "func_explosive"
 "targetname" "liftmonsters"
@@ -7052,7 +7046,7 @@
 ( 1616 1024 96 ) ( 1616 1024 97 ) ( 1616 1025 96 ) e2u3/drsew1_1 [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
 }
 }
-// entity 134
+// entity 133
 {
 "classname" "monster_berserk"
 "origin" "1680 1216 408"
@@ -7060,27 +7054,27 @@
 "targetname" "liftmonsters"
 "spawnflags" "5"
 }
-// entity 135
+// entity 134
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "details"
-"_tb_id" "7"
+"_tb_id" "5"
 "_tb_layer_sort_index" "0"
 "_tb_layer_omit_from_export" "1"
 }
-// entity 136
+// entity 135
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "maybeobjects"
-"_tb_id" "8"
+"_tb_id" "6"
 "_tb_layer_sort_index" "1"
 }
-// entity 137
+// entity 136
 {
 "classname" "func_group"
-"_tb_layer" "8"
+"_tb_layer" "6"
 // brush 0
 {
 ( -736 656 256 ) ( -736 688 192 ) ( -736 688 256 ) e2u3/metal1_1 [ 0 1 0 16 ] [ 0 0 -1 0 ] 180 1 1 134217728 0 0

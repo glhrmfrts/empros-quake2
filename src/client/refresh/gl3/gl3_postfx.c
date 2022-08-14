@@ -1,11 +1,5 @@
 #include "header/local.h"
 
-// X TODO: HDR + tonemapping
-// X TODO: optimize SSAO geometry pass rendering (no need for multiple draw calls in texture chains)
-// X TODO: bloom
-// X TODO: increase sky emissivity
-// TODO: volumetric lighting
-
 #define OPENGL_DEPTH_COMPONENT_TYPE GL_DEPTH_COMPONENT32F
 
 static GLuint CreateFramebufferTexture(GLuint target, GLuint width, GLuint height, GLint filter, GLuint format, qboolean shadowmap)

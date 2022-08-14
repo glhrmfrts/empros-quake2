@@ -18,13 +18,22 @@
 "skyrotate" "0"
 "skyaxis" "1 0 1"
 "_tb_def" "external:C:/q2dev/maps_baseq2/Quake2.fgd"
+// brush 0
+{
+( -80 -32 -16 ) ( -80 -31 -16 ) ( -80 -32 -15 ) __TB_empty [ 0 -1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( -80 -32 -16 ) ( -80 -32 -15 ) ( -79 -32 -16 ) __TB_empty [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( -80 -32 -16 ) ( -79 -32 -16 ) ( -80 -31 -16 ) __TB_empty [ -1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 0 0
+( 64 80 0 ) ( 64 81 0 ) ( 65 80 0 ) __TB_empty [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 0 0
+( 64 80 0 ) ( 65 80 0 ) ( 64 80 1 ) __TB_empty [ -1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( 64 80 0 ) ( 64 80 1 ) ( 64 81 0 ) __TB_empty [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+}
 }
 // entity 1
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "details"
-"_tb_id" "7"
+"_tb_id" "8"
 "_tb_layer_sort_index" "0"
 "_tb_layer_omit_from_export" "1"
 }

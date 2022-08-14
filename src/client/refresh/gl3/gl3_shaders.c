@@ -399,6 +399,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 
 			float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
 			if (norm_factor < 0.0) { return lighting; }
+			norm_factor = clamp(norm_factor+0.5, 0.0, 1.0);
 
 			//float result = light_factor * radinfluence;
 			if (shadows[idx].cast_shadow > 0) {
