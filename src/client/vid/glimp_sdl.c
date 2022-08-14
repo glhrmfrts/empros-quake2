@@ -98,7 +98,7 @@ CreateSDLWindow(int flags, int w, int h)
 	 *  * https://github.com/libsdl-org/SDL/issues/3656 */
 	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "1");
 
-	window = SDL_CreateWindow("Yamagi Quake II", last_position_x, last_position_y, w, h, flags);
+	window = SDL_CreateWindow("Empros Quake II", last_position_x, last_position_y, w, h, flags);
 
 	if (window)
 	{

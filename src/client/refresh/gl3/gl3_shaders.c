@@ -392,7 +392,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			vec3 shadow_coord = 0.5*(shadow_coord_v4.xyz/shadow_coord_v4.w)+0.5;
 			float dist_factor = length(world_coord - shadows[idx].light_position.xyz) / shadows[idx].radius;
 			float radinfluence = 1.0 - clamp(dist_factor*dist_factor, 0.0, 1.0);
-			
+
 			float theta        = dot(normalize(world_coord - shadows[idx].light_position.xyz), shadows[idx].light_normal.xyz);
 			float epsilon      = shadows[idx].spot_cutoff - shadows[idx].spot_outer_cutoff;
 			float light_factor = clamp((theta - shadows[idx].spot_outer_cutoff) / epsilon, 0.0, 1.0);
@@ -554,7 +554,7 @@ static const char* fragmentSrc3Dwater = MULTILINE_STRING(
 		{
 			vec2 tc = passTexCoord;
 			tc.s += sin( passTexCoord.t*0.125 + time ) * 4;
-			tc.s += scroll;
+			//tc.s += scroll;
 			tc.t += sin( passTexCoord.s*0.125 + time ) * 4;
 			tc *= 1.0/64.0; // do this last
 
@@ -1248,7 +1248,7 @@ static const char* fragmentSrcPostfxResolveHDR = MULTILINE_STRING(#version 150\n
 	{
 		float bloomIntensity = u_Intensity;
 		float exposure = u_HDR;
-	
+
 		// exposure tone mapping
 		vec3 hdrColor = texture(u_FboSampler0, v_TexCoord).rgb;
 		vec3 bloomColor = texture(u_FboSampler1, v_TexCoord).rgb;
@@ -1258,7 +1258,7 @@ static const char* fragmentSrcPostfxResolveHDR = MULTILINE_STRING(#version 150\n
 
 		// gamma correction
 		mapped = pow(mapped, vec3(gamma));
-	
+
 		outColor[0] = vec4(mapped, 1.0);
 	}
 );
@@ -1398,31 +1398,31 @@ static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
 	void main()
 	{
 		vec2 texCoord = v_TexCoord;
-		
+
 		// Get the depth buffer value at this pixel.
 		float zOverW = texture2D(u_FboSampler1, v_TexCoord).r;
-		
+
 		// H is the viewport position at this pixel in the range -1 to 1.
 		vec4 H = vec4(v_TexCoord.x * 2 - 1, (1 - v_TexCoord.y) * 2 - 1, zOverW, 1);
-		
+
 		// Transform by the view-projection inverse.
 		vec4 D = u_ViewProjectionInverseMatrix * H;
-		
-		// Divide by w to get the world position.    
+
+		// Divide by w to get the world position.
 		vec4 worldPos = D / D.w;
 
 		// Current viewport position
 		vec4 currentPos = H;
-		
+
 		// Use the world position, and transform by the previous view-    // projection matrix.
 		vec4 previousPos = u_PreviousViewProjectionMatrix * worldPos;
-		
+
 		// Convert to nonhomogeneous points [-1,1] by dividing by w.
 		previousPos /= previousPos.w;
 
 		// Get the mask value
 		float maskValue = 1.0f - texture2D(u_FboSampler2, v_TexCoord).a;
-		
+
 		// Use this frame's position and last frame's to compute the pixel    // velocity.
 		vec4 velocity = (currentPos - previousPos)/2.f * u_Intensity * maskValue;
 
@@ -1436,7 +1436,7 @@ static const char* fragmentSrcPostfxMotionBlur = MULTILINE_STRING(#version 150\n
 		for (int i = 1; i < numSamples; ++i) {
 			// Sample the color buffer along the velocity vector.
 			vec4 currentColor = texture2D(u_FboSampler0, texCoord);
-			
+
 			float maskValue = 1.0f - texture2D(u_FboSampler2, texCoord).a;
 			if (maskValue == 0.0f) { numAvgSamples--; }
 
@@ -1464,17 +1464,17 @@ static const char* fragmentSrcPostfxSSAOBlur = MULTILINE_STRING(#version 150\n
 	};
 
 	out vec4 FragColor;
-	
+
 	in vec2 v_TexCoord;
-	
+
 	uniform sampler2D u_FboSampler0;
 
 	void main() {
 		vec2 texelSize = 1.0 / vec2(textureSize(u_FboSampler0, 0));
 		float result = 0.0;
-		for (int x = -2; x < 2; ++x) 
+		for (int x = -2; x < 2; ++x)
 		{
-			for (int y = -2; y < 2; ++y) 
+			for (int y = -2; y < 2; ++y)
 			{
 				vec2 offset = vec2(float(x), float(y)) * texelSize;
 				result += texture(u_FboSampler0, v_TexCoord + offset).r;
@@ -1507,7 +1507,7 @@ static const char* fragmentSrcPostfxBloomFilter = MULTILINE_STRING(#version 150\
 	void main()
 	{
 		vec3 hdrColor = texture(u_FboSampler0, v_TexCoord).rgb;
-		
+
 		float brightness = dot(hdrColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 		if(brightness > u_Intensity)
 			outColor = vec4(hdrColor.rgb, 1.0);
@@ -1529,16 +1529,16 @@ static const char* fragmentSrcPostfxBloomBlur = MULTILINE_STRING(#version 150\n
 	};
 
 	out vec4 FragColor;
-	
+
 	in vec2 v_TexCoord;
 
 	uniform sampler2D u_FboSampler0;
-	
+
 	uniform int u_SampleCount;
 	uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
 
 	void main()
-	{             
+	{
 		vec2 tex_offset = 1.0 / textureSize(u_FboSampler0, 0); // gets size of single texel
 		vec3 result = texture(u_FboSampler0, v_TexCoord).rgb * weight[0]; // current fragment's contribution
 		bool horizontal = u_SampleCount > 0;

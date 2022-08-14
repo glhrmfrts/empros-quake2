@@ -129,7 +129,7 @@ Sys_Init(void)
 		((vinfo.dwMajorVersion == 5) &&
 			(vinfo.dwMinorVersion >= 1))))
 	{
-		Sys_Error("Yamagi Quake II needs Windows XP or higher!\n");
+		Sys_Error("Empros Quake II needs Windows XP or higher!\n");
 	}
 
 
@@ -577,12 +577,12 @@ Sys_RemoveDir(const char *path)
 	WCHAR wpathwithwildcard[MAX_OSPATH] = {0};
 	WCHAR wpathwithfilename[MAX_OSPATH] = {0};
 	WIN32_FIND_DATAW fd;
-	
+
 	MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_OSPATH);
 
 	wcscat_s(wpathwithwildcard, MAX_OSPATH, wpath);
 	wcscat_s(wpathwithwildcard, MAX_OSPATH, L"\\*.*");
-	
+
 	HANDLE hFind = FindFirstFileW(wpathwithwildcard, &fd);
 	if (hFind != INVALID_HANDLE_VALUE)
 	{
@@ -591,13 +591,13 @@ Sys_RemoveDir(const char *path)
 			wmemset(wpathwithfilename, 0, MAX_OSPATH);
 			wcscat_s(wpathwithfilename, MAX_OSPATH, wpath);
 			wcscat_s(wpathwithfilename, MAX_OSPATH, fd.cFileName);
-			
+
 			DeleteFileW(wpathwithfilename);
 		}
 		while (FindNextFileW(hFind, &fd));
 		FindClose(hFind);
 	}
-	
+
 	RemoveDirectoryW(wpath);
 }
 

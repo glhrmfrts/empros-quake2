@@ -266,7 +266,7 @@ AL_Spatialize(channel_t *ch)
 	else
 	{
 		CL_GetEntitySoundOrigin(ch->entnum, origin);
-		Com_Printf("AL_Spatialize %3i %s %f %f %f\n", ch->master_vol, ch->sfx->name, origin[0], origin[1], origin[2]);
+		// Com_Printf("AL_Spatialize %3i %s %f %f %f\n", ch->master_vol, ch->sfx->name, origin[0], origin[1], origin[2]);
 		qalSource3f(ch->srcnum, AL_POSITION, AL_UnpackVector(origin));
 
 		if (s_doppler->value) {

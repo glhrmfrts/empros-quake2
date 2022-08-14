@@ -36,7 +36,7 @@
 #include "header/DG_dynarr.h"
 
 
-#define REF_VERSION "Yamagi Quake II OpenGL3 Refresher"
+#define REF_VERSION "Empros Quake II OpenGL3 Refresher"
 
 refimport_t ri;
 
