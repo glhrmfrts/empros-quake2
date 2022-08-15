@@ -1382,7 +1382,7 @@ Mod_LoadBrushModel(gl3model_t *mod, void *buffer, int modfilelen)
 	else
 	{
 		gl3state.lightmap_step = LMSTEP;
-		
+
 		/* load into heap */
 		Mod_LoadVertexes(mod, mod_base, &header->lumps[LUMP_VERTEXES]);
 		Mod_LoadEdges(mod, mod_base, &header->lumps[LUMP_EDGES]);
@@ -1546,11 +1546,12 @@ static vec3_t worldsunangle;
 static qboolean shadowlight;
 static vec3_t shadowlightorigin;
 static vec3_t shadowlightangle;
+static vec3_t shadowlightcolor;
 static float shadowlightconeangle;
 static float shadowlightradius;
 static qboolean shadowlightspot;
 static int shadowlightresolution;
-static float shadowlightdarken;
+static float shadowlightintensity;
 static qboolean shadowlightstatic;
 
 static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keylen, const char* value, size_t valuelen)
@@ -1588,6 +1589,18 @@ static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keyle
 			sscanf(v, "%f %f %f", &shadowlightangle[0], &shadowlightangle[1], &shadowlightangle[2]);
 			shadowlightspot = true;
 		}
+		else if (!strncmp(key, "_color", keylen)) {
+			sscanf(v, "%f %f %f", &shadowlightcolor[0], &shadowlightcolor[1], &shadowlightcolor[2]);
+			qboolean is_bytes = false;
+			for (int i = 0; i < 3; i++)
+			{
+				if (shadowlightcolor[i] > 1.0f) { is_bytes = true; break; }
+			}
+			if (is_bytes) for (int i = 0; i < 3; i++)
+			{
+				shadowlightcolor[i] = shadowlightcolor[i] / 255.0;
+			}
+		}
 		else if (!strncmp(key, "angle", keylen)) {
 			shadowlightconeangle = atof(v);
 			shadowlightspot = true;
@@ -1602,8 +1615,8 @@ static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keyle
 		else if (!strncmp(key, "_shadowlightresolution", keylen)) {
 			shadowlightresolution = atoi(v);
 		}
-		else if (!strncmp(key, "_shadowlightdarken", keylen)) {
-			shadowlightdarken = atof(v);
+		else if (!strncmp(key, "_shadowlightintensity", keylen)) {
+			shadowlightintensity = atof(v);
 		}
 		else if (!strncmp(key, "_shadowlightstatic", keylen)) {
 			shadowlightstatic = (qboolean)atoi(v);
@@ -1619,10 +1632,11 @@ static void GL3_EndEntity(enum gl3_entity t)
 			GL3_Shadow_AddSpotLight(
 				shadowlightorigin,
 				shadowlightangle,
+				shadowlightcolor,
 				shadowlightconeangle,
 				shadowlightradius,
 				shadowlightresolution,
-				shadowlightdarken,
+				shadowlightintensity,
 				shadowlightstatic
 			);
 		}
@@ -1636,10 +1650,11 @@ static void GL3_EndEntity(enum gl3_entity t)
 
 	memset(shadowlightorigin, 0, sizeof(shadowlightorigin));
 	memset(shadowlightangle, 0, sizeof(shadowlightangle));
+	shadowlightcolor[0] = shadowlightcolor[1] = shadowlightcolor[2] = 1.0f;
 	shadowlightconeangle = 0.0f;
 	shadowlightradius = 0.0f;
 	shadowlightresolution = 0;
-	shadowlightdarken = 0.0f;
+	shadowlightintensity = 1.0f;
 	shadowlightspot = false;
 	shadowlightstatic = false;
 	shadowlight = false;
@@ -1667,7 +1682,10 @@ static void GL3_ParseEntities (const char* ent_text)
 	size_t field_value_len;
 	size_t textsize = strlen(ent_text);
 	enum gl3_entity current_entity = entity_worldspawn;
-	
+
+	shadowlightcolor[0] = shadowlightcolor[1] = shadowlightcolor[2] = 1.0f;
+	shadowlightintensity = 1.0f;
+
 	for (size_t offs = 0; offs < textsize; offs++) {
 		char c = ent_text[offs];
 		char cn = (offs < textsize-1) ? ent_text[offs+1] : 0;

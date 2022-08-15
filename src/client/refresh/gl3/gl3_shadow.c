@@ -2,9 +2,9 @@
 #include "header/local.h"
 #include "header/HandmadeMath.h"
 
-// TODO: add color to dynamic lights
-// TODO: fix shadow light not being applied to parallel surfaces
-// TODO: fix the entity culling when rendering shadow maps
+// (X) TODO: fix shadow light not being applied to parallel surfaces
+// (X) TODO: add color to dynamic lights
+// (X) TODO: fix the entity culling when rendering shadow maps
 // TODO: static shadows (baked in the first frame) to improve lightmapping
 // TODO: framebuffer pool
 // TODO: texture atlasing for shadows
@@ -36,7 +36,8 @@ void GL3_Shadow_Init()
 {
 	vec3_t origin = {0};
 	vec3_t angles = {0};
-	GL3_Shadow_AddSpotLight(origin, angles, 70.0f, 600.0f, SPOT_SHADOW_WIDTH, 0.7f, false);
+	vec3_t color = { 1.0f, 1.0f, 1.0f };
+	GL3_Shadow_AddSpotLight(origin, angles, color, 70.0f, 600.0f, SPOT_SHADOW_WIDTH, 0.7f, false);
 	gl3state.flashlight = gl3state.first_shadow_light;
 	gl3state.flashlight->cast_shadow = false; // until we have better shadows
 }
@@ -115,10 +116,11 @@ static void SetupShadowViewCluster(const gl3_shadow_light_t* light)
 void GL3_Shadow_AddSpotLight(
 	const vec3_t origin,
 	const vec3_t angles,
+	const vec3_t color,
 	float coneangle,
 	float zfar,
 	int resolution,
-	float darken,
+	float intensity,
 	qboolean is_static)
 {
 	if (!zfar) {
@@ -136,9 +138,11 @@ void GL3_Shadow_AddSpotLight(
 	l->radius = zfar;
 	l->shadow_map_width = SPOT_SHADOW_WIDTH;
 	l->shadow_map_height = SPOT_SHADOW_HEIGHT;
+	l->intensity = intensity;
 	l->is_static = is_static;
 
 	VectorCopy(origin, l->light_position);
+	VectorCopy(color, l->light_color);
 
 	l->light_angles[0] = -angles[1];
 	l->light_angles[1] = -angles[0];
@@ -170,7 +174,7 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 
 	gl3UniShadowSingle_t* ldata = &gl3state.uniShadowsData.shadows[gl3state.uniShadowsData.num_shadow_maps++];
 	ldata->light_type = (int)light->type;
-	ldata->brighten = light->brighten;
+	ldata->intensity = light->intensity;
 	ldata->darken = light->darken;
 	ldata->bias = light->bias;
 	ldata->radius = light->radius;
@@ -178,9 +182,11 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 	ldata->spot_outer_cutoff = cosf(HMM_ToRadians(light->coneouterangle * 0.5f));
 	VectorCopy(light->light_position, ((float*)&ldata->light_position));
 	VectorCopy(light->light_normal, ((float*)&ldata->light_normal));
+	VectorCopy(light->light_color, ((float*)&ldata->light_color));
 	ldata->view_matrix = light->view_matrix;
 	ldata->proj_matrix = light->proj_matrix;
 	ldata->cast_shadow = (int)light->cast_shadow;
+	ldata->intensity = light->intensity;
 
 	int idx = gl3state.uniShadowsData.num_shadow_maps - 1;
 	if (false)
@@ -188,7 +194,7 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 		//gl3state.shadow_frame_textures[gl3state.uniShadowsData.num_shadow_maps - 1].id = light->shadow_map_cubemap;
 		//gl3state.shadow_frame_textures[gl3state.uniShadowsData.num_shadow_maps - 1].unit = SHADOW_MAP_TEXTURE_UNIT - GL_TEXTURE0 + light->id;
 	}
-    else
+	else
 	{
 		gl3state.shadow_frame_textures[idx].texnum = light->shadow_map_fbo.depth_texture;
 		gl3state.shadow_frame_textures[idx].unit = GL3_SHADOW_MAP_TEXTURE_UNIT - GL_TEXTURE0 + light->id;
@@ -266,11 +272,6 @@ void GL3_Shadow_SetupLightShader(gl3_shadow_light_t* light)
 
 static void RenderSpotShadowMap(gl3_shadow_light_t* light)
 {
-	//light->brighten = r_shadow_sunbrighten.value;
-	//light->darken = r_shadow_sundarken.value;
-	light->brighten = 0.7;
-	light->darken = 0.8;
-
 	PrepareToRender(light);
 
 	gl3state.uni3DData.transViewMat4 = light->view_matrix;

@@ -205,7 +205,8 @@ typedef struct {
 	hmm_mat4 proj_matrix;
 	hmm_vec4 light_normal;
 	hmm_vec4 light_position;
-	float brighten;
+	hmm_vec4 light_color;
+	float intensity;
 	float darken;
 	float radius;
 	float bias;
@@ -776,8 +777,8 @@ typedef struct gl3_shadow_light_s {
 	vec3_t light_position;
 	vec3_t light_normal;
 	vec3_t light_angles; // (pitch yaw roll)
-	//vec4_t light_color; // alpha is intensity
-	float brighten;
+	vec3_t light_color;
+	float intensity;
 	float darken;
 	float radius;
 	float coneangle;
@@ -798,10 +799,11 @@ typedef struct gl3_shadow_light_s {
 void GL3_Shadow_AddSpotLight(
 	const vec3_t origin,
 	const vec3_t angles,
+	const vec3_t color,
 	float coneangle,
 	float zfar,
 	int resolution,
-	float darken,
+	float intensity,
 	qboolean isstatic);
 void GL3_Shadow_SetupLightShader(gl3_shadow_light_t* light);
 void GL3_Shadow_RenderShadowMaps();

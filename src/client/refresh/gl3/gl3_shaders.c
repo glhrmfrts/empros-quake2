@@ -346,7 +346,8 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			mat4 proj_matrix;
 			vec4 light_normal;
 			vec4 light_position;
-			float brighten;
+			vec4 light_color;
+			float intensity;
 			float darken;
 			float radius;
 			float bias;
@@ -399,13 +400,14 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 
 			float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
 			if (norm_factor < 0.0) { return lighting; }
-			norm_factor = clamp(norm_factor+0.5, 0.0, 1.0);
+			norm_factor = clamp(norm_factor+0.75, 0.0, 1.0);
 
-			//float result = light_factor * radinfluence;
+			vec3 light_color = shadows[idx].light_color.rgb;
+
+			float user_intensity = shadows[idx].intensity;
+
 			if (shadows[idx].cast_shadow > 0) {
 				float bias = 0.0001f;//shadows[idx].bias*light_factor;
-				float darken = shadows[idx].darken/6.0;
-				// float brighten = shadows[idx].brighten/6.0;
 				float intensity = 0.0f;
 				for (int j=0;j<6;j++) {
 					int index = j;     //int(floor(16.0*texture2D(random_tex, (WorldCoord.xy+WorldCoord.z)*j).r));
@@ -416,12 +418,12 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 					}
 				}
 				// return lighting * (1.0f - result);
-				return lighting + (vec3(0.25)*(intensity/6.0)*norm_factor*light_factor*radinfluence);
+				return lighting + light_color*(0.5f*user_intensity*(intensity/6.0)*norm_factor*light_factor*radinfluence);
 			}
 			else {
 				// No shadows, just lighting
 				float intensity = 2.0f;
-				return lighting + (vec3(0.25)*intensity*norm_factor*light_factor*radinfluence);
+				return lighting + light_color*(0.5f*user_intensity*intensity*norm_factor*light_factor*radinfluence);
 			}
 		}
 );

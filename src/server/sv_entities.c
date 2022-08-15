@@ -92,7 +92,7 @@ SV_EmitPacketEntities(client_frame_t *from, client_frame_t *to, sizebuf_t *msg)
 
 		if (newnum == oldnum)
 		{
-			/* delta update from old position. because the force 
+			/* delta update from old position. because the force
 			   parm is false, this will not result in any bytes
 			   being emited if the entity has not changed at all
 			   note that players are always 'newentities', this
@@ -566,14 +566,16 @@ SV_BuildClientFrame(client_t *client)
 		}
 
 		/* ignore ents without visible models unless they have an effect */
-		if (!ent->s.modelindex && !ent->s.effects && 
+		if (!ent->s.modelindex && !ent->s.effects &&
 			!ent->s.sound && !ent->s.event)
 		{
 			continue;
 		}
 
 		/* ignore if not touching a PV leaf */
-		if (ent != clent)
+		// gnemeth: always send SOLID_BSP entities because the shadowmap can
+		// render doors/trains that are not visible to the player
+		if (ent != clent && ent->solid != SOLID_BSP)
 		{
 			/* check area */
 			if (!CM_AreasConnected(clientarea, ent->areanum))
@@ -632,7 +634,7 @@ SV_BuildClientFrame(client_t *client)
 
 				if (!ent->s.modelindex)
 				{
-					/* don't send sounds if they 
+					/* don't send sounds if they
 					   will be attenuated away */
 					vec3_t delta;
 					float len;
