@@ -7077,7 +7077,7 @@
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "details"
-"_tb_id" "13"
+"_tb_id" "17"
 "_tb_layer_sort_index" "0"
 "_tb_layer_omit_from_export" "1"
 }
@@ -7086,13 +7086,13 @@
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "maybeobjects"
-"_tb_id" "14"
+"_tb_id" "18"
 "_tb_layer_sort_index" "1"
 }
 // entity 136
 {
 "classname" "func_group"
-"_tb_layer" "14"
+"_tb_layer" "18"
 // brush 0
 {
 ( -736 656 256 ) ( -736 688 192 ) ( -736 688 256 ) e2u3/metal1_1 [ 0 1 0 16 ] [ 0 0 -1 0 ] 180 1 1 134217728 0 0

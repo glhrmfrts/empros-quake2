@@ -139,7 +139,7 @@ berserk_fidget(edict_t *self)
 	}
 
 	self->monsterinfo.currentmove = &berserk_move_stand_fidget;
-	
+
 	// gnemeth: this sound is annoying as fuck
 	// gi.sound(self, CHAN_WEAPON, sound_idle, 1, ATTN_IDLE, 0);
 }
@@ -295,8 +295,15 @@ mmove_t berserk_move_attack_club =
 void
 berserk_strike(edict_t *self)
 {
-	/* Unused, but removal is
-	   very PITA. Let it be... */
+	vec3_t aim;
+
+	if (!self)
+	{
+		return;
+	}
+
+	VectorSet(aim, MELEE_DISTANCE, 0, -6);
+	fire_hit(self, aim, (10 + (randk() % 6)), 400);       /* Slower attack */
 }
 
 mframe_t berserk_frames_attack_strike[] = {
@@ -332,9 +339,15 @@ berserk_melee(edict_t *self)
 		return;
 	}
 
-	if ((randk() % 2) == 0)
+	int r = randk() % 3;
+
+	if (r == 0)
 	{
 		self->monsterinfo.currentmove = &berserk_move_attack_spike;
+	}
+	else if (r == 1)
+	{
+		self->monsterinfo.currentmove = &berserk_move_attack_strike;
 	}
 	else
 	{
