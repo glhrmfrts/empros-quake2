@@ -139,9 +139,7 @@ berserk_fidget(edict_t *self)
 	}
 
 	self->monsterinfo.currentmove = &berserk_move_stand_fidget;
-
-	// gnemeth: this sound is annoying as fuck
-	// gi.sound(self, CHAN_WEAPON, sound_idle, 1, ATTN_IDLE, 0);
+	gi.sound(self, CHAN_WEAPON, sound_idle, 1, ATTN_IDLE, 0);
 }
 
 mframe_t berserk_frames_walk[] = {
@@ -372,8 +370,8 @@ mframe_t berserk_frames_attack_running_club[] = {
 mmove_t berserk_move_attack_running_club =
 {
 	FRAME_r_att1,
-   	FRAME_r_att18,
-   	berserk_frames_attack_running_club,
+	FRAME_r_att18,
+	berserk_frames_attack_running_club,
 	berserk_run
 };
 

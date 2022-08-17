@@ -593,7 +593,7 @@ Weapon_Generic(edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
 
 	if (ent->client->weaponstate == WEAPON_DROPPING)
 	{
-		if (ent->client->ps.gunframe == FRAME_DEACTIVATE_LAST)
+		if (ent->client->ps.gunframe >= FRAME_DEACTIVATE_LAST)
 		{
 			ChangeWeapon(ent);
 			return;
@@ -614,24 +614,28 @@ Weapon_Generic(edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
 			}
 		}
 
-		ent->client->ps.gunframe++;
+		ent->client->ps.gunframe += 2;
 		return;
 	}
 
 	if (ent->client->weaponstate == WEAPON_ACTIVATING)
 	{
-		if (ent->client->ps.gunframe == FRAME_ACTIVATE_LAST)
+		if (ent->client->ps.gunframe >= FRAME_ACTIVATE_LAST)
 		{
 			ent->client->weaponstate = WEAPON_READY;
 			ent->client->ps.gunframe = FRAME_IDLE_FIRST;
 			return;
 		}
 
-		ent->client->ps.gunframe++;
+		ent->client->ps.gunframe += 2;
 		return;
 	}
 
-	if ((ent->client->newweapon) && (ent->client->weaponstate != WEAPON_FIRING))
+	const char* current_weapon_classname = ent->client->pers.weapon->classname;
+	qboolean is_chaingun = (0 == strcmp(current_weapon_classname, "weapon_chaingun"));
+	qboolean is_hyper = (0 == strcmp(current_weapon_classname, "weapon_hyperblaster"));
+	qboolean can_change_while_firing = !((is_chaingun || is_hyper) && (ent->client->weaponstate == WEAPON_FIRING));
+	if ((ent->client->newweapon) && can_change_while_firing)
 	{
 		ent->client->weaponstate = WEAPON_DROPPING;
 		ent->client->ps.gunframe = FRAME_DEACTIVATE_FIRST;
@@ -1353,7 +1357,7 @@ Machinegun_Fire(edict_t *ent)
 			ent->client->machinegun_shots = 9;
 		}
 	}
-	
+
 	/* get start / end positions */
 	VectorAdd(ent->client->v_angle, ent->client->kick_angles, angles);
 	AngleVectors(angles, forward, right, NULL);
@@ -1647,7 +1651,7 @@ Weapon_Shotgun(edict_t *ent)
 		return;
 	}
 
-	Weapon_Generic(ent, 7, 15, 36, 39, pause_frames,
+	Weapon_Generic(ent, 7, 18, 36, 39, pause_frames,
 			fire_frames, weapon_shotgun_fire);
 }
 
