@@ -558,7 +558,7 @@ CL_AddMuzzleFlash2(void)
 			CL_SmokeAndFlash(origin);
 			Com_sprintf(soundname, sizeof(soundname), "tank/tnkatk2%c.wav",
 				'a' + (char)(randk() % 5));
-			S_StartSound(NULL, ent, CHAN_WEAPON, 
+			S_StartSound(NULL, ent, CHAN_WEAPON,
 				S_RegisterSound(soundname), 1, ATTN_NORM, 0);
 			break;
 
@@ -1023,7 +1023,7 @@ CL_BlasterParticles(vec3_t org, vec3_t dir)
 		active_particles = p;
 
 		p->time = time;
-		p->color = 0xe0 + (randk() & 7);
+		p->color = (0xe0 + (randk() & 7)) | PARTICLE_EMISSIVE_FLAG;
 		d = randk() & 15;
 
 		for (j = 0; j < 3; j++)
@@ -1079,7 +1079,7 @@ CL_BlasterTrail(vec3_t start, vec3_t end)
 
 		p->alpha = 1.0;
 		p->alphavel = -1.0f / (0.3f + frandk() * 0.2f);
-		p->color = 0xe0;
+		p->color = (0xe0 | PARTICLE_EMISSIVE_FLAG);
 
 		for (j = 0; j < 3; j++)
 		{
@@ -1316,7 +1316,7 @@ MakeNormalVectors(vec3_t forward, vec3_t right, vec3_t up)
 {
 	float d;
 
-	/* this rotate and negate guarantees a 
+	/* this rotate and negate guarantees a
 	   vector not colinear with the original */
 	right[1] = -forward[0];
 	right[2] = forward[1];
@@ -1373,7 +1373,7 @@ CL_RocketTrail(vec3_t start, vec3_t end, centity_t *old)
 
 			p->alpha = 1.0;
 			p->alphavel = -1.0f / (1 + frandk() * 0.2f);
-			p->color = 0xdc + (randk() & 3);
+			p->color = (0xdc + (randk() & 3)) | PARTICLE_EMISSIVE_FLAG;
 
 			for (j = 0; j < 3; j++)
 			{
@@ -1403,6 +1403,7 @@ CL_RailTrail(vec3_t start, vec3_t end)
 	vec3_t dir;
 	byte clr = 0x74;
 	float time;
+	cdlight_t* blight;
 
 	time = (float)cl.time;
 
@@ -1411,6 +1412,33 @@ CL_RailTrail(vec3_t start, vec3_t end)
 	len = VectorNormalize(vec);
 
 	MakeNormalVectors(vec, right, up);
+
+	const int ltime = 750;
+	const float lradius = 150.0f;
+	const float ldecay = 150.0f;
+
+	for (i = 0; i < len; i += 100)
+	{
+		vec3_t lpos = {0};
+		VectorAdd(lpos, vec, lpos);
+		VectorScale(lpos, ((float)i), lpos);
+		VectorAdd(lpos, move, lpos);
+
+		blight = CL_AllocDlight(i * 291975);
+		VectorCopy(lpos, blight->origin);
+		VectorSet(blight->color, 1.0, 1.0, 1.3);
+		blight->radius = lradius;
+		blight->die = cl.time + ltime;
+		blight->decay = ldecay;
+	}
+
+	// Always add a light at the end.
+	blight = CL_AllocDlight(i * 291975);
+	VectorCopy(end, blight->origin);
+	VectorSet(blight->color, 1.0, 1.0, 1.3);
+	blight->radius = lradius;
+	blight->die = cl.time + ltime;
+	blight->decay = ldecay;
 
 	for (i = 0; i < len; i++)
 	{
@@ -1436,7 +1464,9 @@ CL_RailTrail(vec3_t start, vec3_t end)
 
 		p->alpha = 1.0;
 		p->alphavel = -1.0f / (1 + frandk() * 0.2f);
-		p->color = clr + (randk() & 7);
+
+		int pcolor = (clr + (randk() & 7)) | PARTICLE_EMISSIVE_FLAG;
+		p->color = pcolor;
 
 		for (j = 0; j < 3; j++)
 		{
@@ -1470,7 +1500,9 @@ CL_RailTrail(vec3_t start, vec3_t end)
 
 		p->alpha = 1.0;
 		p->alphavel = -1.0f / (0.6f + frandk() * 0.2f);
-		p->color = 0x0 + (randk() & 15);
+
+		int pcolor = (randk() & 15) | PARTICLE_EMISSIVE_FLAG;
+		p->color = pcolor;
 
 		for (j = 0; j < 3; j++)
 		{
@@ -1981,7 +2013,7 @@ CL_TeleportParticles(vec3_t org)
 }
 
 /*
- * An entity has just been parsed that has an 
+ * An entity has just been parsed that has an
  * event value. the female events are there for
  * backwards compatability
  */

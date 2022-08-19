@@ -1186,4 +1186,6 @@ typedef struct
 size_t verify_fread(void *, size_t, size_t, FILE *);
 size_t verify_fwrite(void *, size_t, size_t, FILE *);
 
+#define PARTICLE_EMISSIVE_FLAG 0x100
+
 #endif /* COMMON_SHARED_H */

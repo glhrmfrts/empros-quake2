@@ -943,6 +943,11 @@ GL3_DrawParticles(void)
 
 			for(int j=0; j<3; ++j)  cur->color[j] = color[j]/255.0f;
 
+			if (p->color & PARTICLE_EMISSIVE_FLAG)
+			{
+				for(int j=0; j<3; ++j)  cur->color[j] *= 3.0f;
+			}
+
 			cur->color[3] = p->alpha;
 		}
 

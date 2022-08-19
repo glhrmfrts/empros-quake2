@@ -111,10 +111,50 @@
 }
 // entity 7
 {
+"classname" "weapon_chaingun"
+"origin" "-96 512 336"
+}
+// entity 8
+{
+"classname" "weapon_grenadelauncher"
+"origin" "-32 512 336"
+}
+// entity 9
+{
+"classname" "weapon_hyperblaster"
+"origin" "96 512 336"
+}
+// entity 10
+{
+"classname" "weapon_machinegun"
+"origin" "160 512 336"
+}
+// entity 11
+{
+"classname" "weapon_railgun"
+"origin" "224 512 336"
+}
+// entity 12
+{
+"classname" "weapon_rocketlauncher"
+"origin" "288 512 336"
+}
+// entity 13
+{
+"classname" "weapon_shotgun"
+"origin" "-160 512 336"
+}
+// entity 14
+{
+"classname" "weapon_supershotgun"
+"origin" "32 512 336"
+}
+// entity 15
+{
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "details"
-"_tb_id" "4"
+"_tb_id" "1"
 "_tb_layer_sort_index" "0"
 "_tb_layer_omit_from_export" "1"
 }
