@@ -1414,7 +1414,7 @@ CL_RailTrail(vec3_t start, vec3_t end)
 	MakeNormalVectors(vec, right, up);
 
 	const int ltime = 750;
-	const float lradius = 150.0f;
+	const float lradius = 200.0f;
 	const float ldecay = 150.0f;
 
 	for (i = 0; i < len; i += 100)
