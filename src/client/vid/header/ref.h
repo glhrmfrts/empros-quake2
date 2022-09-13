@@ -31,7 +31,7 @@
 #include "vid.h"
 
 #define	MAX_DLIGHTS		32
-#define	MAX_ENTITIES	128
+#define	MAX_ENTITIES	512
 #define	MAX_PARTICLES	4096
 #define	MAX_LIGHTSTYLES	256
 

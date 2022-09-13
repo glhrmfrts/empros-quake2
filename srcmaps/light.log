@@ -1,0 +1,36 @@
+---- light / ericw-tools v0.18.1-32-g6660c5f ----
+Raytracing backend: Embree
+running with 8 threads
+LoadBSPFile: 'C:/q2dev/baseq2/work/q2rem1.bsp'
+BSP is version 29
+SetQdirFromPath: no "maps" in 'C:/q2dev/baseq2/work/q2rem1.bsp'--- ConvertTextures ---
+--- LoadEntities ---
+7 entities read, 0 are lights.
+--- OptionsSummary ---
+Embree_TraceInit: Embree version: 2.15.0
+Embree_TraceInit:
+	0 sky faces
+	555 solid faces
+	0 filtered faces
+	0 shadow-casting skip faces
+SetupLights: 0 initial lights
+SetupLights: 0 after surface lights
+SetupLights: 0 after jittering
+--- EstimateLightVisibility ---
+
+Final count: 0 lights, 0 suns in use.
+--- LightWorld ---
+--- LightThread ---
+0....1....2....3....4....5....6....7....8....9....
+Lighting Completed.
+
+lightdatasize: 0
+0 switchable light styles (32 max)
+Writing C:/q2dev/baseq2/work/q2rem1.bsp as BSP version 29
+0.079 seconds elapsed
+
+stats:
+0.000000 lights tested, 0.000000 hits per sample point
+0.000000 surface lights tested, 0.000000 hits per sample point
+0.000000 bounce lights tested, 0.000000 hits per sample point
+0 empty lightmaps

@@ -46,6 +46,7 @@ static cvar_t *r_vsync;
 static cvar_t *gl_anisotropic;
 static cvar_t *gl_msaa_samples;
 static cvar_t *r_motionblur;
+static cvar_t *r_hdr;
 static cvar_t *r_bloom;
 
 static menuframework_s s_opengl_menu;
@@ -61,6 +62,7 @@ static menulist_s s_fs_box;
 static menulist_s s_vsync_list;
 static menulist_s s_af_list;
 static menulist_s s_msaa_list;
+static menulist_s s_hdr_list;
 static menulist_s s_bloom_list;
 static menuaction_s s_defaults_action;
 static menuaction_s s_apply_action;
@@ -295,6 +297,7 @@ ApplyChanges(void *unused)
 		}
 	}
 
+	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
 	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
 
 	if (restart)
@@ -460,6 +463,11 @@ VID_MenuInit(void)
 		r_motionblur = Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
 	}
 
+	if (!r_hdr)
+	{
+		r_hdr = Cvar_Get("r_hdr", "1", CVAR_ARCHIVE);
+	}
+
 	if (!r_bloom)
 	{
 		r_bloom = Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
@@ -598,6 +606,13 @@ VID_MenuInit(void)
 
 	static const char* off_on_names[] = { "off", "on", NULL };
 
+	s_hdr_list.generic.type = MTYPE_SPINCONTROL;
+	s_hdr_list.generic.name = "HDR";
+	s_hdr_list.generic.x = 0;
+	s_hdr_list.generic.y = (y += 10);
+	s_hdr_list.itemnames = off_on_names;
+	s_hdr_list.curvalue = (r_hdr->value == 0.0f) ? 0 : 1;
+
 	s_bloom_list.generic.type = MTYPE_SPINCONTROL;
 	s_bloom_list.generic.name = "bloom";
 	s_bloom_list.generic.x = 0;
@@ -642,13 +657,16 @@ VID_MenuInit(void)
 	Menu_AddItem(&s_opengl_menu, (void *)&s_vsync_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_af_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_msaa_list);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_hdr_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_bloom_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_motionblur_slider);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_defaults_action);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_apply_action);
 
 	Menu_Center(&s_opengl_menu);
+
 	s_opengl_menu.x -= 8;
+	s_opengl_menu.y += 10;
 }
 
 void

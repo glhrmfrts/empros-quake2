@@ -573,9 +573,7 @@ SV_BuildClientFrame(client_t *client)
 		}
 
 		/* ignore if not touching a PV leaf */
-		// gnemeth: always send SOLID_BSP entities because the shadowmap can
-		// render doors/trains that are not visible to the player
-		if (ent != clent && ent->solid != SOLID_BSP)
+		if (ent != clent)
 		{
 			/* check area */
 			if (!CM_AreasConnected(clientarea, ent->areanum))
@@ -671,6 +669,9 @@ SV_BuildClientFrame(client_t *client)
 		svs.next_client_entities++;
 		frame->num_entities++;
 	}
+
+	int numents = frame->num_entities;
+	printf("numents: %d\n", numents);
 }
 
 /*
