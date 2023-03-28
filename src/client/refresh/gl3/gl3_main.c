@@ -1902,9 +1902,18 @@ GetRefAPI(refimport_t imp)
 
 void R_Printf(int level, const char* msg, ...)
 {
+	static FILE* debugFile;
+	if (!debugFile)
+	{
+		debugFile = fopen("r_debug.txt", "w");
+	}
+
 	va_list argptr;
 	va_start(argptr, msg);
-	ri.Com_VPrintf(level, msg, argptr);
+
+	vfprintf(debugFile, msg, argptr);
+
+	//ri.Com_VPrintf(level, msg, argptr);
 	va_end(argptr);
 }
 

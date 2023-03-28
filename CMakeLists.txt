@@ -508,6 +508,7 @@ set(GL1-Header
 set(GL3-Source
 	${REF_SRC_DIR}/gl3/gl3_draw.c
 	${REF_SRC_DIR}/gl3/gl3_fog.c
+	${REF_SRC_DIR}/gl3/gl3_framebuffer.c
 	${REF_SRC_DIR}/gl3/gl3_image.c
 	${REF_SRC_DIR}/gl3/gl3_light.c
 	${REF_SRC_DIR}/gl3/gl3_lightmap.c

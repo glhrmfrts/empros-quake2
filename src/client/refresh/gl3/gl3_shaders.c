@@ -1232,6 +1232,7 @@ static const char* fragmentSrcPostfxResolveHDR = MULTILINE_STRING(#version 150\n
 	uniform int u_SampleCount;
 	uniform float u_Intensity; // Bloom intensity
 	uniform float u_HDR; // HDR exposure
+	uniform int u_HDRMode; // ACES, Neutral, Reinhard, Exposure
 
 	in vec2 v_TexCoord;
 
@@ -1247,17 +1248,42 @@ static const char* fragmentSrcPostfxResolveHDR = MULTILINE_STRING(#version 150\n
 
 	out vec4 outColor[2];
 
+	vec3 TonemapACES(in vec3 x)
+	{
+		float a = 2.51f;
+		float b = 0.03f;
+		float c = 2.43f;
+		float d = 0.59f;
+		float e = 0.14f;
+		return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+	}
+
+	vec3 TonemapExposure(in vec3 hdrColor)
+	{
+		float exposure = u_HDR;
+		return (vec3(1.0) - exp(-hdrColor * exposure));
+	}
+
 	void main()
 	{
 		float bloomIntensity = u_Intensity;
-		float exposure = u_HDR;
 
-		// exposure tone mapping
 		vec3 hdrColor = texture(u_FboSampler0, v_TexCoord).rgb;
 		vec3 bloomColor = texture(u_FboSampler1, v_TexCoord).rgb;
 		hdrColor += bloomColor * bloomIntensity;
 
-		vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+		vec3 mapped = vec3(0.0);
+
+		// tone mapping
+		switch (u_HDRMode)
+		{
+		case 0:
+			mapped = TonemapACES(hdrColor);
+			break;
+		case 3:
+			mapped = TonemapExposure(hdrColor);
+			break;
+		}
 
 		// gamma correction
 		mapped = pow(mapped, vec3(gamma));

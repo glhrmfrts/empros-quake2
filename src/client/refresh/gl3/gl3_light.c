@@ -119,7 +119,15 @@ GL3_PushDlights(void)
 
 		VectorCopy(l->origin, udl->origin);
 		VectorCopy(l->color, udl->color);
-		udl->intensity = l->intensity;
+		if (r_hdr->value)
+		{
+			// Give it a boost to the dynamic lights in case of HDR rendering
+			udl->intensity = l->intensity * 1.6f;
+		}
+		else
+		{
+			udl->intensity = l->intensity;
+		}
 	}
 
 	assert(MAX_DLIGHTS == 32 && "If MAX_DLIGHTS changes, remember to adjust the uniform buffer definition in the shader!");
