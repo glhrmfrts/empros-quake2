@@ -164,13 +164,13 @@ AddPolyToWorldVBO(glpoly_t* poly, size_t lnumverts)
 
 	if (gl3state.num_world_vertices + lnumverts > gl3state.cap_world_vertices)
 	{
-		if (gl3state.cap_world_vertices == 0) { 
+		if (gl3state.cap_world_vertices == 0) {
 			gl3state.cap_world_vertices = max(lnumverts, 128);
 		}
 		else {
 			gl3state.cap_world_vertices = max(gl3state.num_world_vertices+lnumverts, gl3state.cap_world_vertices*2);
 		}
-		
+
 		gl3state.world_vertices = realloc(gl3state.world_vertices, gl3state.cap_world_vertices * sizeof(gl3_3D_vtx_t));
 	}
 

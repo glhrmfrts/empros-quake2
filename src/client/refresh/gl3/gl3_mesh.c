@@ -673,7 +673,7 @@ GL3_DrawAliasModel(entity_t *entity)
 		{
 			return;
 		}
-		
+
 		if (gl_lefthand->value == 2)
 		{
 			return;

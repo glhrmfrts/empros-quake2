@@ -109,7 +109,7 @@ void GL3_Fog_SetupFrame(void)
 	const hmm_vec4 delta = HMM_SubtractVec4(fog_params, old_fog_params);
 	const hmm_vec4 frame_fog_params = HMM_AddVec4(old_fog_params, HMM_MultiplyVec4f(delta, fraction));
 
-    gl3state.uni3DData.fogParams = frame_fog_params;
+	gl3state.uni3DData.fogParams = frame_fog_params;
 
 	if (lerp_timer > 0.0f) {
 		float dt = gl3_newrefdef.time - old_time;

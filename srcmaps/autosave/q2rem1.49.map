@@ -10862,3 +10862,45 @@
 "classname" "item_armor_shard"
 "origin" "-96 -1824 208"
 }
+// entity 129
+{
+"classname" "light"
+"origin" "456 -680 -104"
+"light" "80"
+"wait" "0.5"
+}
+// entity 130
+{
+"classname" "light"
+"origin" "648 -696 -104"
+"light" "80"
+"wait" "0.5"
+}
+// entity 131
+{
+"classname" "light"
+"origin" "232 -680 -104"
+"light" "80"
+"wait" "0.5"
+}
+// entity 132
+{
+"classname" "target_speaker"
+"origin" "536 -704 64"
+"noise" "world/amb14.wav"
+"spawnflags" "1"
+}
+// entity 133
+{
+"classname" "target_speaker"
+"origin" "664 -704 -160"
+"noise" "world/water1.wav"
+"spawnflags" "1"
+}
+// entity 134
+{
+"classname" "target_speaker"
+"origin" "1352 -1208 616"
+"spawnflags" "1"
+"noise" "world/wind2.wav"
+}
