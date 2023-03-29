@@ -258,7 +258,7 @@ void GL3_PostFx_BeforeScene()
 		GL3_BindVAO(screen_vao);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 
-		GL3_BindFramebufferTexture(&ssao_blur_fbo, 0, GL3_SSAO_MAP_TEXTURE_UNIT - GL_TEXTURE0);
+		GL3_BindFramebufferTexture(&ssao_blur_fbo, 0, GL3_SSAO_MAP_TU - GL_TEXTURE0);
 
 		GL3_InvalidateTextureBindings();
 	}

@@ -1629,6 +1629,7 @@ static void GL3_EndEntity(enum gl3_entity t)
 {
 	if (t == entity_light && shadowlight) {
 		if (shadowlightspot) {
+			/*
 			GL3_Shadow_AddSpotLight(
 				shadowlightorigin,
 				shadowlightangle,
@@ -1639,6 +1640,7 @@ static void GL3_EndEntity(enum gl3_entity t)
 				shadowlightintensity,
 				shadowlightstatic
 			);
+			*/
 		}
 		else {
 			// R_Shadow_AddPointLight (shadowlightorigin, shadowlightradius);

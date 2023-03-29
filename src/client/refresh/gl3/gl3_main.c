@@ -1390,6 +1390,7 @@ extern int c_visible_lightmaps, c_visible_textures;
 static void
 UpdateFlashlight()
 {
+#if 0
 	gl3state.flashlight->enabled = (int)r_flashlight->value;
 	VectorCopy(gl3_newrefdef.vieworg, gl3state.flashlight->light_position);
 	gl3state.flashlight->light_angles[0] = -gl3_newrefdef.viewangles[1];
@@ -1402,6 +1403,7 @@ UpdateFlashlight()
 	gl3state.flashlight->light_normal[0] = fwd[0];
 	gl3state.flashlight->light_normal[1] = fwd[1];
 	gl3state.flashlight->light_normal[2] = fwd[2];
+#endif
 }
 
 /*
@@ -1538,6 +1540,7 @@ GL3_RenderView(refdef_t *fd)
 		c_alias_polys = 0;
 	}
 
+	GL3_Shadow_BeginFrame();
 	GL3_PushDlights();
 
 	if (gl_finish->value)
@@ -1547,6 +1550,7 @@ GL3_RenderView(refdef_t *fd)
 
 	UpdateFlashlight();
 	GL3_Shadow_RenderShadowMaps();
+	GL3_UpdateUBOLights();
 
 	SetupFrame();
 
@@ -1554,7 +1558,9 @@ GL3_RenderView(refdef_t *fd)
 
 	SetupGL();
 
-	//if (true) return;
+	extern qboolean shadowDebug;
+
+	if (shadowDebug) return;
 
 	GL3_PostFx_BeforeScene();
 

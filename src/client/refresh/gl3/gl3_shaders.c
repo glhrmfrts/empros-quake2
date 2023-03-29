@@ -340,6 +340,17 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			vec4  fogParams; // .a is density, aligned at 16 bytes
 		};
 
+		struct DynLight { // gl3UniDynLight in C
+			vec3 lightOrigin;
+			float _pad;
+			//vec3 lightColor;
+			//float lightIntensity;
+			vec4 lightColor; // .a is intensity; this way it also works on OSX...
+			// (otherwise lightIntensity always contained 1 there)
+			vec4 shadowParameters;
+			mat4 shadowMatrix;
+		};
+
 		struct ShadowLight
 		{
 			mat4 view_matrix;
@@ -364,8 +375,6 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			ShadowLight shadows[10];
 		};
 
-		uniform sampler2DShadow shadow_map_samplers[10];
-
 		vec2 poissonDisk[16] = vec2[](
 			vec2( -0.94201624, -0.39906216 ),
 			vec2( 0.94558609, -0.76890725 ),
@@ -388,43 +397,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 		// Receives the color and the previous lighting, returns the new lighting
 		vec3 CalcSpotShadow(in int idx, in vec3 world_coord, in vec3 world_normal, in vec3 color, in vec3 lighting)
 		{
-			mat4 shadow_matrix = shadows[idx].proj_matrix * shadows[idx].view_matrix;
-			vec4 shadow_coord_v4 = (shadow_matrix * vec4(world_coord, 1.0));
-			vec3 shadow_coord = 0.5*(shadow_coord_v4.xyz/shadow_coord_v4.w)+0.5;
-			float dist_factor = length(world_coord - shadows[idx].light_position.xyz) / shadows[idx].radius;
-			float radinfluence = 1.0 - clamp(dist_factor*dist_factor, 0.0, 1.0);
-
-			float theta        = dot(normalize(world_coord - shadows[idx].light_position.xyz), shadows[idx].light_normal.xyz);
-			float epsilon      = shadows[idx].spot_cutoff - shadows[idx].spot_outer_cutoff;
-			float light_factor = clamp((theta - shadows[idx].spot_outer_cutoff) / epsilon, 0.0, 1.0);
-
-			float norm_factor = dot(-world_normal, shadows[idx].light_normal.xyz);
-			if (norm_factor < 0.0) { return lighting; }
-			norm_factor = clamp(norm_factor+0.75, 0.0, 1.0);
-
-			vec3 light_color = shadows[idx].light_color.rgb;
-
-			float user_intensity = shadows[idx].intensity;
-
-			if (shadows[idx].cast_shadow > 0) {
-				float bias = 0.0001f;//shadows[idx].bias*light_factor;
-				float intensity = 0.0f;
-				for (int j=0;j<6;j++) {
-					int index = j;     //int(floor(16.0*texture2D(random_tex, (WorldCoord.xy+WorldCoord.z)*j).r));
-					if (texture(shadow_map_samplers[idx], vec3(shadow_coord.xy+poissonDisk[index]/800.0,shadow_coord.z-bias)) < 1.0) {
-						//result += darken*light_factor*radinfluence;
-					} else {
-						intensity += norm_factor*light_factor*radinfluence;
-					}
-				}
-				// return lighting * (1.0f - result);
-				return lighting + light_color*(0.5f*user_intensity*(intensity/6.0)*norm_factor*light_factor*radinfluence);
-			}
-			else {
-				// No shadows, just lighting
-				float intensity = 2.0f;
-				return lighting + light_color*(0.5f*user_intensity*intensity*norm_factor*light_factor*radinfluence);
-			}
+			return vec3(0.0);
 		}
 );
 
@@ -581,15 +554,6 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 
 		// it gets attributes and uniforms from fragmentCommon3D
 
-		struct DynLight { // gl3UniDynLight in C
-			vec3 lightOrigin;
-			float _pad;
-			//vec3 lightColor;
-			//float lightIntensity;
-			vec4 lightColor; // .a is intensity; this way it also works on OSX...
-			// (otherwise lightIntensity always contained 1 there)
-		};
-
 		layout (std140) uniform uniLights
 		{
 			DynLight dynLights[32];
@@ -609,6 +573,10 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 		uniform sampler2D lightmap2;
 		uniform sampler2D lightmap3;
 
+		uniform sampler2DShadow shadowAtlasTex;
+		uniform samplerCube faceSelectionTex1;
+		uniform samplerCube faceSelectionTex2;
+
 		in vec2 passLMcoord;
 		in vec3 passWorldCoord;
 		in vec3 passNormal;
@@ -618,6 +586,46 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 		flat in uint pass_style1;
 		flat in uint pass_style2;
 		flat in uint pass_style3;
+
+		float SampleShadowMap(sampler2DShadow shadowTex, vec4 shadowPos, vec4 parameters)
+		{
+			vec4 offsets1 = vec4(2.0 * parameters.xy * shadowPos.w, 0.0, 0.0);
+			vec4 offsets2 = vec4(2.0 * parameters.x * shadowPos.w, -2.0 * parameters.y * shadowPos.w, 0.0, 0.0);
+			vec4 offsets3 = vec4(2.0 * parameters.x * shadowPos.w, 0.0, 0.0, 0.0);
+			vec4 offsets4 = vec4(0.0, 2.0 * parameters.y * shadowPos.w, 0.0, 0.0);
+
+			return smoothstep(0.0, 1.0, (
+				textureProjLod(shadowTex, shadowPos, 0.0) +
+				textureProjLod(shadowTex, shadowPos + offsets1, 0.0) +
+				textureProjLod(shadowTex, shadowPos - offsets1, 0.0) +
+				textureProjLod(shadowTex, shadowPos + offsets2, 0.0) +
+				textureProjLod(shadowTex, shadowPos - offsets2, 0.0) +
+				textureProjLod(shadowTex, shadowPos + offsets3, 0.0) +
+				textureProjLod(shadowTex, shadowPos - offsets3, 0.0) +
+				textureProjLod(shadowTex, shadowPos + offsets4, 0.0) +
+				textureProjLod(shadowTex, shadowPos - offsets4, 0.0)
+			) * 0.1111);
+		}
+
+		vec4 GetPointShadowPos(uint index, vec3 lightVec)
+		{
+			vec4 pointParameters = dynLights[index].shadowMatrix[0];
+			vec4 pointParameters2 = dynLights[index].shadowMatrix[1];
+			float zoom = pointParameters2.x;
+			float q = pointParameters2.y;
+			float r = pointParameters2.z;
+
+			vec3 axis = textureLod(faceSelectionTex1, lightVec.xzy, 0.0).xyz;
+			vec4 adjust = textureLod(faceSelectionTex2, lightVec.xzy, 0.0);
+
+			//vec3 axis = vec3(1.0, 0.0, 0.0);
+			//vec4 adjust = vec4(-0.5f, 0.5f, 0.5f, 1.5f);
+
+			float depth = abs(dot(lightVec.xzy, axis));
+			vec3 normLightVec = (lightVec.xzy / depth) * zoom;
+			vec2 coords = vec2(dot(normLightVec.zxx, axis), dot(normLightVec.yzy, axis)) * adjust.xy + adjust.zw;
+			return vec4(coords * pointParameters.xy + pointParameters.zw, q + r / depth, 1.0);
+		}
 
 		void main()
 		{
@@ -665,15 +673,15 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 				// also factor in angle between light and point on surface
 				fact *= max(0, dot(passNormal, normalize(lightToPos)));
 
-				lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
-			}
-
-			if (emission == 0.0f)
-			{
-				for(int i=0; i<num_shadow_maps; ++i)
+				vec4 shadowParams = dynLights[i].shadowParameters;
+				if (shadowParams.z < 1.0)
 				{
-					lmTex.rgb = CalcSpotShadow(i, passWorldCoord, passNormal, albedo.rgb, lmTex.rgb);
+					vec4 shadowPos = GetPointShadowPos(i, lightToPos);
+					fact *= clamp(SampleShadowMap(shadowAtlasTex, shadowPos, shadowParams), 0.0, 1.0);
 				}
+
+				lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
+				//lmTex.rgb += texture(faceSelectionTex1, lightToPos).rgb * fact * (1.0/256.0);
 			}
 
 			lmTex.rgb *= overbrightbits;
@@ -694,15 +702,6 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
 
 		// it gets attributes and uniforms from fragmentCommon3D
-
-		struct DynLight { // gl3UniDynLight in C
-			vec3 lightOrigin;
-			float _pad;
-			//vec3 lightColor;
-			//float lightIntensity;
-			vec4 lightColor; // .a is intensity; this way it also works on OSX...
-			// (otherwise lightIntensity always contained 1 there)
-		};
 
 		layout (std140) uniform uniLights
 		{
@@ -1924,18 +1923,13 @@ initShader3D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragS
 		}
 	}
 
-	char shadowMapName[] = "shadow_map_samplers[#]";
-	for (i=0; i<MAX_FRAME_SHADOWS; i++)
-	{
-		shadowMapName[strlen(shadowMapName) - 2] = '0' + i;
-		GLint loc = glGetUniformLocation(prog, shadowMapName);
-		if (loc != -1)
-		{
-			glUniform1i(loc, GL3_SHADOW_MAP_TEXTURE_UNIT - GL_TEXTURE0 + i);
-		}
-	}
+	//eprintf("faceSelectionTex1: %d\n", glGetUniformLocation(prog, "faceSelectionTex1"));
+	//eprintf("faceSelectionTex2: %d\n", glGetUniformLocation(prog, "faceSelectionTex2"));
 
-	glUniform1i(glGetUniformLocation(prog, "ssao_sampler"), GL3_SSAO_MAP_TEXTURE_UNIT - GL_TEXTURE0);
+	glUniform1i(glGetUniformLocation(prog, "shadowAtlasTex"), GL3_SHADOW_ATLAS_TU - GL_TEXTURE0);
+	glUniform1i(glGetUniformLocation(prog, "faceSelectionTex1"), GL3_FACE_SELECTION1_TU - GL_TEXTURE0);
+	glUniform1i(glGetUniformLocation(prog, "faceSelectionTex2"), GL3_FACE_SELECTION2_TU - GL_TEXTURE0);
+	glUniform1i(glGetUniformLocation(prog, "ssao_sampler"), GL3_SSAO_MAP_TU - GL_TEXTURE0);
 
 	GLint lmScalesLoc = glGetUniformLocation(prog, "lmScales");
 	shaderInfo->uniLmScales = lmScalesLoc;

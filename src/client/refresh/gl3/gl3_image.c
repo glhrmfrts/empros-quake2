@@ -178,24 +178,11 @@ GL3_BindLightmap(int lightmapnum)
 }
 
 void
-GL3_BindShadowmap(int shadowmapnum)
-{
-	if(shadowmapnum < 0 || shadowmapnum >= MAX_FRAME_SHADOWS)
-	{
-		R_Printf(PRINT_ALL, "WARNING: Invalid shadowmapnum %i used!\n", shadowmapnum);
-		return;
-	}
-
-	GL3_SelectTMU(GL3_SHADOW_MAP_TEXTURE_UNIT + shadowmapnum);
-	glBindTexture(GL_TEXTURE_2D, gl3state.shadow_frame_textures[shadowmapnum].texnum);
-}
-
-void
 GL3_InvalidateTextureBindings()
 {
 	gl3state.currenttexture = 0;
 	gl3state.currentlightmap = -1;
-	gl3state.currenttmu = GL_TEXTURE9;
+	gl3state.currenttmu = GL_TEXTURE16;
 	GL3_SelectTMU(GL_TEXTURE0);
 }
 

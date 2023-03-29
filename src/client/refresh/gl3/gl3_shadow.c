@@ -1,23 +1,16 @@
 #include "../ref_shared.h"
 #include "header/local.h"
 #include "header/HandmadeMath.h"
+#include <float.h>
 
-// (X) TODO: fix shadow light not being applied to parallel surfaces
-// (X) TODO: add color to dynamic lights
-// (X) TODO: fix the entity culling when rendering shadow maps
-// TODO: static shadows (baked in the first frame) to improve lightmapping
-// TODO: framebuffer pool
-// TODO: texture atlasing for shadows
+#define eprintf(...)  R_Printf(PRINT_ALL, __VA_ARGS__)
+
+// TODO: scale dlight shadowmap size according to distance from view
 
 enum {
-	SUN_SHADOW_WIDTH = 1024*4,
-	SUN_SHADOW_HEIGHT = 1024*4,
-
-	SPOT_SHADOW_WIDTH = 1024*2,
-	SPOT_SHADOW_HEIGHT = 1024*2,
-
-	POINT_SHADOW_WIDTH = 1024,
-	POINT_SHADOW_HEIGHT = 1024,
+	MAX_SHADOW_LIGHTS = 16,
+	DEFAULT_SHADOWMAP_SIZE = 256,
+	SHADOW_ATLAS_SIZE = 2048,
 };
 
 #define SUN_SHADOW_BIAS (0.01f)
@@ -32,18 +25,62 @@ qboolean gl3_rendering_shadow_maps;
 
 static int shadow_light_id_gen;
 
+static gl3_framebuffer_t shadowAtlasFbo;
+static gl3_shadow_light_t shadowLights[MAX_SHADOW_LIGHTS];
+static int shadowLightFrameCount;
+
+static const float faceSelectionData1[] = {
+	1.0f, 0.0f, 0.0f, 0.0f,
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	0.0f, 0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 1.0f, 0.0f
+};
+
+static const float faceSelectionData2[] = {
+	-0.5f, 0.5f, 0.5f, 1.5f,
+	0.5f, 0.5f, 0.5f, 0.5f,
+	-0.5f, 0.5f, 1.5f, 1.5f,
+	-0.5f, -0.5f, 1.5f, 0.5f,
+	0.5f, 0.5f, 2.5f, 1.5f,
+	-0.5f, 0.5f, 2.5f, 0.5f
+};
+
+static GLuint faceSelectionTex1;
+static GLuint faceSelectionTex2;
+
+enum { MAX_CUBE_FACES = 6 };
+
+static void CreateFaceSelectionTexture(const float* data, GLuint* texid)
+{
+	glGenTextures(1, texid);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, *texid);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	for (int fi = 0; fi < MAX_CUBE_FACES; fi++)
+	{
+		GLenum target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + (GLenum)fi;
+		const float* faceData = data + (fi * 4);
+		glTexImage2D(target, 0, GL_RGBA32F, 1, 1, 0, GL_RGBA, GL_FLOAT, (const void*)faceData);
+	}
+}
+
 void GL3_Shadow_Init()
 {
-	vec3_t origin = {0};
-	vec3_t angles = {0};
-	vec3_t color = { 1.0f, 1.0f, 1.0f };
-	GL3_Shadow_AddSpotLight(origin, angles, color, 70.0f, 600.0f, SPOT_SHADOW_WIDTH, 0.7f, false);
-	gl3state.flashlight = gl3state.first_shadow_light;
-	gl3state.flashlight->cast_shadow = false; // until we have better shadows
+	const gl3_framebuffer_flag_t fbo_flags = GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_SHADOWMAP;
+	GL3_CreateFramebuffer(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, 1, fbo_flags, &shadowAtlasFbo);
+	CreateFaceSelectionTexture(faceSelectionData1, &faceSelectionTex1);
+	CreateFaceSelectionTexture(faceSelectionData2, &faceSelectionTex2);
 }
 
 void GL3_Shadow_Shutdown()
 {
+#if 0
 	gl3_shadow_light_t* light;
 	gl3_shadow_light_t* next;
 
@@ -57,62 +94,94 @@ void GL3_Shadow_Shutdown()
 	gl3state.first_shadow_light = NULL;
 	gl3state.current_shadow_light = NULL;
 	gl3state.last_shadow_light_rendered = NULL;
+#endif
 }
 
-static void SetupShadowViewCluster(const gl3_shadow_light_t* light)
+void GL3_Shadow_BeginFrame()
 {
-	int i;
-	mleaf_t *leaf;
+	shadowLightFrameCount = 0;
+	GL3_Shadow_InitAllocator(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE);
+}
 
-	/* build the transformation matrix for the given view angles */
-	// VectorCopy(gl3_newrefdef.vieworg, light->light_position);
+static void AnglesForCubeFace(int index, vec3_t angles)
+{
+	static const vec3_t pointLightDirection[] = {
+		{1.0f, 0.0f, 0.0f}, // Positive X
+		{-1.0f, 0.0f, 0.0f}, // Negative X
+		{0.0f, 1.0f, 0.0f}, // Positive Y
+		{0.0f, -1.0f, 0.0f}, // Negative Y
+		{0.0f, 0.0f, 1.0f}, // Positive Z
+		{0.0f, 0.0f, -1.0f}, // Negative Z
+	};
 
-	// AngleVectors(gl3_newrefdef.viewangles, vpn, vright, vup);
+	vec3_t dir;
+	VectorCopy(pointLightDirection[index], dir);
+	AngleVectors2(dir, angles);
+}
 
-	/* current viewcluster */
-	if (!(gl3_newrefdef.rdflags & RDF_NOWORLDMODEL))
+static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
+{
+	gl3_shadow_view_t* view = &light->shadowViews[viewIndex];
+
+	// first put Z axis going up
+	hmm_mat4 viewMat = {{
+		{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
+		{ -1, 0,  0, 0 },
+		{  0, 1,  0, 0 },
+		{  0, 0,  0, 1 }
+	}};
+
+	if (viewIndex == 1)
 	{
-		gl3_oldviewcluster = gl3_viewcluster;
-		gl3_oldviewcluster2 = gl3_viewcluster2;
-		leaf = GL3_Mod_PointInLeaf(light->light_position, gl3_worldmodel);
-		gl3_viewcluster = gl3_viewcluster2 = leaf->cluster;
+		viewMat = (hmm_mat4){{
+			{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
+			{ 1, 0,  0, 0 },
+			{  0, -1,  0, 0 },
+			{  0, 0,  0, 1 }
+		}};
+	}
 
-		//R_Printf(PRINT_ALL, "light cluster = %d\n", leaf->cluster);
+	vec3_t angles = {0};
+	if (light->type == gl3_shadow_light_type_point)
+		AnglesForCubeFace(viewIndex, angles);
+	else
+		VectorCopy(light->light_angles, angles);
 
-		/* check above and below so crossing solid water doesn't draw wrong */
-		if (!leaf->contents)
-		{
-			/* look down a bit */
-			vec3_t temp;
+	// now rotate by view angles
+	hmm_mat4 rotMat = rotAroundAxisXYZ(angles[2], angles[1], angles[0]);
 
-			VectorCopy(light->light_position, temp);
-			temp[2] -= 16;
-			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
+	viewMat = HMM_MultiplyMat4( viewMat, rotMat );
 
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
-		else
-		{
-			/* look up a bit */
-			vec3_t temp;
+	// .. and apply translation for current position
+	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);
+	view->viewMatrix = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
+	view->projMatrix = GL3_MYgluPerspective(light->coneangle, 1.0f, 10.0f, light->radius*3.0f);
+}
 
-			VectorCopy(light->light_position, temp);
-			temp[2] += 16;
-			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
+void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
+{
+	gl3_shadow_light_t* l = &shadowLights[shadowLightFrameCount++];
+	memset(l, 0, sizeof(gl3_shadow_light_t));
+	l->id = shadowLightFrameCount - 1;
+	l->dlightIndex = dlightIndex;
+	l->type = gl3_shadow_light_type_point;
+	l->bias = POINT_SHADOW_BIAS;
+	l->radius = intensity;
+	l->coneangle = 90;
+	VectorCopy(pos, l->light_position);
 
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
+	l->shadowMapWidth = DEFAULT_SHADOWMAP_SIZE * 3;
+	l->shadowMapHeight = DEFAULT_SHADOWMAP_SIZE * 2;
+	GL3_Shadow_Allocate(l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY);
+
+	l->numShadowViews = 6;
+	for (int i = 0; i < l->numShadowViews; i++)
+	{
+		SetupShadowView(l, i);
 	}
 }
 
+/*
 void GL3_Shadow_AddSpotLight(
 	const vec3_t origin,
 	const vec3_t angles,
@@ -164,128 +233,142 @@ void GL3_Shadow_AddSpotLight(
 		l->light_position[0], l->light_position[1], l->light_position[2],
 		l->light_angles[0], l->light_angles[1], l->light_angles[2]);
 }
+*/
 
 static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 {
-	if (gl3state.uniShadowsData.num_shadow_maps >= MAX_FRAME_SHADOWS) {
-		R_Printf(PRINT_ALL, "WARNING: Shadow map limit reached, max: %d\n", MAX_FRAME_SHADOWS);
-		return;
-	}
+	float shadowStrength = 0.5f;
 
-	gl3UniShadowSingle_t* ldata = &gl3state.uniShadowsData.shadows[gl3state.uniShadowsData.num_shadow_maps++];
-	ldata->light_type = (int)light->type;
-	ldata->intensity = light->intensity;
-	ldata->darken = light->darken;
-	ldata->bias = light->bias;
-	ldata->radius = light->radius;
-	ldata->spot_cutoff = cosf(HMM_ToRadians(light->coneangle * 0.5f));
-	ldata->spot_outer_cutoff = cosf(HMM_ToRadians(light->coneouterangle * 0.5f));
-	VectorCopy(light->light_position, ((float*)&ldata->light_position));
-	VectorCopy(light->light_normal, ((float*)&ldata->light_normal));
-	VectorCopy(light->light_color, ((float*)&ldata->light_color));
-	ldata->view_matrix = light->view_matrix;
-	ldata->proj_matrix = light->proj_matrix;
-	ldata->cast_shadow = (int)light->cast_shadow;
-	ldata->intensity = light->intensity;
+	gl3UniDynLight* dlight = &gl3state.uniLightsData.dynLights[light->dlightIndex];
+	dlight->shadowParameters = HMM_Vec4(0.5f / (float)SHADOW_ATLAS_SIZE, 0.5f / (float)SHADOW_ATLAS_SIZE, shadowStrength, 0.0f);
 
-	int idx = gl3state.uniShadowsData.num_shadow_maps - 1;
-	if (false)
-	{//(light->type == gl3_shadow_light_type_point) {
-		//gl3state.shadow_frame_textures[gl3state.uniShadowsData.num_shadow_maps - 1].id = light->shadow_map_cubemap;
-		//gl3state.shadow_frame_textures[gl3state.uniShadowsData.num_shadow_maps - 1].unit = SHADOW_MAP_TEXTURE_UNIT - GL_TEXTURE0 + light->id;
-	}
-	else
+	float nearClip = 10.0f;
+	float farClip = light->radius*3.0f;
+	float q = farClip / (farClip - nearClip);
+	float r = -q * nearClip;
+	float zoom = 1;
+
+	int shadowMapSize = light->shadowMapHeight/2;
+	dlight->shadowMatrix = (hmm_mat4){ {
+		{  (float)shadowMapSize / SHADOW_ATLAS_SIZE, (float)shadowMapSize / SHADOW_ATLAS_SIZE, (float)light->shadowMapX / SHADOW_ATLAS_SIZE, (float)light->shadowMapY / SHADOW_ATLAS_SIZE },
+		{ zoom, q,  r, 0 },
+		{  light->light_position[0], light->light_position[1],  light->light_position[2], 1 },
+		{  0, 0,  0, 0 }
+	} };
+}
+
+static void AddShadowsToUBO()
+{
+	for (int i = 0; i < shadowLightFrameCount; i++)
 	{
-		gl3state.shadow_frame_textures[idx].texnum = light->shadow_map_fbo.depth_texture;
-		gl3state.shadow_frame_textures[idx].unit = GL3_SHADOW_MAP_TEXTURE_UNIT - GL_TEXTURE0 + light->id;
+		AddLightToUniformBuffer(shadowLights + i);
 	}
 }
 
-static void AddLightsToUBO()
+static void SetupShadowViewCluster(const gl3_shadow_light_t* light)
 {
-	gl3state.uniShadowsData.use_shadow = (int)1;//r_shadow_enabled.value;
-	gl3state.uniShadowsData.num_shadow_maps = 0;
+	int i;
+	mleaf_t *leaf;
 
-	for (gl3_shadow_light_t* light = gl3state.first_shadow_light; light; light = light->next)
+	/* build the transformation matrix for the given view angles */
+	// VectorCopy(gl3_newrefdef.vieworg, light->light_position);
+	// AngleVectors(gl3_newrefdef.viewangles, vpn, vright, vup);
+
+	/* current viewcluster */
+	if (!(gl3_newrefdef.rdflags & RDF_NOWORLDMODEL))
 	{
-		if (light->rendered)
+		gl3_oldviewcluster = gl3_viewcluster;
+		gl3_oldviewcluster2 = gl3_viewcluster2;
+		leaf = GL3_Mod_PointInLeaf(light->light_position, gl3_worldmodel);
+		gl3_viewcluster = gl3_viewcluster2 = leaf->cluster;
+
+		//R_Printf(PRINT_ALL, "light cluster = %d\n", leaf->cluster);
+
+		/* check above and below so crossing solid water doesn't draw wrong */
+		if (!leaf->contents)
 		{
-			AddLightToUniformBuffer(light);
+			/* look down a bit */
+			vec3_t temp;
+
+			VectorCopy(light->light_position, temp);
+			temp[2] -= 16;
+			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
+
+			if (!(leaf->contents & CONTENTS_SOLID) &&
+				(leaf->cluster != gl3_viewcluster2))
+			{
+				gl3_viewcluster2 = leaf->cluster;
+			}
+		}
+		else
+		{
+			/* look up a bit */
+			vec3_t temp;
+
+			VectorCopy(light->light_position, temp);
+			temp[2] += 16;
+			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
+
+			if (!(leaf->contents & CONTENTS_SOLID) &&
+				(leaf->cluster != gl3_viewcluster2))
+			{
+				gl3_viewcluster2 = leaf->cluster;
+			}
 		}
 	}
-
-	GL3_UpdateUBOShadows();
 }
 
-static void PrepareToRender(gl3_shadow_light_t* light)
+qboolean shadowDebug = false;
+
+static void PrepareToRender(gl3_shadow_light_t* light, int viewIndex)
 {
+	gl3_shadow_view_t* view = &light->shadowViews[viewIndex];
+
 	SetupShadowViewCluster(light);
 	GL3_MarkLeaves();
-	if (false)
+
+	if (light->type == gl3_shadow_light_type_point)
 	{
-		glViewport(0, 0, 1024, 1024);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		int actualShadowMapSize = light->shadowMapHeight / 2;
+		int smx = light->shadowMapX;
+		int smy = light->shadowMapY;
+		if (viewIndex & 1) smy += actualShadowMapSize;
+		smx += ((unsigned)viewIndex >> 1) * actualShadowMapSize;
+		glViewport(smx, smy, actualShadowMapSize, actualShadowMapSize);
 	}
 	else
 	{
-		GL3_BindFramebuffer(&light->shadow_map_fbo);
-
-		if (false)
-		{   //(light->type == r_shadow_light_type_point) {
-			// GL_FramebufferTexture2DFunc (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			// 	shadow_point_camera_directions[light->current_cube_face].cubemap_face,
-			// 	light->shadow_map_cubemap, 0);
-			// glDrawBuffer(GL_COLOR_ATTACHMENT0);
-			// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		}
+		glViewport(light->shadowMapX, light->shadowMapY, light->shadowMapWidth, light->shadowMapHeight);
 	}
 
+	gl3state.uni3DData.transViewMat4 = view->viewMatrix;
+	gl3state.uni3DData.transProjMat4 = view->projMatrix;
+	GL3_UpdateUBO3D();
+
+/*
 	// vec3_t fwd, right, up;
 	// AngleVectors(light->light_angles, fwd, right, up);
 	// VectorCopy(fwd, light->light_normal);
-
 	//hmm_vec3 vorg = HMM_Vec3(light->light_position[0], light->light_position[1], light->light_position[2]);
 	//hmm_vec3 vfwd = HMM_Vec3(fwd[0], fwd[1], fwd[2]);
-
-	// first put Z axis going up
-	hmm_mat4 viewMat = {{
-		{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
-		{ -1, 0,  0, 0 },
-		{  0, 1,  0, 0 },
-		{  0, 0,  0, 1 }
-	}};
-
-	// now rotate by view angles
-	hmm_mat4 rotMat = rotAroundAxisXYZ(light->light_angles[2], light->light_angles[1], light->light_angles[0]);
-
-	viewMat = HMM_MultiplyMat4( viewMat, rotMat );
-
-	// .. and apply translation for current position
-	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);
-	light->view_matrix = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
-	light->proj_matrix = GL3_MYgluPerspective(light->coneangle, (float)gl3_newrefdef.width / (float)gl3_newrefdef.height, 1.0f, light->radius);
+*/
 }
 
-void GL3_Shadow_SetupLightShader(gl3_shadow_light_t* light)
+static void RenderShadowMap(gl3_shadow_light_t* light)
 {
-}
-
-static void RenderSpotShadowMap(gl3_shadow_light_t* light)
-{
-	PrepareToRender(light);
-
-	gl3state.uni3DData.transViewMat4 = light->view_matrix;
-	gl3state.uni3DData.transProjMat4 = light->proj_matrix;
-	GL3_UpdateUBO3D();
-
 	GL3_UseProgram(gl3state.siShadowMap.shaderProgram);
 
-	entity_t ent = {0};
-	ent.frame = (int)(gl3_newrefdef.time * 2);
-	GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->light_position);
-	GL3_DrawTextureChains(&ent);
+	for (int i = 0; i < light->numShadowViews; i++)
+	{
+		PrepareToRender(light, i);
 
-	GL3_DrawEntitiesOnList();
+		entity_t ent = {0};
+		ent.frame = (int)(gl3_newrefdef.time * 2);
+		GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->light_position);
+		GL3_DrawTextureChains(&ent);
+
+		//GL3_DrawEntitiesOnList();
+	}
 }
 
 static qboolean CullLight(const gl3_shadow_light_t* light)
@@ -295,8 +378,19 @@ static qboolean CullLight(const gl3_shadow_light_t* light)
 
 void GL3_Shadow_RenderShadowMaps()
 {
+	// Unbind the shadow atlas before rendering to it
+	GL3_SelectTMU(GL3_SHADOW_ATLAS_TU);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
 	gl3state.render_pass = RENDER_PASS_SHADOW;
 
+	if (!shadowDebug)
+	{
+		GL3_BindFramebuffer(&shadowAtlasFbo);
+	}
+
+	glViewport(0, 0, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
 
 	hmm_mat4 old_view = gl3state.uni3DData.transViewMat4;
@@ -304,37 +398,18 @@ void GL3_Shadow_RenderShadowMaps()
 
 	gl3state.last_shadow_light_rendered = NULL;
 
-	for (gl3_shadow_light_t* light = gl3state.first_shadow_light; light; light = light->next)
+	for (int i = 0; i < shadowLightFrameCount; i++)
 	{
-		light->rendered = false;
-
-		if (!light->enabled)
-		{
-			light->rendered = light->is_static;
-			continue;
-		}
-
-		if (!light->cast_shadow)
-		{
-			light->rendered = true;
-			continue;
-		}
-
+		gl3_shadow_light_t* light = &shadowLights[i];
 		if (CullLight(light))
 		{
 			gl3state.current_shadow_light = light;
-			RenderSpotShadowMap(light);
-			light->rendered = true;
+			RenderShadowMap(light);
 			gl3state.last_shadow_light_rendered = light;
-
-			if (light->is_static)
-			{
-				light->enabled = false;
-			}
 		}
 	}
 
-	AddLightsToUBO();
+	AddShadowsToUBO();
 
 	// At least one shadow map was rendered?
 	if (gl3state.last_shadow_light_rendered)
@@ -343,7 +418,6 @@ void GL3_Shadow_RenderShadowMaps()
 
 		// Restore the original viewport
 		// glDrawBuffer(GL_FRONT_AND_BACK);
-
 		// Restore the original view cluster (from the player POV)
 		// GL3_SetupViewCluster();
 
@@ -352,11 +426,18 @@ void GL3_Shadow_RenderShadowMaps()
 		gl3state.uni3DData.transProjMat4 = old_proj;
 		GL3_UpdateUBO3D();
 
-		for (int i = 0; i < gl3state.uniShadowsData.num_shadow_maps; i++)
-		{
-			GL3_BindShadowmap(i);
-		}
+		GL3_BindFramebufferDepthTexture(&shadowAtlasFbo, GL3_SHADOW_ATLAS_TU - GL_TEXTURE0);
 	}
 
+	// TODO: no need to bind if no shadows
+
+	glActiveTexture(GL3_FACE_SELECTION1_TU);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, faceSelectionTex1);
+
+	glActiveTexture(GL3_FACE_SELECTION2_TU);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, faceSelectionTex2);
+
 	gl3state.current_shadow_light = NULL;
+
+	GL3_InvalidateTextureBindings();
 }

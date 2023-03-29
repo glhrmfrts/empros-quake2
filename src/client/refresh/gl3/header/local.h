@@ -179,6 +179,8 @@ typedef struct
 	GLfloat _padding;
 	vec3_t color;
 	GLfloat intensity;
+	hmm_vec4 shadowParameters;
+	hmm_mat4 shadowMatrix;
 } gl3UniDynLight;
 
 typedef struct
@@ -196,8 +198,10 @@ typedef struct
 enum { MAX_FRAME_SHADOWS = 10 };
 
 enum {
-	GL3_SHADOW_MAP_TEXTURE_UNIT = GL_TEXTURE5,
-	GL3_SSAO_MAP_TEXTURE_UNIT = GL_TEXTURE15,
+	GL3_SHADOW_ATLAS_TU = GL_TEXTURE5,
+	GL3_FACE_SELECTION1_TU = GL_TEXTURE7,
+	GL3_FACE_SELECTION2_TU = GL_TEXTURE8,
+	GL3_SSAO_MAP_TU = GL_TEXTURE15,
 };
 
 typedef struct {
@@ -764,38 +768,35 @@ qboolean GL3_Matrix4_Invert(const float *m, float *out);
 typedef enum gl3_shadow_light_type {
 	gl3_shadow_light_type_sun,
 	gl3_shadow_light_type_spot,
-	//gl3_shadow_light_type_point,
+	gl3_shadow_light_type_point,
 } gl3_shadow_light_type_t;
+
+typedef struct gl3_shadow_view_s {
+	hmm_mat4 viewMatrix;
+	hmm_mat4 projMatrix;
+} gl3_shadow_view_t;
 
 typedef struct gl3_shadow_light_s {
 	int id;
 	gl3_shadow_light_type_t type;
-	qboolean enabled;
-	qboolean rendered; // rendered this frame?
-	qboolean cast_shadow;
 	qboolean is_static;
 	vec3_t light_position;
 	vec3_t light_normal;
 	vec3_t light_angles; // (pitch yaw roll)
 	vec3_t light_color;
-	float intensity;
-	float darken;
+	int dlightIndex;
 	float radius;
 	float coneangle;
-	float coneouterangle;
 	float bias;
-	int shadow_map_width;
-	int shadow_map_height;
-	gl3_framebuffer_t shadow_map_fbo;
-	// GLuint shadow_map_cubemap;
-	GLenum current_cube_face;
-	hmm_mat4 view_matrix;
-	hmm_mat4 proj_matrix;
-
-	// next in the global list of lights
-	struct gl3_shadow_light_s* next;
+	int shadowMapX;
+	int shadowMapY;
+	int shadowMapWidth;
+	int shadowMapHeight;
+	size_t numShadowViews;
+	gl3_shadow_view_t shadowViews[6];
 } gl3_shadow_light_t;
 
+/*
 void GL3_Shadow_AddSpotLight(
 	const vec3_t origin,
 	const vec3_t angles,
@@ -805,10 +806,15 @@ void GL3_Shadow_AddSpotLight(
 	int resolution,
 	float intensity,
 	qboolean isstatic);
-void GL3_Shadow_SetupLightShader(gl3_shadow_light_t* light);
-void GL3_Shadow_RenderShadowMaps();
+*/
 void GL3_Shadow_Init();
+void GL3_Shadow_BeginFrame();
+void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity);
+void GL3_Shadow_RenderShadowMaps();
 void GL3_Shadow_Shutdown();
+
+void GL3_Shadow_InitAllocator(int width, int height, int maxWidth, int maxHeight);
+qboolean GL3_Shadow_Allocate(int width, int height, int* x, int* y);
 
 extern cvar_t* r_flashlight;
 
