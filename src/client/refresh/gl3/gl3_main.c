@@ -1244,7 +1244,7 @@ GL3_SetGL2D(void)
 
 // equivalent to R_MYgluPerspective() but returning a matrix instead of setting internal OpenGL state
 hmm_mat4
-GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar)
+GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble zNear, GLdouble zFar)
 {
 	// calculation of left, right, bottom, top is from R_MYgluPerspective() of old gl backend
 	// which seems to be slightly different from the real gluPerspective()
@@ -1252,7 +1252,7 @@ GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zF
 	GLdouble left, right, bottom, top;
 	float A, B, C, D;
 
-	top = zNear * tan(fovy * M_PI / 360.0);
+	top = zNear * tan(fovy * M_PI / 360.0) * zoom;
 	bottom = -top;
 
 	left = bottom * aspect;
@@ -1276,6 +1276,25 @@ GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zF
 		{ 0, 0, D, 0 }
 	}};
 
+	return ret;
+}
+
+hmm_mat4
+GL3_Perspective2(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble nearClip, GLdouble farClip)
+{
+	float h = (1.0 / tan(fovy * M_PI / 180.0 * 0.5)) * zoom;
+	float w = h / aspect;
+        float q = farClip / (farClip - nearClip);
+        float r = -q * nearClip;
+
+	float D = -(2.0*farClip*nearClip)/(farClip-nearClip);
+
+	hmm_mat4 ret = {{
+		{ w, 0, 0, 0 },
+		{ 0, h, 0, 0 },
+		{ 0, 0, 2.0f*q-1.0f, 2.0f*r },
+		{ 0, 0, D, 0 }
+	}};
 	return ret;
 }
 
@@ -1315,7 +1334,8 @@ SetupGL(void)
 	{
 		float screenaspect = (float)gl3_newrefdef.width / gl3_newrefdef.height;
 		float dist = (r_farsee->value == 0) ? 4096.0f : 8192.0f;
-		gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(gl3_newrefdef.fov_y, screenaspect, 4, dist);
+		gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(gl3_newrefdef.fov_y, screenaspect, 1, 4, dist);
+		//gl3state.uni3DData.transProjMat4 = GL3_Perspective2(gl3_newrefdef.fov_y, screenaspect, 1.0f, 4, dist);
 	}
 
 	glCullFace(GL_FRONT);

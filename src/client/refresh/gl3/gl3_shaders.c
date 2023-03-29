@@ -574,6 +574,7 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 		uniform sampler2D lightmap3;
 
 		uniform sampler2DShadow shadowAtlasTex;
+		uniform sampler2D shadowDebugColorTex;
 		uniform samplerCube faceSelectionTex1;
 		uniform samplerCube faceSelectionTex2;
 
@@ -607,25 +608,31 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			) * 0.1111);
 		}
 
+		vec4 DebugShadowMapColor(vec4 shadowPos)
+		{
+			return textureProjLod(shadowDebugColorTex, shadowPos, 0.0);
+		}
+
 		vec4 GetPointShadowPos(uint index, vec3 lightVec)
 		{
 			vec4 pointParameters = dynLights[index].shadowMatrix[0];
 			vec4 pointParameters2 = dynLights[index].shadowMatrix[1];
-			float zoom = pointParameters2.x;
+			float zoom = 1.0;
 			float q = pointParameters2.y;
 			float r = pointParameters2.z;
 
 			vec3 axis = textureLod(faceSelectionTex1, lightVec.xzy, 0.0).xyz;
 			vec4 adjust = textureLod(faceSelectionTex2, lightVec.xzy, 0.0);
 
-			//vec3 axis = vec3(1.0, 0.0, 0.0);
-			//vec4 adjust = vec4(-0.5f, 0.5f, 0.5f, 1.5f);
-
 			float depth = abs(dot(lightVec.xzy, axis));
 			vec3 normLightVec = (lightVec.xzy / depth) * zoom;
 			vec2 coords = vec2(dot(normLightVec.zxx, axis), dot(normLightVec.yzy, axis)) * adjust.xy + adjust.zw;
-			return vec4(coords * pointParameters.xy + pointParameters.zw, q + r / depth, 1.0);
+			coords = coords * pointParameters.xy + pointParameters.zw;
+			float bias = 0.0001f;
+			return vec4(coords, (q + r / depth) - bias, 1.0);
 		}
+
+		float Square(float x) { return x*x; }
 
 		void main()
 		{
@@ -658,30 +665,36 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 				// dyn light number i does not affect this plane, just skip it
 				// if((passLightFlags & (1u << i)) == 0u)  continue;
 
+				// TODO: store attenuation in the uniform buffer
 				float intens = dynLights[i].lightColor.a;
+				float atten = 1.0f / max(0.00001f, intens*intens);
 
 				vec3 lightToPos = dynLights[i].lightOrigin - passWorldCoord;
-				float distLightToPos = length(lightToPos);
-				float fact = max(0, intens - distLightToPos - 52);
+				float distanceSqr = max(0.00001f, dot(lightToPos, lightToPos));
+
+				float rangeAtten = Square(
+					clamp(1.0 - Square(distanceSqr * atten), 0.0, 1.0)
+				);
+				float fact = rangeAtten;
 
 				// move the light source a bit further above the surface
 				// => helps if the lightsource is so close to the surface (e.g. grenades, rockets)
 				//    that the dot product below would return 0
 				// (light sources that are below the surface are filtered out by lightFlags)
-				lightToPos += passNormal*32.0;
-
-				// also factor in angle between light and point on surface
-				fact *= max(0, dot(passNormal, normalize(lightToPos)));
+				vec3 raisedLightToPos = lightToPos + passNormal*32.0;
+				float NdotL = max(0, dot(passNormal, normalize(raisedLightToPos)));
 
 				vec4 shadowParams = dynLights[i].shadowParameters;
+				vec3 shadowDebugColor = vec3(0.0);
 				if (shadowParams.z < 1.0)
 				{
 					vec4 shadowPos = GetPointShadowPos(i, lightToPos);
 					fact *= clamp(SampleShadowMap(shadowAtlasTex, shadowPos, shadowParams), 0.0, 1.0);
+					shadowDebugColor = DebugShadowMapColor(shadowPos).rgb;
 				}
 
-				lmTex.rgb += dynLights[i].lightColor.rgb * fact * (1.0/256.0);
-				//lmTex.rgb += texture(faceSelectionTex1, lightToPos).rgb * fact * (1.0/256.0);
+				lmTex.rgb += dynLights[i].lightColor.rgb * fact * NdotL;
+				//lmTex.rgb += shadowDebugColor * fact;
 			}
 
 			lmTex.rgb *= overbrightbits;
@@ -1119,7 +1132,20 @@ static const char* fragmentSrcShadowMap = MULTILINE_STRING(
 
 		void main()
 		{
-			outColor = texture2D(tex, passTexCoord);
+			vec3 color = abs(fogParams.rgb);
+			if (fogParams.r < 0.0)
+			{
+				color = vec3(1.0, 1.0, 0.0);
+			}
+			else if (fogParams.g < 0.0)
+			{
+				color = vec3(0.0, 1.0, 1.0);
+			}
+			else if (fogParams.b < 0.0)
+			{
+				color = vec3(1.0);
+			}
+			outColor = texture(tex, passTexCoord);
 			gl_FragDepth = gl_FragCoord.z;
 		}
 );
@@ -1625,7 +1651,7 @@ initShaderPostfx(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* f
 
 	if(shaderInfo->shaderProgram != 0)
 	{
-		R_Printf(PRINT_ALL, "WARNING: calling initShader2D for gl3ShaderInfo_t that already has a shaderProgram!\n");
+		R_Printf(PRINT_ALL, "WARNING: calling initShaderPostfx for gl3ShaderInfo_t that already has a shaderProgram!\n");
 		glDeleteProgram(shaderInfo->shaderProgram);
 	}
 
@@ -1927,6 +1953,7 @@ initShader3D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragS
 	//eprintf("faceSelectionTex2: %d\n", glGetUniformLocation(prog, "faceSelectionTex2"));
 
 	glUniform1i(glGetUniformLocation(prog, "shadowAtlasTex"), GL3_SHADOW_ATLAS_TU - GL_TEXTURE0);
+	glUniform1i(glGetUniformLocation(prog, "shadowDebugColorTex"), GL3_SHADOW_DEBUG_COLOR_TU - GL_TEXTURE0);
 	glUniform1i(glGetUniformLocation(prog, "faceSelectionTex1"), GL3_FACE_SELECTION1_TU - GL_TEXTURE0);
 	glUniform1i(glGetUniformLocation(prog, "faceSelectionTex2"), GL3_FACE_SELECTION2_TU - GL_TEXTURE0);
 	glUniform1i(glGetUniformLocation(prog, "ssao_sampler"), GL3_SSAO_MAP_TU - GL_TEXTURE0);
@@ -2016,88 +2043,97 @@ static void initUBOs(void)
 
 static qboolean createShaders(void)
 {
+	eprintf("si2D\n");
 	if(!initShader2D(&gl3state.si2D, vertexSrc2D, fragmentSrc2D))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 2D rendering!\n");
 		return false;
 	}
+	eprintf("si2Dcolor\n");
 	if(!initShader2D(&gl3state.si2Dcolor, vertexSrc2Dcolor, fragmentSrc2Dcolor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for color-only 2D rendering!\n");
 		return false;
 	}
+	eprintf("si3Dlm\n");
 	if(!initShader3D(&gl3state.si3Dlm, vertexSrc3Dlm, fragmentSrc3Dlm))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 3D rendering with lightmap!\n");
 		return false;
 	}
+	eprintf("si3DlmTurb\n");
 	if(!initShader3D(&gl3state.si3DlmTurb, vertexSrc3Dlm, fragmentSrc3DlmWater))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 3D rendering water with lightmap!\n");
 		return false;
 	}
+	eprintf("si3DTrans\n");
 	if(!initShader3D(&gl3state.si3Dtrans, vertexSrc3D, fragmentSrc3D))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering translucent 3D things!\n");
 		return false;
 	}
+	eprintf("si3DColorOnly\n");
 	if(!initShader3D(&gl3state.si3DcolorOnly, vertexSrc3D, fragmentSrc3Dcolor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for flat-colored 3D rendering!\n");
 		return false;
 	}
-	/*
-	if(!initShader3D(&gl3state.si3Dlm, vertexSrc3Dlm, fragmentSrc3D))
-	{
-		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for blending 3D lightmaps rendering!\n");
-		return false;
-	}
-	*/
+	eprintf("si3DTurb\n");
 	if(!initShader3D(&gl3state.si3Dturb, vertexSrc3Dwater, fragmentSrc3Dwater))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for water rendering!\n");
 		return false;
 	}
+	eprintf("si3DlmFlow\n");
 	if(!initShader3D(&gl3state.si3DlmFlow, vertexSrc3DlmFlow, fragmentSrc3Dlm))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for scrolling textured 3D rendering with lightmap!\n");
 		return false;
 	}
+	eprintf("si3DTransFlow\n");
 	if(!initShader3D(&gl3state.si3DtransFlow, vertexSrc3Dflow, fragmentSrc3D))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for scrolling textured translucent 3D rendering!\n");
 		return false;
 	}
+	eprintf("si3Dsky\n");
 	if(!initShader3D(&gl3state.si3Dsky, vertexSrc3D, fragmentSrc3Dsky))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for sky rendering!\n");
 		return false;
 	}
+	eprintf("si3Dsprite\n");
 	if(!initShader3D(&gl3state.si3Dsprite, vertexSrc3D, fragmentSrc3Dsprite))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for sprite rendering!\n");
 		return false;
 	}
+	eprintf("si3DSpiretAlpha\n");
 	if(!initShader3D(&gl3state.si3DspriteAlpha, vertexSrc3D, fragmentSrc3DspriteAlpha))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for alpha-tested sprite rendering!\n");
 		return false;
 	}
+	eprintf("si3Dalias\n");
 	if(!initShader3D(&gl3state.si3Dalias, vertexSrcAlias, fragmentSrcAlias))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering textured models!\n");
 		return false;
 	}
+	eprintf("si3DaliasColor\n");
 	if(!initShader3D(&gl3state.si3DaliasColor, vertexSrcAlias, fragmentSrcAliasColor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering flat-colored models!\n");
 		return false;
 	}
+	eprintf("siShadowMap\n");
 	if(!initShader3D(&gl3state.siShadowMap, vertexSrcShadowMap, fragmentSrcShadowMap))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
 		return false;
 	}
+	eprintf("si3DSSAO\n");
 	if(!initShader3D(&gl3state.si3DSSAO, vertexSrc3DSSAO, fragmentSrc3DSSAO))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
@@ -2173,7 +2209,7 @@ qboolean GL3_InitShaders(void)
 static void deleteShaders(void)
 {
 	const gl3ShaderInfo_t siZero = {0};
-	for(gl3ShaderInfo_t* si = &gl3state.si2D; si <= &gl3state.siParticle; ++si)
+	for(gl3ShaderInfo_t* si = &gl3state.si2D; si < &gl3state.siSentinel; ++si)
 	{
 		if(si->shaderProgram != 0)  glDeleteProgram(si->shaderProgram);
 		*si = siZero;

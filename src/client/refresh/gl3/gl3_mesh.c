@@ -825,7 +825,7 @@ GL3_DrawAliasModel(entity_t *entity)
 
 	if (entity->flags & RF_WEAPONMODEL)
 	{
-		extern hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar);
+		extern hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble zNear, GLdouble zFar);
 
 		origProjMat = gl3state.uni3DData.transProjMat4;
 
@@ -835,11 +835,11 @@ GL3_DrawAliasModel(entity_t *entity)
 
 		if (r_gunfov->value < 0)
 		{
-			gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(gl3_newrefdef.fov_y, screenaspect, 4, dist);
+			gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(gl3_newrefdef.fov_y, screenaspect, 1, 4, dist);
 		}
 		else
 		{
-			gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(r_gunfov->value, screenaspect, 4, dist);
+			gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(r_gunfov->value, screenaspect, 1, 4, dist);
 		}
 
 		if(gl_lefthand->value == 1.0F)

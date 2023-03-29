@@ -39,12 +39,14 @@ static const float faceSelectionData1[] = {
 };
 
 static const float faceSelectionData2[] = {
-	-0.5f, 0.5f, 0.5f, 1.5f,
-	0.5f, 0.5f, 0.5f, 0.5f,
-	-0.5f, 0.5f, 1.5f, 1.5f,
-	-0.5f, -0.5f, 1.5f, 0.5f,
-	0.5f, 0.5f, 2.5f, 1.5f,
-	-0.5f, 0.5f, 2.5f, 0.5f
+        -0.5f, -0.5f, 0.5f, 1.5f,
+        0.5f, -0.5f, 0.5f, 0.5f,
+
+		-0.5f, 0.5f, 1.5f, 1.5f,
+		-0.5f, -0.5f, 1.5f, 0.5f,
+
+		0.5f, -0.5f, 2.5f, 1.5f,
+		-0.5f, -0.5f, 2.5f, 0.5f
 };
 
 static GLuint faceSelectionTex1;
@@ -80,21 +82,11 @@ void GL3_Shadow_Init()
 
 void GL3_Shadow_Shutdown()
 {
-#if 0
-	gl3_shadow_light_t* light;
-	gl3_shadow_light_t* next;
-
-	for (light = gl3state.first_shadow_light; light; light = next)
-	{
-		GL3_DestroyFramebuffer(&light->shadow_map_fbo);
-		next = light->next;
-		free(light);
-	}
-
-	gl3state.first_shadow_light = NULL;
-	gl3state.current_shadow_light = NULL;
-	gl3state.last_shadow_light_rendered = NULL;
-#endif
+	/*
+	GL3_DestroyFramebuffer(&shadowAtlasFbo);
+	glDeleteTextures(1, &faceSelectionTex1);
+	glDeleteTextures(1, &faceSelectionTex2);
+	*/
 }
 
 void GL3_Shadow_BeginFrame()
@@ -103,17 +95,17 @@ void GL3_Shadow_BeginFrame()
 	GL3_Shadow_InitAllocator(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE);
 }
 
+static const vec3_t pointLightDirection[] = {
+	{1.0f, 0.0f, 0.0f}, // Positive X
+	{-1.0f, 0.0f, 0.0f}, // Negative X
+	{0.0f, 1.0f, 0.0f}, // Positive Y
+	{0.0f, -1.0f, 0.0f}, // Negative Y
+	{0.0f, 0.0f, 1.0f}, // Positive Z
+	{0.0f, 0.0f, -1.0f}, // Negative Z
+};
+
 static void AnglesForCubeFace(int index, vec3_t angles)
 {
-	static const vec3_t pointLightDirection[] = {
-		{1.0f, 0.0f, 0.0f}, // Positive X
-		{-1.0f, 0.0f, 0.0f}, // Negative X
-		{0.0f, 1.0f, 0.0f}, // Positive Y
-		{0.0f, -1.0f, 0.0f}, // Negative Y
-		{0.0f, 0.0f, 1.0f}, // Positive Z
-		{0.0f, 0.0f, -1.0f}, // Negative Z
-	};
-
 	vec3_t dir;
 	VectorCopy(pointLightDirection[index], dir);
 	AngleVectors2(dir, angles);
@@ -123,6 +115,12 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 {
 	gl3_shadow_view_t* view = &light->shadowViews[viewIndex];
 
+	vec3_t angles = { 0 };
+	if (light->type == gl3_shadow_light_type_point)
+		AnglesForCubeFace(viewIndex, angles);
+	else
+		VectorCopy(light->light_angles, angles);
+
 	// first put Z axis going up
 	hmm_mat4 viewMat = {{
 		{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
@@ -131,6 +129,9 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 		{  0, 0,  0, 1 }
 	}};
 
+	// This is probably dumb. I just messed with the view angles
+	// to get the shadow rendering to work correctly.
+#if 1
 	if (viewIndex == 1)
 	{
 		viewMat = (hmm_mat4){{
@@ -140,12 +141,27 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 			{  0, 0,  0, 1 }
 		}};
 	}
-
-	vec3_t angles = {0};
-	if (light->type == gl3_shadow_light_type_point)
-		AnglesForCubeFace(viewIndex, angles);
-	else
-		VectorCopy(light->light_angles, angles);
+	if (viewIndex == 2)
+	{
+		viewMat = (hmm_mat4){ {
+			{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
+			{ -1, 0,  0, 0 },
+			{  0, -1,  0, 0 },
+			{  0, 0,  0, 1 }
+		} };
+		angles[0] -= 90;
+	}
+	if (viewIndex == 3)
+	{
+		viewMat = (hmm_mat4){ {
+			{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
+			{ -1, 0,  0, 0 },
+			{  0, -1,  0, 0 },
+			{  0, 0,  0, 1 }
+		} };
+		angles[0] -= 90;
+	}
+#endif
 
 	// now rotate by view angles
 	hmm_mat4 rotMat = rotAroundAxisXYZ(angles[2], angles[1], angles[0]);
@@ -155,18 +171,25 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 	// .. and apply translation for current position
 	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);
 	view->viewMatrix = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
-	view->projMatrix = GL3_MYgluPerspective(light->coneangle, 1.0f, 10.0f, light->radius*3.0f);
+
+	int shadowMapSize = light->shadowMapHeight / 2;
+	float zoom = (float)(shadowMapSize - 4) / (float)shadowMapSize;
+	view->projMatrix = GL3_MYgluPerspective(light->coneangle, 1.0f, zoom, light->radius*0.01f, light->radius);
 }
 
 void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
 {
+	if (shadowLightFrameCount >= MAX_SHADOW_LIGHTS)
+		return;
+
 	gl3_shadow_light_t* l = &shadowLights[shadowLightFrameCount++];
 	memset(l, 0, sizeof(gl3_shadow_light_t));
 	l->id = shadowLightFrameCount - 1;
 	l->dlightIndex = dlightIndex;
 	l->type = gl3_shadow_light_type_point;
 	l->bias = POINT_SHADOW_BIAS;
-	l->radius = intensity;
+	//l->radius = intensity;
+	l->radius = intensity*2.0f;
 	l->coneangle = 90;
 	VectorCopy(pos, l->light_position);
 
@@ -181,60 +204,6 @@ void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
 	}
 }
 
-/*
-void GL3_Shadow_AddSpotLight(
-	const vec3_t origin,
-	const vec3_t angles,
-	const vec3_t color,
-	float coneangle,
-	float zfar,
-	int resolution,
-	float intensity,
-	qboolean is_static)
-{
-	if (!zfar) {
-		zfar = 600;
-	}
-
-	gl3_shadow_light_t* l = calloc(1, sizeof(gl3_shadow_light_t));
-	l->id = shadow_light_id_gen++;
-	l->enabled = true;
-	l->cast_shadow = true;
-	l->type = gl3_shadow_light_type_spot;
-	l->bias = SPOT_SHADOW_BIAS;
-	l->coneangle = coneangle;
-	l->coneouterangle = coneangle + 20.0f;
-	l->radius = zfar;
-	l->shadow_map_width = SPOT_SHADOW_WIDTH;
-	l->shadow_map_height = SPOT_SHADOW_HEIGHT;
-	l->intensity = intensity;
-	l->is_static = is_static;
-
-	VectorCopy(origin, l->light_position);
-	VectorCopy(color, l->light_color);
-
-	l->light_angles[0] = -angles[1];
-	l->light_angles[1] = -angles[0];
-	l->light_angles[2] = angles[2];
-
-	vec3_t fwd, right, up;
-	AngleVectors(angles, fwd, right, up);
-	l->light_normal[0] = fwd[0];
-	l->light_normal[1] = fwd[1];
-	l->light_normal[2] = fwd[2];
-
-	const gl3_framebuffer_flag_t fbo_flags = GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_SHADOWMAP;
-	GL3_CreateFramebuffer(SPOT_SHADOW_WIDTH, SPOT_SHADOW_HEIGHT, 1, fbo_flags, &l->shadow_map_fbo);
-
-	l->next = gl3state.first_shadow_light;
-	gl3state.first_shadow_light = l;
-
-	R_Printf(PRINT_ALL, "Added shadow spotlight %f %f %f - %f %f %f.\n",
-		l->light_position[0], l->light_position[1], l->light_position[2],
-		l->light_angles[0], l->light_angles[1], l->light_angles[2]);
-}
-*/
-
 static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 {
 	float shadowStrength = 0.5f;
@@ -242,13 +211,14 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 	gl3UniDynLight* dlight = &gl3state.uniLightsData.dynLights[light->dlightIndex];
 	dlight->shadowParameters = HMM_Vec4(0.5f / (float)SHADOW_ATLAS_SIZE, 0.5f / (float)SHADOW_ATLAS_SIZE, shadowStrength, 0.0f);
 
-	float nearClip = 10.0f;
-	float farClip = light->radius*3.0f;
+	float nearClip = light->radius*0.01f;
+	float farClip = light->radius;
 	float q = farClip / (farClip - nearClip);
 	float r = -q * nearClip;
-	float zoom = 1;
 
 	int shadowMapSize = light->shadowMapHeight/2;
+	float zoom = (float)(shadowMapSize - 4) / (float)shadowMapSize;
+
 	dlight->shadowMatrix = (hmm_mat4){ {
 		{  (float)shadowMapSize / SHADOW_ATLAS_SIZE, (float)shadowMapSize / SHADOW_ATLAS_SIZE, (float)light->shadowMapX / SHADOW_ATLAS_SIZE, (float)light->shadowMapY / SHADOW_ATLAS_SIZE },
 		{ zoom, q,  r, 0 },
@@ -269,10 +239,6 @@ static void SetupShadowViewCluster(const gl3_shadow_light_t* light)
 {
 	int i;
 	mleaf_t *leaf;
-
-	/* build the transformation matrix for the given view angles */
-	// VectorCopy(gl3_newrefdef.vieworg, light->light_position);
-	// AngleVectors(gl3_newrefdef.viewangles, vpn, vright, vup);
 
 	/* current viewcluster */
 	if (!(gl3_newrefdef.rdflags & RDF_NOWORLDMODEL))
@@ -341,17 +307,13 @@ static void PrepareToRender(gl3_shadow_light_t* light, int viewIndex)
 		glViewport(light->shadowMapX, light->shadowMapY, light->shadowMapWidth, light->shadowMapHeight);
 	}
 
+	vec3_t dir;
+	VectorCopy(pointLightDirection[viewIndex], dir);
+
 	gl3state.uni3DData.transViewMat4 = view->viewMatrix;
 	gl3state.uni3DData.transProjMat4 = view->projMatrix;
+	gl3state.uni3DData.fogParams = (hmm_vec4){dir[0], dir[1], dir[2]};
 	GL3_UpdateUBO3D();
-
-/*
-	// vec3_t fwd, right, up;
-	// AngleVectors(light->light_angles, fwd, right, up);
-	// VectorCopy(fwd, light->light_normal);
-	//hmm_vec3 vorg = HMM_Vec3(light->light_position[0], light->light_position[1], light->light_position[2]);
-	//hmm_vec3 vfwd = HMM_Vec3(fwd[0], fwd[1], fwd[2]);
-*/
 }
 
 static void RenderShadowMap(gl3_shadow_light_t* light)
@@ -427,15 +389,14 @@ void GL3_Shadow_RenderShadowMaps()
 		GL3_UpdateUBO3D();
 
 		GL3_BindFramebufferDepthTexture(&shadowAtlasFbo, GL3_SHADOW_ATLAS_TU - GL_TEXTURE0);
+		GL3_BindFramebufferTexture(&shadowAtlasFbo, 0, GL3_SHADOW_DEBUG_COLOR_TU - GL_TEXTURE0);
+
+		glActiveTexture(GL3_FACE_SELECTION1_TU);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, faceSelectionTex1);
+
+		glActiveTexture(GL3_FACE_SELECTION2_TU);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, faceSelectionTex2);
 	}
-
-	// TODO: no need to bind if no shadows
-
-	glActiveTexture(GL3_FACE_SELECTION1_TU);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, faceSelectionTex1);
-
-	glActiveTexture(GL3_FACE_SELECTION2_TU);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, faceSelectionTex2);
 
 	gl3state.current_shadow_light = NULL;
 

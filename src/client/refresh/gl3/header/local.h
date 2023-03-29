@@ -199,6 +199,7 @@ enum { MAX_FRAME_SHADOWS = 10 };
 
 enum {
 	GL3_SHADOW_ATLAS_TU = GL_TEXTURE5,
+	GL3_SHADOW_DEBUG_COLOR_TU = GL_TEXTURE6,
 	GL3_FACE_SELECTION1_TU = GL_TEXTURE7,
 	GL3_FACE_SELECTION2_TU = GL_TEXTURE8,
 	GL3_SSAO_MAP_TU = GL_TEXTURE15,
@@ -314,6 +315,8 @@ typedef struct
 	gl3ShaderInfo_t siPostfxBlit;
 
 	gl3ShaderInfo_t siShadowMap;
+
+	gl3ShaderInfo_t siSentinel;
 
 	GLuint vao3D, vbo3D; // for brushes etc, using 10 floats and one uint as vertex input (x,y,z, s,t, lms,lmt, normX,normY,normZ ; lightFlags)
 	GLuint vaoWorld, vboWorld; // for static world geometry
@@ -519,7 +522,9 @@ extern void GL3_BufferAndDraw3D(const gl3_3D_vtx_t* verts, int numVerts, GLenum 
 extern qboolean GL3_CullBox(vec3_t mins, vec3_t maxs);
 extern void GL3_RotateForEntity(entity_t *e);
 
-extern hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar);
+extern hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble zNear, GLdouble zFar);
+
+extern hmm_mat4 GL3_Perspective2(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble nearClip, GLdouble farClip);
 
 extern void GL3_DrawEntitiesOnList(void);
 

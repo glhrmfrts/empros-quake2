@@ -130,6 +130,8 @@ GL3_PushDlights(void)
 		GL3_Shadow_AddDynLight(i, l->origin, l->intensity);
 	}
 
+#if 0
+	// Debug player light
 	{
 		gl3UniDynLight* udl = &gl3state.uniLightsData.dynLights[i];
 		//GL3_MarkLights(l, 1 << i, gl3_worldmodel->nodes);
@@ -149,6 +151,7 @@ GL3_PushDlights(void)
 		GL3_Shadow_AddDynLight(i, udl->origin, udl->intensity);
 	}
 	i++;
+#endif
 
 	assert(MAX_DLIGHTS == 32 && "If MAX_DLIGHTS changes, remember to adjust the uniform buffer definition in the shader!");
 
