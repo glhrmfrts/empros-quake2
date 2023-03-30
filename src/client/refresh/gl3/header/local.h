@@ -814,7 +814,11 @@ void GL3_Shadow_AddSpotLight(
 */
 void GL3_Shadow_Init();
 void GL3_Shadow_BeginFrame();
-void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity);
+
+// Returns true if we could add this light to the shadow map or false otherwise
+qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity);
+
+
 void GL3_Shadow_RenderShadowMaps();
 void GL3_Shadow_Shutdown();
 

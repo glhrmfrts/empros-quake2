@@ -5,7 +5,8 @@
 
 #define eprintf(...)  R_Printf(PRINT_ALL, __VA_ARGS__)
 
-// TODO: scale dlight shadowmap size according to distance from view
+// TODO: when rendering the shadow map, render all opaque geometry in one go
+// TODO: integrate this new system with the mapper-designed shadow lights
 
 enum {
 	MAX_SHADOW_LIGHTS = 16,
@@ -177,10 +178,10 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 	view->projMatrix = GL3_MYgluPerspective(light->coneangle, 1.0f, zoom, light->radius*0.01f, light->radius);
 }
 
-void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
+qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
 {
 	if (shadowLightFrameCount >= MAX_SHADOW_LIGHTS)
-		return;
+		return false;
 
 	gl3_shadow_light_t* l = &shadowLights[shadowLightFrameCount++];
 	memset(l, 0, sizeof(gl3_shadow_light_t));
@@ -193,8 +194,20 @@ void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
 	l->coneangle = 90;
 	VectorCopy(pos, l->light_position);
 
-	l->shadowMapWidth = DEFAULT_SHADOWMAP_SIZE * 3;
-	l->shadowMapHeight = DEFAULT_SHADOWMAP_SIZE * 2;
+	// The further away from the view, the smaller the shadow map can be
+
+	vec3_t lightToView = { 0 };
+	VectorSubtract(pos, gl3_newrefdef.vieworg, lightToView);
+	float distanceSqr = DotProduct(lightToView, lightToView);
+
+	int shadowMapResolution = DEFAULT_SHADOWMAP_SIZE;
+	if (distanceSqr > (300.0f * 300.0f))
+		shadowMapResolution /= 2;
+	if (distanceSqr > (700.0f * 700.0f))
+		shadowMapResolution /= 2;
+
+	l->shadowMapWidth = shadowMapResolution * 3;
+	l->shadowMapHeight = shadowMapResolution * 2;
 	GL3_Shadow_Allocate(l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY);
 
 	l->numShadowViews = 6;
@@ -202,6 +215,8 @@ void GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
 	{
 		SetupShadowView(l, i);
 	}
+
+	return true;
 }
 
 static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
@@ -329,7 +344,7 @@ static void RenderShadowMap(gl3_shadow_light_t* light)
 		GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->light_position);
 		GL3_DrawTextureChains(&ent);
 
-		//GL3_DrawEntitiesOnList();
+		GL3_DrawEntitiesOnList();
 	}
 }
 

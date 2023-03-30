@@ -681,6 +681,11 @@ GL3_DrawAliasModel(entity_t *entity)
 	}
 
 	gl3model_t* model = entity->model;
+	if (model->noCastShadows && gl3state.render_pass == RENDER_PASS_SHADOW)
+	{
+		return;
+	}
+
 	paliashdr = (dmdl_t *)model->extradata;
 
 	/* get lighting information */

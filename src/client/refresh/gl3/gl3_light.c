@@ -110,7 +110,7 @@ GL3_PushDlights(void)
 
 	l = gl3_newrefdef.dlights;
 
-	gl3state.uniLightsData.numDynLights = gl3_newrefdef.num_dlights + 1;
+	gl3state.uniLightsData.numDynLights = gl3_newrefdef.num_dlights;
 
 	for (i = 0; i < gl3_newrefdef.num_dlights; i++, l++)
 	{
@@ -127,7 +127,12 @@ GL3_PushDlights(void)
 		{
 			udl->intensity = l->intensity;
 		}
-		GL3_Shadow_AddDynLight(i, l->origin, l->intensity);
+
+		if (!GL3_Shadow_AddDynLight(i, l->origin, l->intensity))
+		{
+			// Set the shadow parameters to a default to indicate this light doesn't have a shadow map
+			udl->shadowParameters = HMM_Vec4(1,1,1,1);
+		}
 	}
 
 #if 0

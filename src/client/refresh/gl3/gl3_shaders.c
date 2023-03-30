@@ -25,6 +25,8 @@
  * =======================================================================
  */
 
+// TODO: load shaders from external files for better dev experience
+
 #include "header/local.h"
 
 // TODO: remove eprintf() usage

@@ -245,6 +245,7 @@ typedef struct model_s
 	vec3_t		origin;	// for sounds or lights
 
 	char* entities;
+	qboolean noCastShadows;
 } gl3model_t;
 
 #endif /* SRC_CLIENT_REFRESH_GL3_HEADER_MODEL_H_ */

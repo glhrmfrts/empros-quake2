@@ -1848,6 +1848,25 @@ GL3_RegisterModel(char *name)
 		}
 	}
 
+	static const char* noCastShadowsModels[] = {
+		"models/objects/explode/tris.md2",
+		"models/objects/flash/tris.md2",
+		"models/objects/r_explode/tris.md2",
+		"models/objects/r_explode2/tris.md2",
+		"models/objects/laser/tris.md2",
+		"models/objects/rocket/tris.md2"
+	};
+	if (mod)
+	{
+		for (int i = 0; i < sizeof(noCastShadowsModels)/sizeof(noCastShadowsModels[0]); i++)
+		{
+			if (0 == strcmp(name, noCastShadowsModels[i]))
+			{
+				mod->noCastShadows = true;
+			}
+		}
+	}
+
 	return mod;
 }
 
