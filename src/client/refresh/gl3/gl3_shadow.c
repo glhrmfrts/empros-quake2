@@ -337,13 +337,13 @@ static void RenderShadowMap(gl3_shadow_light_t* light)
 
 	for (int i = 0; i < light->numShadowViews; i++)
 	{
+		gl3state.currentShadowLight = light;
 		PrepareToRender(light, i);
 
 		entity_t ent = {0};
 		ent.frame = (int)(gl3_newrefdef.time * 2);
 		GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->light_position);
-		GL3_DrawTextureChains(&ent);
-
+		GL3_DrawTextureChainsShadowPass(&ent);
 		GL3_DrawEntitiesOnList();
 	}
 }
@@ -359,7 +359,7 @@ void GL3_Shadow_RenderShadowMaps()
 	GL3_SelectTMU(GL3_SHADOW_ATLAS_TU);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	gl3state.render_pass = RENDER_PASS_SHADOW;
+	gl3state.renderPass = RENDER_PASS_SHADOW;
 
 	if (!shadowDebug)
 	{
@@ -373,23 +373,23 @@ void GL3_Shadow_RenderShadowMaps()
 	hmm_mat4 old_view = gl3state.uni3DData.transViewMat4;
 	hmm_mat4 old_proj = gl3state.uni3DData.transProjMat4;
 
-	gl3state.last_shadow_light_rendered = NULL;
+	gl3state.lastShadowLightRendered = NULL;
 
 	for (int i = 0; i < shadowLightFrameCount; i++)
 	{
 		gl3_shadow_light_t* light = &shadowLights[i];
 		if (CullLight(light))
 		{
-			gl3state.current_shadow_light = light;
+			gl3state.currentShadowLight = light;
 			RenderShadowMap(light);
-			gl3state.last_shadow_light_rendered = light;
+			gl3state.lastShadowLightRendered = light;
 		}
 	}
 
 	AddShadowsToUBO();
 
 	// At least one shadow map was rendered?
-	if (gl3state.last_shadow_light_rendered)
+	if (gl3state.lastShadowLightRendered)
 	{
 		GL3_UnbindFramebuffer();
 
@@ -413,7 +413,7 @@ void GL3_Shadow_RenderShadowMaps()
 		glBindTexture(GL_TEXTURE_CUBE_MAP, faceSelectionTex2);
 	}
 
-	gl3state.current_shadow_light = NULL;
+	gl3state.currentShadowLight = NULL;
 
 	GL3_InvalidateTextureBindings();
 }

@@ -550,7 +550,7 @@ GL3_Init(void)
 #endif
 	}
 
-	gl3state.current_shadow_light = NULL;
+	gl3state.currentShadowLight = NULL;
 
 	// generate texture handles for all possible lightmaps
 	glGenTextures(MAX_LIGHTMAPS*MAX_LIGHTMAPS_PER_SURFACE, gl3state.lightmap_textureIDs[0]);

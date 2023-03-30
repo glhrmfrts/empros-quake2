@@ -152,7 +152,7 @@ DrawAliasFrameLerp(dmdl_t *paliashdr, entity_t* entity, vec3_t shadelight)
 		alpha = 1.0;
 	}
 
-	if (gl3state.render_pass == RENDER_PASS_SCENE)
+	if (gl3state.renderPass == RENDER_PASS_SCENE)
 	{
 		if (colorOnly)
 		{
@@ -659,7 +659,7 @@ GL3_DrawAliasModel(entity_t *entity)
 	// used to restore ModelView matrix after changing it for this entities position/rotation
 	hmm_mat4 origModelMat = {0};
 
-	if (!(entity->flags & RF_WEAPONMODEL) && !(gl3state.render_pass == RENDER_PASS_SHADOW))
+	if (!(entity->flags & RF_WEAPONMODEL) && !(gl3state.renderPass == RENDER_PASS_SHADOW))
 	{
 		if (CullAliasModel(bbox, entity))
 		{
@@ -669,7 +669,7 @@ GL3_DrawAliasModel(entity_t *entity)
 
 	if (entity->flags & RF_WEAPONMODEL)
 	{
-		if (gl3state.render_pass == RENDER_PASS_SHADOW)
+		if (gl3state.renderPass == RENDER_PASS_SHADOW)
 		{
 			return;
 		}
@@ -681,7 +681,7 @@ GL3_DrawAliasModel(entity_t *entity)
 	}
 
 	gl3model_t* model = entity->model;
-	if (model->noCastShadows && gl3state.render_pass == RENDER_PASS_SHADOW)
+	if (model->noCastShadows && gl3state.renderPass == RENDER_PASS_SHADOW)
 	{
 		return;
 	}
@@ -732,7 +732,14 @@ GL3_DrawAliasModel(entity_t *entity)
 	}
 	else
 	{
-		GL3_LightPoint(entity, entity->origin, shadelight);
+		if (gl3state.renderPass == RENDER_PASS_SCENE)
+		{
+			GL3_LightPoint(entity, entity->origin, shadelight);
+		}
+		else
+		{
+			shadelight[0] = shadelight[1] = shadelight[2] = 1;
+		}
 
 		/* player lighting hack for communication back to server */
 		if (entity->flags & RF_WEAPONMODEL)
@@ -898,8 +905,11 @@ GL3_DrawAliasModel(entity_t *entity)
 	}
 
 	//GL3_Bind(skin->texnum);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, skin->texnum);
+	if (gl3state.renderPass == RENDER_PASS_SCENE)
+	{
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, skin->texnum);
+	}
 
 	if (entity->flags & RF_TRANSLUCENT)
 	{

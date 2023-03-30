@@ -216,7 +216,7 @@ void GL3_PostFx_BeforeScene()
 
 	if (r_ssao->value)
 	{
-		gl3state.render_pass = RENDER_PASS_SSAO;
+		gl3state.renderPass = RENDER_PASS_SSAO;
 
 		GL3_BindFramebuffer(&ssao_geom_fbo);
 		GL3_UseProgram(gl3state.si3DSSAO.shaderProgram);
@@ -263,7 +263,7 @@ void GL3_PostFx_BeforeScene()
 		GL3_InvalidateTextureBindings();
 	}
 
-	gl3state.render_pass = RENDER_PASS_SCENE;
+	gl3state.renderPass = RENDER_PASS_SCENE;
 	gl3state.uni3DData.ssao = r_ssao->value;
 
 	GL3_BindFramebuffer(&scene_fbo);

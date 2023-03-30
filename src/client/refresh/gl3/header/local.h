@@ -270,7 +270,7 @@ typedef struct
 	int currentlightmap; // lightmap_textureIDs[currentlightmap] bound to GL_TEXTURE1
 	GLuint currenttmu; // GL_TEXTURE0 or GL_TEXTURE1
 
-	gl3_render_pass_t render_pass;
+	gl3_render_pass_t renderPass;
 
 	//float camera_separation;
 	//enum stereo_modes stereo_mode;
@@ -350,9 +350,8 @@ typedef struct
 	GLuint uniStylesUBO;
 	GLuint uniShadowsUBO;
 
-	struct gl3_shadow_light_s* first_shadow_light;
-	struct gl3_shadow_light_s* last_shadow_light_rendered;
-	struct gl3_shadow_light_s* current_shadow_light;
+	struct gl3_shadow_light_s* lastShadowLightRendered;
+	struct gl3_shadow_light_s* currentShadowLight;
 	struct gl3_shadow_light_s* flashlight;
 	struct gl3_shadow_frame_texture shadow_frame_textures[MAX_FRAME_SHADOWS];
 
@@ -652,6 +651,7 @@ extern void GL3_MarkLeaves(void);
 extern void GL3_SetupViewCluster(void);
 extern void GL3_RecursiveWorldNode(entity_t* ent, mnode_t* node, const vec3_t modelorg);
 extern void GL3_DrawTextureChains(entity_t* ent);
+extern void GL3_DrawTextureChainsShadowPass(entity_t *currententity);
 
 // gl3_mesh.c
 extern void GL3_DrawAliasModel(entity_t *e);

@@ -360,7 +360,7 @@ RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
 {
 	c_brush_polys++;
 
-	if ((gl3state.render_pass == RENDER_PASS_SCENE) && !(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
+	if ((gl3state.renderPass == RENDER_PASS_SCENE) && !(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
 	{
 		GL3_SurfBatch_Flush();
 		batch_lmtexnum = fa->lightmaptexturenum;
@@ -451,7 +451,7 @@ GL3_DrawTextureChains(entity_t *currententity)
 
 	GL3_SurfBatch_Begin();
 
-	if (gl3state.render_pass == RENDER_PASS_SSAO)
+	if (gl3state.renderPass == RENDER_PASS_SSAO)
 	{
 		for (msurface_t* surf = g_ssao_surfaces; surf; surf = surf->texturechain)
 		{
@@ -461,12 +461,6 @@ GL3_DrawTextureChains(entity_t *currententity)
 		g_ssao_surfaces = NULL;
 		return;
 	}
-
-	// Are we rendering a shadow map now?
-	// if (gl3state.current_shadow_light)
-	// {
-	// 	GL3_Shadow_SetupLightShader(gl3state.current_shadow_light);
-	// }
 
 	for (i = 0, image = gl3textures; i < numgl3textures; i++, image++)
 	{
@@ -490,7 +484,7 @@ GL3_DrawTextureChains(entity_t *currententity)
 
 		int is_emissive = (s->texinfo->flags & SURF_LIGHT);
 
-		if (gl3state.render_pass == RENDER_PASS_SCENE)
+		if (gl3state.renderPass == RENDER_PASS_SCENE)
 		{
 			if (s->flags & SURF_DRAWTURB)
 			{
@@ -529,8 +523,37 @@ GL3_DrawTextureChains(entity_t *currententity)
 	}
 
 	gl3state.uni3DData.emission = 0.0f;
-
 	// TODO: maybe one loop for normal faces and one for SURF_DRAWTURB ???
+}
+
+void
+GL3_DrawTextureChainsShadowPass(entity_t *currententity)
+{
+	int i;
+	msurface_t *s;
+	gl3image_t *image;
+
+	c_visible_textures = 0;
+
+	GL3_SurfBatch_Begin();
+
+	for (i = 0, image = gl3textures; i < numgl3textures; i++, image++)
+	{
+		if (!image->registration_sequence) continue;
+
+		s = image->texturechain;
+		if (!s) continue;
+
+		c_visible_textures++;
+
+		for ( ; s; s = s->texturechain)
+		{
+			RenderWorldPoly(currententity, image, s);
+		}
+		image->texturechain = NULL;
+	}
+
+	GL3_SurfBatch_Flush();
 }
 
 static void
@@ -545,9 +568,12 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 	/* calculate dynamic lighting for bmodel */
 	lt = gl3_newrefdef.dlights;
 
-	for (k = 0; k < gl3_newrefdef.num_dlights; k++, lt++)
+	if (gl3state.renderPass == RENDER_PASS_SCENE)
 	{
-		GL3_MarkLights(lt, 1 << k, currentmodel->nodes + currentmodel->firstnode);
+		for (k = 0; k < gl3_newrefdef.num_dlights; k++, lt++)
+		{
+			GL3_MarkLights(lt, 1 << k, currentmodel->nodes + currentmodel->firstnode);
+		}
 	}
 
 	psurf = &currentmodel->surfaces[currentmodel->firstmodelsurface];
@@ -573,7 +599,7 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 		{
 			gl3image_t *image = TextureAnimation(currententity, psurf->texinfo);
 
-			if (gl3state.render_pass == RENDER_PASS_SCENE)
+			if (gl3state.renderPass == RENDER_PASS_SCENE)
 			{
 				if (psurf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
 				{
@@ -602,18 +628,17 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 					GL3_SurfBatch_DrawSingle(psurf);
 				}
 			}
-			else if (gl3state.render_pass == RENDER_PASS_SHADOW)
-			{
-				// shadow map
-				GL3_Bind(image->texnum);
-				GL3_SurfBatch_DrawSingle(psurf);
-			}
 			else
 			{
-				// ssao
-				GL3_SurfBatch_DrawSingle(psurf);
+				// shadow map or ssao
+				GL3_SurfBatch_Add(psurf);
 			}
 		}
+	}
+
+	if (gl3state.renderPass != RENDER_PASS_SCENE)
+	{
+		GL3_SurfBatch_Flush();
 	}
 
 	if (currententity->flags & RF_TRANSLUCENT)
@@ -639,7 +664,6 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	if (e->angles[0] || e->angles[1] || e->angles[2])
 	{
 		rotated = true;
-
 		for (i = 0; i < 3; i++)
 		{
 			mins[i] = e->origin[i] - currentmodel->radius;
@@ -653,7 +677,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		VectorAdd(e->origin, currentmodel->maxs, maxs);
 	}
 
-	if (gl3state.render_pass != RENDER_PASS_SHADOW && CullBox(mins, maxs))
+	if (gl3state.renderPass != RENDER_PASS_SHADOW && CullBox(mins, maxs))
 	{
 		return;
 	}
@@ -664,9 +688,9 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	}
 
 	vec3_t modelorg;
-	if (gl3state.render_pass == RENDER_PASS_SHADOW && gl3state.current_shadow_light)
+	if (gl3state.renderPass == RENDER_PASS_SHADOW && gl3state.currentShadowLight)
 	{
-		VectorSubtract(gl3state.current_shadow_light->light_position, e->origin, modelorg);
+		VectorSubtract(gl3state.currentShadowLight->light_position, e->origin, modelorg);
 	}
 	else
 	{
@@ -726,7 +750,7 @@ GL3_RecursiveWorldNode(entity_t* currententity, mnode_t* node, const vec3_t mode
 		return;
 	}
 
-	if (!(gl3state.render_pass == RENDER_PASS_SHADOW) && CullBox(node->minmaxs, node->minmaxs + 3))
+	if (!(gl3state.renderPass == RENDER_PASS_SHADOW) && CullBox(node->minmaxs, node->minmaxs + 3))
 	{
 		return;
 	}
@@ -810,7 +834,7 @@ GL3_RecursiveWorldNode(entity_t* currententity, mnode_t* node, const vec3_t mode
 			continue; /* wrong side */
 		}
 
-		if (gl3state.render_pass == RENDER_PASS_SSAO)
+		if (gl3state.renderPass == RENDER_PASS_SSAO)
 		{
 			surf->texturechain = g_ssao_surfaces;
 			g_ssao_surfaces = surf;
