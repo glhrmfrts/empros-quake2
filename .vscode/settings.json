@@ -2,9 +2,13 @@
     "files.associations": {
         "*.qc": "c",
         "*.cb": "carbon",
+        "*.g": "carbon",
+        "*.par": "carbon",
         "xutility": "c",
         "shared.h": "c",
         "vector": "c",
-        "xstring": "c"
-    }
+        "xstring": "c",
+        "local.h": "c"
+    },
+    "editor.insertSpaces": false
 }

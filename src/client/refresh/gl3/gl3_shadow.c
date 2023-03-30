@@ -5,7 +5,7 @@
 
 #define eprintf(...)  R_Printf(PRINT_ALL, __VA_ARGS__)
 
-// TODO: when rendering the shadow map, render all opaque geometry in one go
+// TODO: fix culling alias entities
 // TODO: integrate this new system with the mapper-designed shadow lights
 
 enum {
@@ -42,12 +42,10 @@ static const float faceSelectionData1[] = {
 static const float faceSelectionData2[] = {
         -0.5f, -0.5f, 0.5f, 1.5f,
         0.5f, -0.5f, 0.5f, 0.5f,
-
-		-0.5f, 0.5f, 1.5f, 1.5f,
-		-0.5f, -0.5f, 1.5f, 0.5f,
-
-		0.5f, -0.5f, 2.5f, 1.5f,
-		-0.5f, -0.5f, 2.5f, 0.5f
+	-0.5f, 0.5f, 1.5f, 1.5f,
+	-0.5f, -0.5f, 1.5f, 0.5f,
+	0.5f, -0.5f, 2.5f, 1.5f,
+	-0.5f, -0.5f, 2.5f, 0.5f
 };
 
 static GLuint faceSelectionTex1;
@@ -109,7 +107,7 @@ static void AnglesForCubeFace(int index, vec3_t angles)
 {
 	vec3_t dir;
 	VectorCopy(pointLightDirection[index], dir);
-	AngleVectors2(dir, angles);
+	DirectionToAngles(dir, angles);
 }
 
 static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
@@ -120,7 +118,7 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 	if (light->type == gl3_shadow_light_type_point)
 		AnglesForCubeFace(viewIndex, angles);
 	else
-		VectorCopy(light->light_angles, angles);
+		VectorCopy(light->angles, angles);
 
 	// first put Z axis going up
 	hmm_mat4 viewMat = {{
@@ -170,12 +168,14 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 	viewMat = HMM_MultiplyMat4( viewMat, rotMat );
 
 	// .. and apply translation for current position
-	hmm_vec3 trans = HMM_Vec3(-light->light_position[0], -light->light_position[1], -light->light_position[2]);
+	hmm_vec3 trans = HMM_Vec3(-light->position[0], -light->position[1], -light->position[2]);
 	view->viewMatrix = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
 
 	int shadowMapSize = light->shadowMapHeight / 2;
 	float zoom = (float)(shadowMapSize - 4) / (float)shadowMapSize;
-	view->projMatrix = GL3_MYgluPerspective(light->coneangle, 1.0f, zoom, light->radius*0.01f, light->radius);
+	view->projMatrix = GL3_MYgluPerspective(light->coneAngle, 1.0f, zoom, light->radius*0.01f, light->radius);
+
+	VectorCopy(angles, view->angles);
 }
 
 qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
@@ -191,8 +191,8 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 	l->bias = POINT_SHADOW_BIAS;
 	//l->radius = intensity;
 	l->radius = intensity*2.0f;
-	l->coneangle = 90;
-	VectorCopy(pos, l->light_position);
+	l->coneAngle = 90;
+	VectorCopy(pos, l->position);
 
 	// The further away from the view, the smaller the shadow map can be
 
@@ -237,66 +237,9 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 	dlight->shadowMatrix = (hmm_mat4){ {
 		{  (float)shadowMapSize / SHADOW_ATLAS_SIZE, (float)shadowMapSize / SHADOW_ATLAS_SIZE, (float)light->shadowMapX / SHADOW_ATLAS_SIZE, (float)light->shadowMapY / SHADOW_ATLAS_SIZE },
 		{ zoom, q,  r, 0 },
-		{  light->light_position[0], light->light_position[1],  light->light_position[2], 1 },
+		{  light->position[0], light->position[1],  light->position[2], 1 },
 		{  0, 0,  0, 0 }
 	} };
-}
-
-static void AddShadowsToUBO()
-{
-	for (int i = 0; i < shadowLightFrameCount; i++)
-	{
-		AddLightToUniformBuffer(shadowLights + i);
-	}
-}
-
-static void SetupShadowViewCluster(const gl3_shadow_light_t* light)
-{
-	int i;
-	mleaf_t *leaf;
-
-	/* current viewcluster */
-	if (!(gl3_newrefdef.rdflags & RDF_NOWORLDMODEL))
-	{
-		gl3_oldviewcluster = gl3_viewcluster;
-		gl3_oldviewcluster2 = gl3_viewcluster2;
-		leaf = GL3_Mod_PointInLeaf(light->light_position, gl3_worldmodel);
-		gl3_viewcluster = gl3_viewcluster2 = leaf->cluster;
-
-		//R_Printf(PRINT_ALL, "light cluster = %d\n", leaf->cluster);
-
-		/* check above and below so crossing solid water doesn't draw wrong */
-		if (!leaf->contents)
-		{
-			/* look down a bit */
-			vec3_t temp;
-
-			VectorCopy(light->light_position, temp);
-			temp[2] -= 16;
-			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
-		else
-		{
-			/* look up a bit */
-			vec3_t temp;
-
-			VectorCopy(light->light_position, temp);
-			temp[2] += 16;
-			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
-	}
 }
 
 qboolean shadowDebug = false;
@@ -305,7 +248,9 @@ static void PrepareToRender(gl3_shadow_light_t* light, int viewIndex)
 {
 	gl3_shadow_view_t* view = &light->shadowViews[viewIndex];
 
-	SetupShadowViewCluster(light);
+	// Make the FOV a bit bigger for culling
+	GL3_SetViewParams(light->position, view->angles, light->coneAngle*1.2f, light->coneAngle*1.2f);
+	GL3_SetupViewCluster();
 	GL3_MarkLeaves();
 
 	if (light->type == gl3_shadow_light_type_point)
@@ -342,7 +287,7 @@ static void RenderShadowMap(gl3_shadow_light_t* light)
 
 		entity_t ent = {0};
 		ent.frame = (int)(gl3_newrefdef.time * 2);
-		GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->light_position);
+		GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->position);
 		GL3_DrawTextureChainsShadowPass(&ent);
 		GL3_DrawEntitiesOnList();
 	}
@@ -372,6 +317,7 @@ void GL3_Shadow_RenderShadowMaps()
 
 	hmm_mat4 old_view = gl3state.uni3DData.transViewMat4;
 	hmm_mat4 old_proj = gl3state.uni3DData.transProjMat4;
+	gl3ViewParams_t oldViewParams = gl3state.viewParams;
 
 	gl3state.lastShadowLightRendered = NULL;
 
@@ -383,22 +329,20 @@ void GL3_Shadow_RenderShadowMaps()
 			gl3state.currentShadowLight = light;
 			RenderShadowMap(light);
 			gl3state.lastShadowLightRendered = light;
+			AddLightToUniformBuffer(light);
 		}
 	}
-
-	AddShadowsToUBO();
 
 	// At least one shadow map was rendered?
 	if (gl3state.lastShadowLightRendered)
 	{
 		GL3_UnbindFramebuffer();
 
-		// Restore the original viewport
-		// glDrawBuffer(GL_FRONT_AND_BACK);
-		// Restore the original view cluster (from the player POV)
-		// GL3_SetupViewCluster();
-
 		// Restore original 3D params
+		gl3state.viewParams = oldViewParams;
+		GL3_SetupViewCluster();
+		GL3_MarkLeaves();
+
 		gl3state.uni3DData.transViewMat4 = old_view;
 		gl3state.uni3DData.transProjMat4 = old_proj;
 		GL3_UpdateUBO3D();

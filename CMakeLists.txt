@@ -519,10 +519,12 @@ set(GL3-Source
 	${REF_SRC_DIR}/gl3/gl3_postfx.c
 	${REF_SRC_DIR}/gl3/gl3_sdl.c
 	${REF_SRC_DIR}/gl3/gl3_surf.c
+	${REF_SRC_DIR}/gl3/gl3_surfbatch.c
 	${REF_SRC_DIR}/gl3/gl3_warp.c
 	${REF_SRC_DIR}/gl3/gl3_shaders.c
 	${REF_SRC_DIR}/gl3/gl3_shadow.c
 	${REF_SRC_DIR}/gl3/gl3_shadowmapallocator.c
+	${REF_SRC_DIR}/gl3/gl3_view.c
 	${REF_SRC_DIR}/gl3/gl3_md2.c
 	${REF_SRC_DIR}/gl3/gl3_sp2.c
 	${REF_SRC_DIR}/gl3/glad/src/glad.c

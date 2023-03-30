@@ -243,16 +243,22 @@ enum {
 struct gl3_3D_vtx_s;
 struct gl3_shadow_light_s;
 
-struct gl3_shadow_frame_texture {
-	GLuint texnum;
-	GLuint unit;
-};
-
-typedef enum gl3_render_pass_e {
+typedef enum gl3RenderPass {
 	RENDER_PASS_SHADOW,
 	RENDER_PASS_SSAO,
 	RENDER_PASS_SCENE,
-} gl3_render_pass_t;
+} gl3RenderPass_t;
+
+typedef struct {
+	cplane_t frustum[4];
+	vec3_t angles;
+	vec3_t vup;
+	vec3_t vforward;
+	vec3_t vright;
+	vec3_t origin;
+	float fovX;
+	float fovY;
+} gl3ViewParams_t;
 
 typedef struct
 {
@@ -270,7 +276,7 @@ typedef struct
 	int currentlightmap; // lightmap_textureIDs[currentlightmap] bound to GL_TEXTURE1
 	GLuint currenttmu; // GL_TEXTURE0 or GL_TEXTURE1
 
-	gl3_render_pass_t renderPass;
+	gl3RenderPass_t renderPass;
 
 	//float camera_separation;
 	//enum stereo_modes stereo_mode;
@@ -350,11 +356,11 @@ typedef struct
 	GLuint uniStylesUBO;
 	GLuint uniShadowsUBO;
 
+	gl3ViewParams_t viewParams;
+
 	struct gl3_shadow_light_s* lastShadowLightRendered;
 	struct gl3_shadow_light_s* currentShadowLight;
 	struct gl3_shadow_light_s* flashlight;
-	struct gl3_shadow_frame_texture shadow_frame_textures[MAX_FRAME_SHADOWS];
-
 } gl3state_t;
 
 extern gl3config_t gl3config;
@@ -413,10 +419,6 @@ typedef struct
 extern gl3model_t *gl3_worldmodel;
 
 extern float gl3depthmin, gl3depthmax;
-
-extern cplane_t frustum[4];
-
-extern vec3_t gl3_origin;
 
 extern gl3image_t *gl3_notexture; /* use for bad textures */
 extern gl3image_t *gl3_particletexture; /* little dot for particles */
@@ -518,7 +520,12 @@ static inline hmm_mat4 rotAroundAxisXYZ(float aroundXdeg, float aroundYdeg, floa
 
 extern void GL3_BufferAndDraw3D(const gl3_3D_vtx_t* verts, int numVerts, GLenum drawMode);
 
-extern qboolean GL3_CullBox(vec3_t mins, vec3_t maxs);
+// Returns true if the box is completely outside the view frustum
+extern qboolean GL3_CullBox(const vec3_t mins, const vec3_t maxs);
+
+// Returns true if the sphere is completely outside the view frustum
+extern qboolean GL3_CullSphere(const vec3_t pos, float radius);
+
 extern void GL3_RotateForEntity(entity_t *e);
 
 extern hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble zNear, GLdouble zFar);
@@ -653,6 +660,14 @@ extern void GL3_RecursiveWorldNode(entity_t* ent, mnode_t* node, const vec3_t mo
 extern void GL3_DrawTextureChains(entity_t* ent);
 extern void GL3_DrawTextureChainsShadowPass(entity_t *currententity);
 
+// gl3_surfbatch.c
+extern void GL3_SurfBatch_Clear();
+extern void GL3_SurfBatch_Begin();
+extern void GL3_SurfBatch_Flush();
+extern void GL3_SurfBatch_Add(msurface_t* fa);
+extern void GL3_SurfBatch_DrawSingle(msurface_t* fa);
+extern void GL3_SurfBatch_RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa);
+
 // gl3_mesh.c
 extern void GL3_DrawAliasModel(entity_t *e);
 extern void GL3_ResetShadowAliasModels(void);
@@ -674,6 +689,10 @@ extern void GL3_UpdateUBOStyles(void);
 
 extern qboolean gl3_rendering_shadow_maps;
 extern void GL3_Shadow_RenderShadowMaps();
+
+// gl3_view.c
+
+extern void GL3_SetViewParams(const vec3_t pos, const vec3_t angles, float fovX, float fovY);
 
 // ############ Cvars ###########
 
@@ -779,19 +798,19 @@ typedef enum gl3_shadow_light_type {
 typedef struct gl3_shadow_view_s {
 	hmm_mat4 viewMatrix;
 	hmm_mat4 projMatrix;
+	vec3_t angles; // (pitch yaw roll)
 } gl3_shadow_view_t;
 
 typedef struct gl3_shadow_light_s {
 	int id;
 	gl3_shadow_light_type_t type;
 	qboolean is_static;
-	vec3_t light_position;
-	vec3_t light_normal;
-	vec3_t light_angles; // (pitch yaw roll)
-	vec3_t light_color;
+	vec3_t position;
+	vec3_t angles;
+	vec3_t color;
 	int dlightIndex;
 	float radius;
-	float coneangle;
+	float coneAngle;
 	float bias;
 	int shadowMapX;
 	int shadowMapY;

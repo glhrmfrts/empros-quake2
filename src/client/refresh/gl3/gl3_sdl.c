@@ -293,7 +293,7 @@ int GL3_InitContext(void* win)
 
 	// Check if we've got the requested MSAA.
 	int msaa_samples = 0;
-	
+
 	if (gl_msaa_samples->value)
 	{
 		if (SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples) == 0)

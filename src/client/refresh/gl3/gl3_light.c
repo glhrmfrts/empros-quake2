@@ -109,30 +109,32 @@ GL3_PushDlights(void)
 	r_dlightframecount = gl3_framecount + 1;
 
 	l = gl3_newrefdef.dlights;
-
-	gl3state.uniLightsData.numDynLights = gl3_newrefdef.num_dlights;
+	gl3state.uniLightsData.numDynLights = 0;
 
 	for (i = 0; i < gl3_newrefdef.num_dlights; i++, l++)
 	{
-		gl3UniDynLight* udl = &gl3state.uniLightsData.dynLights[i];
-		GL3_MarkLights(l, 1 << i, gl3_worldmodel->nodes);
-		VectorCopy(l->origin, udl->origin);
-		VectorCopy(l->color, udl->color);
+		float effectiveIntensity = l->intensity;
 		if (r_hdr->value)
 		{
 			// Give it a boost to the dynamic lights in case of HDR rendering
-			udl->intensity = l->intensity * 1.6f;
+			effectiveIntensity = l->intensity * 1.6f;
 		}
-		else
-		{
-			udl->intensity = l->intensity;
-		}
+		if (GL3_CullSphere(l->origin, effectiveIntensity)) continue;
+
+		int pushIndex = gl3state.uniLightsData.numDynLights;
+		gl3UniDynLight* udl = &gl3state.uniLightsData.dynLights[pushIndex];
+		GL3_MarkLights(l, 1 << pushIndex, gl3_worldmodel->nodes);
+		VectorCopy(l->origin, udl->origin);
+		VectorCopy(l->color, udl->color);
+		udl->intensity = effectiveIntensity;
 
 		if (!GL3_Shadow_AddDynLight(i, l->origin, l->intensity))
 		{
 			// Set the shadow parameters to a default to indicate this light doesn't have a shadow map
 			udl->shadowParameters = HMM_Vec4(1,1,1,1);
 		}
+
+		gl3state.uniLightsData.numDynLights++;
 	}
 
 #if 0

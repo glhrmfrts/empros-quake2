@@ -551,7 +551,7 @@ GL3_AddSkySurface(msurface_t *fa)
 	{
 		for (i = 0; i < p->numverts; i++)
 		{
-			VectorSubtract(p->vertices[i].pos, gl3_origin, verts[i]);
+			VectorSubtract(p->vertices[i].pos, gl3state.viewParams.origin, verts[i]);
 		}
 
 		ClipSkyPolygon(p->numverts, verts[0], 0);
@@ -654,7 +654,7 @@ GL3_DrawSkyBox(void)
 	hmm_mat4 origModelMat = gl3state.uni3DData.transModelMat4;
 
 	// glTranslatef(gl3_origin[0], gl3_origin[1], gl3_origin[2]);
-	hmm_vec3 transl = HMM_Vec3(gl3_origin[0], gl3_origin[1], gl3_origin[2]);
+	hmm_vec3 transl = HMM_Vec3(gl3state.viewParams.origin[0], gl3state.viewParams.origin[1], gl3state.viewParams.origin[2]);
 	hmm_mat4 modMVmat = HMM_MultiplyMat4(origModelMat, HMM_Translate(transl));
 	if(skyrotate != 0.0f)
 	{

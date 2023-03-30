@@ -53,14 +53,6 @@ gl3model_t *gl3_worldmodel;
 
 float gl3depthmin=0.0f, gl3depthmax=1.0f;
 
-cplane_t frustum[4];
-
-/* view origin */
-vec3_t vup;
-vec3_t vpn;
-vec3_t vright;
-vec3_t gl3_origin;
-
 int gl3_visframecount; /* bumped when going to a new PVS */
 int gl3_framecount; /* used for dlight push checking */
 
@@ -785,8 +777,8 @@ GL3_DrawSpriteModel(entity_t *e, gl3model_t *currentmodel)
 	frame = &psprite->frames[e->frame];
 
 	/* normal sprite */
-	up = vup;
-	right = vright;
+	up = gl3state.viewParams.vup;
+	right = gl3state.viewParams.vright;
 
 	if (e->flags & RF_TRANSLUCENT)
 	{
@@ -1076,105 +1068,6 @@ GL3_DrawEntitiesOnList(void)
 
 }
 
-static int
-SignbitsForPlane(cplane_t *out)
-{
-	int bits, j;
-
-	/* for fast box on planeside test */
-	bits = 0;
-
-	for (j = 0; j < 3; j++)
-	{
-		if (out->normal[j] < 0)
-		{
-			bits |= 1 << j;
-		}
-	}
-
-	return bits;
-}
-
-static void
-SetFrustum(void)
-{
-	int i;
-
-	/* rotate VPN right by FOV_X/2 degrees */
-	RotatePointAroundVector(frustum[0].normal, vup, vpn,
-			-(90 - gl3_newrefdef.fov_x / 2));
-	/* rotate VPN left by FOV_X/2 degrees */
-	RotatePointAroundVector(frustum[1].normal,
-			vup, vpn, 90 - gl3_newrefdef.fov_x / 2);
-	/* rotate VPN up by FOV_X/2 degrees */
-	RotatePointAroundVector(frustum[2].normal,
-			vright, vpn, 90 - gl3_newrefdef.fov_y / 2);
-	/* rotate VPN down by FOV_X/2 degrees */
-	RotatePointAroundVector(frustum[3].normal, vright, vpn,
-			-(90 - gl3_newrefdef.fov_y / 2));
-
-	for (i = 0; i < 4; i++)
-	{
-		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct(gl3_origin, frustum[i].normal);
-		frustum[i].signbits = SignbitsForPlane(&frustum[i]);
-	}
-}
-
-void
-GL3_SetupViewCluster()
-{
-	mleaf_t *leaf;
-
-	/* build the transformation matrix for the given view angles */
-	VectorCopy(gl3_newrefdef.vieworg, gl3_origin);
-
-	AngleVectors(gl3_newrefdef.viewangles, vpn, vright, vup);
-
-	/* current viewcluster */
-	if (!(gl3_newrefdef.rdflags & RDF_NOWORLDMODEL))
-	{
-		gl3_oldviewcluster = gl3_viewcluster;
-		gl3_oldviewcluster2 = gl3_viewcluster2;
-		leaf = GL3_Mod_PointInLeaf(gl3_origin, gl3_worldmodel);
-		gl3_viewcluster = gl3_viewcluster2 = leaf->cluster;
-
-		//R_Printf(PRINT_ALL, "player cluster = %d\n", leaf->cluster);
-
-		/* check above and below so crossing solid water doesn't draw wrong */
-		if (!leaf->contents)
-		{
-			/* look down a bit */
-			vec3_t temp;
-
-			VectorCopy(gl3_origin, temp);
-			temp[2] -= 16;
-			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
-		else
-		{
-			/* look up a bit */
-			vec3_t temp;
-
-			VectorCopy(gl3_origin, temp);
-			temp[2] += 16;
-			leaf = GL3_Mod_PointInLeaf(temp, gl3_worldmodel);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
-	}
-}
-
 static void
 SetupFrame(void)
 {
@@ -1240,62 +1133,6 @@ GL3_SetGL2D(void)
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_BLEND);
-}
-
-// equivalent to R_MYgluPerspective() but returning a matrix instead of setting internal OpenGL state
-hmm_mat4
-GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble zNear, GLdouble zFar)
-{
-	// calculation of left, right, bottom, top is from R_MYgluPerspective() of old gl backend
-	// which seems to be slightly different from the real gluPerspective()
-	// and thus also from HMM_Perspective()
-	GLdouble left, right, bottom, top;
-	float A, B, C, D;
-
-	top = zNear * tan(fovy * M_PI / 360.0) * zoom;
-	bottom = -top;
-
-	left = bottom * aspect;
-	right = top * aspect;
-
-	// TODO:  stereo stuff
-	// left += - gl1_stereo_convergence->value * (2 * gl_state.camera_separation) / zNear;
-	// right += - gl1_stereo_convergence->value * (2 * gl_state.camera_separation) / zNear;
-
-	// the following emulates glFrustum(left, right, bottom, top, zNear, zFar)
-	// see https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glFrustum.xml
-	A = (right+left)/(right-left);
-	B = (top+bottom)/(top-bottom);
-	C = -(zFar+zNear)/(zFar-zNear);
-	D = -(2.0*zFar*zNear)/(zFar-zNear);
-
-	hmm_mat4 ret = {{
-		{ (2.0*zNear)/(right-left), 0, 0, 0 }, // first *column*
-		{ 0, (2.0*zNear)/(top-bottom), 0, 0 },
-		{ A, B, C, -1.0 },
-		{ 0, 0, D, 0 }
-	}};
-
-	return ret;
-}
-
-hmm_mat4
-GL3_Perspective2(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLdouble nearClip, GLdouble farClip)
-{
-	float h = (1.0 / tan(fovy * M_PI / 180.0 * 0.5)) * zoom;
-	float w = h / aspect;
-        float q = farClip / (farClip - nearClip);
-        float r = -q * nearClip;
-
-	float D = -(2.0*farClip*nearClip)/(farClip-nearClip);
-
-	hmm_mat4 ret = {{
-		{ w, 0, 0, 0 },
-		{ 0, h, 0, 0 },
-		{ 0, 0, 2.0f*q-1.0f, 2.0f*r },
-		{ 0, 0, D, 0 }
-	}};
-	return ret;
 }
 
 static void
@@ -1560,6 +1397,8 @@ GL3_RenderView(refdef_t *fd)
 		c_alias_polys = 0;
 	}
 
+	GL3_SetViewParams(gl3_newrefdef.vieworg, gl3_newrefdef.viewangles, gl3_newrefdef.fov_x, gl3_newrefdef.fov_y);
+
 	GL3_Shadow_BeginFrame();
 	GL3_PushDlights();
 
@@ -1573,8 +1412,6 @@ GL3_RenderView(refdef_t *fd)
 	GL3_UpdateUBOLights();
 
 	SetupFrame();
-
-	SetFrustum();
 
 	SetupGL();
 

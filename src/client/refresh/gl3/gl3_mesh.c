@@ -565,6 +565,16 @@ CullAliasModel(vec3_t bbox[8], entity_t *e)
 		}
 	}
 
+	if (gl3state.renderPass == RENDER_PASS_SHADOW)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			mins[i] += e->origin[i];
+			maxs[i] += e->origin[i];
+		}
+		return GL3_CullBox(mins, maxs);
+	}
+
 	/* compute a full bounding box */
 	for (i = 0; i < 8; i++)
 	{
@@ -626,9 +636,8 @@ CullAliasModel(vec3_t bbox[8], entity_t *e)
 
 		for (f = 0; f < 4; f++)
 		{
-			float dp = DotProduct(frustum[f].normal, bbox[p]);
-
-			if ((dp - frustum[f].dist) < 0)
+			float dp = DotProduct(gl3state.viewParams.frustum[f].normal, bbox[p]);
+			if ((dp - gl3state.viewParams.frustum[f].dist) < 0)
 			{
 				mask |= (1 << f);
 			}
@@ -659,7 +668,7 @@ GL3_DrawAliasModel(entity_t *entity)
 	// used to restore ModelView matrix after changing it for this entities position/rotation
 	hmm_mat4 origModelMat = {0};
 
-	if (!(entity->flags & RF_WEAPONMODEL) && !(gl3state.renderPass == RENDER_PASS_SHADOW))
+	if (!(entity->flags & RF_WEAPONMODEL))
 	{
 		if (CullAliasModel(bbox, entity))
 		{

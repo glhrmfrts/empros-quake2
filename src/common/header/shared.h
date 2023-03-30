@@ -239,6 +239,9 @@ int BoxOnPlaneSide(vec3_t emins, vec3_t emaxs, struct cplane_s *plane);
 float anglemod(float a);
 float LerpAngle(float a1, float a2, float frac);
 
+// the name AngleVectors2 sucks!
+static inline void DirectionToAngles(const vec3_t dir, vec3_t angles) { AngleVectors2(dir, angles); }
+
 #define BOX_ON_PLANE_SIDE(emins, emaxs, p) \
 	(((p)->type < 3) ? \
 	 ( \

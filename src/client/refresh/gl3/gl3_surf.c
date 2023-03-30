@@ -160,30 +160,6 @@ void GL3_SurfShutdown(void)
 }
 
 /*
- * Returns true if the box is completely outside the frustom
- */
-static qboolean
-CullBox(vec3_t mins, vec3_t maxs)
-{
-	int i;
-
-	if (!gl_cull->value)
-	{
-		return false;
-	}
-
-	for (i = 0; i < 4; i++)
-	{
-		if (BOX_ON_PLANE_SIDE(mins, maxs, &frustum[i]) == 2)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-/*
  * Returns the proper texture for a given time and base texture
  */
 static gl3image_t *
@@ -263,111 +239,6 @@ DrawTriangleOutlines(void)
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_TEXTURE_2D);
 #endif // 0
-}
-
-#define MAX_BATCH_INDICES 4096
-
-static unsigned int 	batch_indices[MAX_BATCH_INDICES];
-static size_t 			batch_numindices;
-static int 				batch_lmtexnum;
-
-static size_t
-NumberOfIndicesForSurface(msurface_t* fa)
-{
-	if (fa->flags & SURF_DRAWTURB)
-	{
-		size_t count = 0;
-		for (glpoly_t* bp = fa->polys; bp != NULL; bp = bp->next)
-		{
-			count += bp->numverts * 3 - 6;
-		}
-		return count;
-	}
-	else
-	{
-		return 3 * (fa->numedges - 2);
-	}
-}
-
-void
-GL3_SurfBatch_Clear()
-{
-	batch_lmtexnum = -1;
-	batch_numindices = 0;
-}
-
-void
-GL3_SurfBatch_Begin()
-{
-	GL3_BindVAO(gl3state.vaoWorld);
-	GL3_BindEBO(0);
-	GL3_SurfBatch_Clear();
-}
-
-void
-GL3_SurfBatch_Flush()
-{
-	if (batch_numindices == 0) { return; }
-
-	glDrawElements(GL_TRIANGLES, batch_numindices, GL_UNSIGNED_INT, batch_indices);
-
-	batch_numindices = 0;
-}
-
-void
-GL3_SurfBatch_Add(msurface_t* fa)
-{
-	size_t numindices = NumberOfIndicesForSurface(fa);
-	if (batch_numindices + numindices > MAX_BATCH_INDICES)
-	{
-		GL3_SurfBatch_Flush();
-	}
-
-	unsigned int* dest = batch_indices + batch_numindices;
-	if (fa->flags & SURF_DRAWTURB)
-	{
-		for (glpoly_t* bp = fa->polys; bp != NULL; bp = bp->next)
-		{
-			for (int i=2; i<bp->numverts; i++)
-			{
-				*dest++ = bp->vbo_first_vert;
-				*dest++ = bp->vbo_first_vert + i - 1;
-				*dest++ = bp->vbo_first_vert + i;
-			}
-		}
-	}
-	else
-	{
-		for (int i=2; i<fa->numedges; i++)
-		{
-			*dest++ = fa->polys->vbo_first_vert;
-			*dest++ = fa->polys->vbo_first_vert + i - 1;
-			*dest++ = fa->polys->vbo_first_vert + i;
-		}
-	}
-
-	batch_numindices += numindices;
-}
-
-void GL3_SurfBatch_DrawSingle(msurface_t* fa)
-{
-	GL3_SurfBatch_Add(fa);
-	GL3_SurfBatch_Flush();
-}
-
-static void
-RenderWorldPoly(entity_t *currententity, gl3image_t* image, msurface_t *fa)
-{
-	c_brush_polys++;
-
-	if ((gl3state.renderPass == RENDER_PASS_SCENE) && !(fa->flags & SURF_DRAWTURB) && fa->lightmaptexturenum != batch_lmtexnum)
-	{
-		GL3_SurfBatch_Flush();
-		batch_lmtexnum = fa->lightmaptexturenum;
-		GL3_BindLightmap(fa->lightmaptexturenum);
-	}
-
-	GL3_SurfBatch_Add(fa);
 }
 
 /*
@@ -514,7 +385,7 @@ GL3_DrawTextureChains(entity_t *currententity)
 				gl3state.uni3DData.emission = is_emissive ? 1.0f : 0.0f;
 				GL3_UpdateUBO3D();
 			}
-			RenderWorldPoly(currententity, image, s);
+			GL3_SurfBatch_RenderWorldPoly(currententity, image, s);
 		}
 
 		GL3_SurfBatch_Flush();
@@ -548,7 +419,7 @@ GL3_DrawTextureChainsShadowPass(entity_t *currententity)
 
 		for ( ; s; s = s->texturechain)
 		{
-			RenderWorldPoly(currententity, image, s);
+			GL3_SurfBatch_RenderWorldPoly(currententity, image, s);
 		}
 		image->texturechain = NULL;
 	}
@@ -677,7 +548,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		VectorAdd(e->origin, currentmodel->maxs, maxs);
 	}
 
-	if (gl3state.renderPass != RENDER_PASS_SHADOW && CullBox(mins, maxs))
+	if (GL3_CullBox(mins, maxs))
 	{
 		return;
 	}
@@ -690,7 +561,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	vec3_t modelorg;
 	if (gl3state.renderPass == RENDER_PASS_SHADOW && gl3state.currentShadowLight)
 	{
-		VectorSubtract(gl3state.currentShadowLight->light_position, e->origin, modelorg);
+		VectorSubtract(gl3state.currentShadowLight->position, e->origin, modelorg);
 	}
 	else
 	{
@@ -750,7 +621,7 @@ GL3_RecursiveWorldNode(entity_t* currententity, mnode_t* node, const vec3_t mode
 		return;
 	}
 
-	if (!(gl3state.renderPass == RENDER_PASS_SHADOW) && CullBox(node->minmaxs, node->minmaxs + 3))
+	if (GL3_CullBox(node->minmaxs, node->minmaxs + 3))
 	{
 		return;
 	}
@@ -897,101 +768,5 @@ GL3_DrawWorld(void)
 	GL3_DrawTextureChains(&ent);
 	GL3_DrawSkyBox();
 	DrawTriangleOutlines();
-}
-
-/*
- * Mark the leaves and nodes that are
- * in the PVS for the current cluster
- */
-void
-GL3_MarkLeaves(void)
-{
-	const byte *vis;
-	YQ2_ALIGNAS_TYPE(int) byte fatvis[MAX_MAP_LEAFS / 8];
-	mnode_t *node;
-	int i, c;
-	mleaf_t *leaf;
-	int cluster;
-
-	if ((gl3_oldviewcluster == gl3_viewcluster) &&
-		(gl3_oldviewcluster2 == gl3_viewcluster2) &&
-		!r_novis->value &&
-		(gl3_viewcluster != -1))
-	{
-		return;
-	}
-
-	/* development aid to let you run around
-	   and see exactly where the pvs ends */
-	if (r_lockpvs->value)
-	{
-		return;
-	}
-
-	gl3_visframecount++;
-	gl3_oldviewcluster = gl3_viewcluster;
-	gl3_oldviewcluster2 = gl3_viewcluster2;
-
-	if (r_novis->value || (gl3_viewcluster == -1) || !gl3_worldmodel->vis)
-	{
-		/* mark everything */
-		for (i = 0; i < gl3_worldmodel->numleafs; i++)
-		{
-			gl3_worldmodel->leafs[i].visframe = gl3_visframecount;
-		}
-
-		for (i = 0; i < gl3_worldmodel->numnodes; i++)
-		{
-			gl3_worldmodel->nodes[i].visframe = gl3_visframecount;
-		}
-
-		return;
-	}
-
-	vis = GL3_Mod_ClusterPVS(gl3_viewcluster, gl3_worldmodel);
-
-	/* may have to combine two clusters because of solid water boundaries */
-	if (gl3_viewcluster2 != gl3_viewcluster)
-	{
-		memcpy(fatvis, vis, (gl3_worldmodel->numleafs + 7) / 8);
-		vis = GL3_Mod_ClusterPVS(gl3_viewcluster2, gl3_worldmodel);
-		c = (gl3_worldmodel->numleafs + 31) / 32;
-
-		for (i = 0; i < c; i++)
-		{
-			((int *)fatvis)[i] |= ((int *)vis)[i];
-		}
-
-		vis = fatvis;
-	}
-
-	for (i = 0, leaf = gl3_worldmodel->leafs;
-		 i < gl3_worldmodel->numleafs;
-		 i++, leaf++)
-	{
-		cluster = leaf->cluster;
-
-		if (cluster == -1)
-		{
-			continue;
-		}
-
-		if (vis[cluster >> 3] & (1 << (cluster & 7)))
-		{
-			node = (mnode_t *)leaf;
-
-			do
-			{
-				if (node->visframe == gl3_visframecount)
-				{
-					break;
-				}
-
-				node->visframe = gl3_visframecount;
-				node = node->parent;
-			}
-			while (node);
-		}
-	}
 }
 
