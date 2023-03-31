@@ -8,12 +8,6 @@
 // TODO: fix culling alias entities
 // TODO: integrate this new system with the mapper-designed shadow lights
 
-enum {
-	MAX_SHADOW_LIGHTS = 16,
-	DEFAULT_SHADOWMAP_SIZE = 256,
-	SHADOW_ATLAS_SIZE = 2048,
-};
-
 #define SUN_SHADOW_BIAS (0.01f)
 
 #define SPOT_SHADOW_BIAS (0.000001f)
@@ -21,6 +15,9 @@ enum {
 #define POINT_SHADOW_BIAS SPOT_SHADOW_BIAS
 
 cvar_t* r_flashlight;
+cvar_t* r_shadowmap;
+cvar_t* r_shadowmap_resolution;
+cvar_t* r_shadowmap_maxlights;
 
 qboolean gl3_rendering_shadow_maps;
 
@@ -71,27 +68,42 @@ static void CreateFaceSelectionTexture(const float* data, GLuint* texid)
 	}
 }
 
+static qboolean inited;
+
 void GL3_Shadow_Init()
 {
 	const gl3_framebuffer_flag_t fbo_flags = GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_SHADOWMAP;
 	GL3_CreateFramebuffer(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, 1, fbo_flags, &shadowAtlasFbo);
 	CreateFaceSelectionTexture(faceSelectionData1, &faceSelectionTex1);
 	CreateFaceSelectionTexture(faceSelectionData2, &faceSelectionTex2);
+	inited = true;
 }
 
 void GL3_Shadow_Shutdown()
 {
-	/*
+	if (!inited) return;
+
+#if 0
 	GL3_DestroyFramebuffer(&shadowAtlasFbo);
-	glDeleteTextures(1, &faceSelectionTex1);
-	glDeleteTextures(1, &faceSelectionTex2);
-	*/
+	if (faceSelectionTex1 != 0) glDeleteTextures(1, &faceSelectionTex1);
+	if (faceSelectionTex2 != 0) glDeleteTextures(1, &faceSelectionTex2);
+#endif
 }
 
 void GL3_Shadow_BeginFrame()
 {
+	if (r_shadowmap->value && !inited)
+		GL3_Shadow_Init();
+
 	shadowLightFrameCount = 0;
 	GL3_Shadow_InitAllocator(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE);
+
+	// Sanitize the values
+	r_shadowmap_maxlights->value = min(r_shadowmap_maxlights->value, 32);
+	r_shadowmap_maxlights->value = max(r_shadowmap_maxlights->value, 1);
+
+	r_shadowmap_resolution->value = min(r_shadowmap_resolution->value, DEFAULT_SHADOWMAP_SIZE);
+	r_shadowmap_resolution->value = max(r_shadowmap_resolution->value, 32);
 }
 
 static const vec3_t pointLightDirection[] = {
@@ -180,8 +192,24 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 
 qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
 {
-	if (shadowLightFrameCount >= MAX_SHADOW_LIGHTS)
+	if (!r_shadowmap->value)
 		return false;
+
+	if (shadowLightFrameCount >= (int)r_shadowmap_maxlights->value)
+		return false;
+
+	// The further away from the view, the smaller the shadow map can be
+	vec3_t lightToView = { 0 };
+	VectorSubtract(pos, gl3_newrefdef.vieworg, lightToView);
+	float distanceSqr = DotProduct(lightToView, lightToView);
+
+	int shadowMapResolution = (int)r_shadowmap_resolution->value;
+	if (distanceSqr > (400.0f * 400.0f))
+		shadowMapResolution /= 2;
+	if (distanceSqr > (700.0f * 700.0f))
+		shadowMapResolution /= 2;
+	if (distanceSqr > (1000.0f * 1000.0f))
+		return false; // Too far away and Quake 2 doesn't have big dynamic lights, so don't do shadows
 
 	gl3_shadow_light_t* l = &shadowLights[shadowLightFrameCount++];
 	memset(l, 0, sizeof(gl3_shadow_light_t));
@@ -189,26 +217,17 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 	l->dlightIndex = dlightIndex;
 	l->type = gl3_shadow_light_type_point;
 	l->bias = POINT_SHADOW_BIAS;
-	//l->radius = intensity;
 	l->radius = intensity*2.0f;
 	l->coneAngle = 90;
 	VectorCopy(pos, l->position);
 
-	// The further away from the view, the smaller the shadow map can be
-
-	vec3_t lightToView = { 0 };
-	VectorSubtract(pos, gl3_newrefdef.vieworg, lightToView);
-	float distanceSqr = DotProduct(lightToView, lightToView);
-
-	int shadowMapResolution = DEFAULT_SHADOWMAP_SIZE;
-	if (distanceSqr > (300.0f * 300.0f))
-		shadowMapResolution /= 2;
-	if (distanceSqr > (700.0f * 700.0f))
-		shadowMapResolution /= 2;
-
 	l->shadowMapWidth = shadowMapResolution * 3;
 	l->shadowMapHeight = shadowMapResolution * 2;
-	GL3_Shadow_Allocate(l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY);
+	if (!GL3_Shadow_Allocate(l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY))
+	{
+		shadowLightFrameCount--;
+		return false;
+	}
 
 	l->numShadowViews = 6;
 	for (int i = 0; i < l->numShadowViews; i++)
@@ -293,13 +312,11 @@ static void RenderShadowMap(gl3_shadow_light_t* light)
 	}
 }
 
-static qboolean CullLight(const gl3_shadow_light_t* light)
-{
-	return true;
-}
-
 void GL3_Shadow_RenderShadowMaps()
 {
+	if (!r_shadowmap->value)
+		return false;
+
 	// Unbind the shadow atlas before rendering to it
 	GL3_SelectTMU(GL3_SHADOW_ATLAS_TU);
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -324,13 +341,10 @@ void GL3_Shadow_RenderShadowMaps()
 	for (int i = 0; i < shadowLightFrameCount; i++)
 	{
 		gl3_shadow_light_t* light = &shadowLights[i];
-		if (CullLight(light))
-		{
-			gl3state.currentShadowLight = light;
-			RenderShadowMap(light);
-			gl3state.lastShadowLightRendered = light;
-			AddLightToUniformBuffer(light);
-		}
+		gl3state.currentShadowLight = light;
+		RenderShadowMap(light);
+		gl3state.lastShadowLightRendered = light;
+		AddLightToUniformBuffer(light);
 	}
 
 	// At least one shadow map was rendered?

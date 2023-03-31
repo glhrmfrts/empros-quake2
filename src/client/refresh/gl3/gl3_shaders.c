@@ -352,55 +352,6 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			vec4 shadowParameters;
 			mat4 shadowMatrix;
 		};
-
-		struct ShadowLight
-		{
-			mat4 view_matrix;
-			mat4 proj_matrix;
-			vec4 light_normal;
-			vec4 light_position;
-			vec4 light_color;
-			float intensity;
-			float darken;
-			float radius;
-			float bias;
-			float spot_cutoff;
-			float spot_outer_cutoff;
-			int light_type;
-			int cast_shadow;
-		};
-
-		layout (std140) uniform uniShadows
-		{
-			int use_shadow;
-			int num_shadow_maps;
-			ShadowLight shadows[10];
-		};
-
-		vec2 poissonDisk[16] = vec2[](
-			vec2( -0.94201624, -0.39906216 ),
-			vec2( 0.94558609, -0.76890725 ),
-			vec2( -0.094184101, -0.92938870 ),
-			vec2( 0.34495938, 0.29387760 ),
-			vec2( -0.91588581, 0.45771432 ),
-			vec2( -0.81544232, -0.87912464 ),
-			vec2( -0.38277543, 0.27676845 ),
-			vec2( 0.97484398, 0.75648379 ),
-			vec2( 0.44323325, -0.97511554 ),
-			vec2( 0.53742981, -0.47373420 ),
-			vec2( -0.26496911, -0.41893023 ),
-			vec2( 0.79197514, 0.19090188 ),
-			vec2( -0.24188840, 0.99706507 ),
-			vec2( -0.81409955, 0.91437590 ),
-			vec2( 0.19984126, 0.78641367 ),
-			vec2( 0.14383161, -0.14100790 )
-		);
-
-		// Receives the color and the previous lighting, returns the new lighting
-		vec3 CalcSpotShadow(in int idx, in vec3 world_coord, in vec3 world_normal, in vec3 color, in vec3 lighting)
-		{
-			return vec3(0.0);
-		}
 );
 
 static const char* vertexSrc3D = MULTILINE_STRING(
@@ -801,14 +752,6 @@ static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
 				}
 			}
 
-			if (emission == 0.0f)
-			{
-				for(int i=0; i<num_shadow_maps; ++i)
-				{
-					lmTex.rgb = CalcSpotShadow(i, passWorldCoord, passNormal, albedo.rgb, lmTex.rgb);
-				}
-			}
-
 			lmTex.rgb *= overbrightbits;
 			outColor = lmTex*texel;
 
@@ -980,14 +923,6 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 			texel.rgb *= intensity;
 			texel.a *= alpha; // is alpha even used here?
 			texel *= min(vec4(1.5), passColor);
-
-			if (emission == 0.0f)
-			{
-				for(int i=0; i<num_shadow_maps; ++i)
-				{
-					texel.rgb = CalcSpotShadow(i, passWorldCoord, passNormal, albedo.rgb, texel.rgb);
-				}
-			}
 
 			outColor = albedo*texel;
 
@@ -1404,7 +1339,7 @@ static const char* fragmentSrcPostfxSSAO = MULTILINE_STRING(#version 150\n
 		float AO = 0.0;
 
 		float bias = 0.01;
-		float radius = 4.0;
+		float radius = 4.0*u_Intensity;
 
 		for (int i = 0 ; i < MAX_KERNEL_SIZE ; i++) {
 			vec3 kernelPos = TBN * kernel[i];
@@ -1916,22 +1851,6 @@ initShader3D(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragS
 		glUniformBlockBinding(prog, blockIndex, GL3_BINDINGPOINT_UNISTYLES);
 	}
 
-	blockIndex = glGetUniformBlockIndex(prog, "uniShadows");
-	if(blockIndex != GL_INVALID_INDEX)
-	{
-		GLint blockSize;
-		glGetActiveUniformBlockiv(prog, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
-		if(blockSize != sizeof(gl3state.uniShadowsData))
-		{
-			R_Printf(PRINT_ALL, "WARNING: OpenGL driver disagrees with us about UBO size of 'uniShadows'\n");
-			R_Printf(PRINT_ALL, "         OpenGL says %d, we say %d\n", blockSize, (int)sizeof(gl3state.uniShadowsData));
-
-			goto err_cleanup;
-		}
-
-		glUniformBlockBinding(prog, blockIndex, GL3_BINDINGPOINT_UNISHADOWS);
-	}
-
 	// make sure texture is GL_TEXTURE0
 	GLint texLoc = glGetUniformLocation(prog, "tex");
 	if(texLoc != -1)
@@ -2035,12 +1954,7 @@ static void initUBOs(void)
 	glBindBufferBase(GL_UNIFORM_BUFFER, GL3_BINDINGPOINT_UNISTYLES, gl3state.uniStylesUBO);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3state.uniStylesData), &gl3state.uniStylesData, GL_DYNAMIC_DRAW);
 
-	glGenBuffers(1, &gl3state.uniShadowsUBO);
-	glBindBuffer(GL_UNIFORM_BUFFER, gl3state.uniShadowsUBO);
-	glBindBufferBase(GL_UNIFORM_BUFFER, GL3_BINDINGPOINT_UNISHADOWS, gl3state.uniShadowsUBO);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(gl3state.uniShadowsData), &gl3state.uniShadowsData, GL_DYNAMIC_DRAW);
-
-	gl3state.currentUBO = gl3state.uniShadowsUBO;
+	gl3state.currentUBO = gl3state.uniStylesUBO;
 }
 
 static qboolean createShaders(void)
@@ -2224,7 +2138,7 @@ void GL3_ShutdownShaders(void)
 
 	// let's (ab)use the fact that all 4 UBO handles are consecutive fields
 	// of the gl3state struct
-	glDeleteBuffers(4, &gl3state.uniCommonUBO);
+	glDeleteBuffers(5, &gl3state.uniCommonUBO);
 	gl3state.uniCommonUBO = gl3state.uni2DUBO = gl3state.uni3DUBO = gl3state.uniLightsUBO = gl3state.uniStylesUBO = 0;
 }
 
@@ -2307,7 +2221,3 @@ void GL3_UpdateUBOStyles(void)
 	updateUBO(gl3state.uniStylesUBO, sizeof(gl3state.uniStylesData), &gl3state.uniStylesData);
 }
 
-void GL3_UpdateUBOShadows(void)
-{
-	updateUBO(gl3state.uniShadowsUBO, sizeof(gl3state.uniShadowsData), &gl3state.uniShadowsData);
-}

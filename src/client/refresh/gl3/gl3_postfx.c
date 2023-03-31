@@ -53,6 +53,7 @@ cvar_t* r_hdr_exposure;
 cvar_t* r_bloom;
 cvar_t* r_bloom_threshold;
 cvar_t* r_ssao;
+cvar_t* r_ssao_radius;
 entity_t* weapon_model_entity;
 
 static GLint GetUniform(const gl3ShaderInfo_t* si, const char* name, const char* shader)
@@ -237,7 +238,7 @@ void GL3_PostFx_BeforeScene()
 		glUniform1i(ssao_map_uniforms.u_FboSampler[0], 0);
 		glUniform1i(ssao_map_uniforms.u_FboSampler[1], 1);
 		glUniform1i(ssao_map_uniforms.u_FboSampler[2], 2);
-		glUniform1f(ssao_map_uniforms.u_Intensity, 1.0f);
+		glUniform1f(ssao_map_uniforms.u_Intensity, r_ssao_radius->value);
 		glUniform2f(ssao_map_uniforms.u_Size, noise_scale.X, noise_scale.Y);
 		glUniform1f(ssao_map_uniforms.u_AspectRatio, (float)gl3_newrefdef.width / (float)gl3_newrefdef.height);
 		glUniform1f(ssao_map_uniforms.u_TanHalfFOV, HMM_TanF(HMM_ToRadians(gl3_newrefdef.fov_x/2.0f)));

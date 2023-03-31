@@ -92,6 +92,9 @@ void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_texture
 
 void GL3_DestroyFramebuffer(gl3_framebuffer_t* fb)
 {
+	if (!fb) return;
+	if (!fb->id) return;
+
 	glDeleteFramebuffers(1, &fb->id);
 	glDeleteTextures(fb->num_color_textures, fb->color_textures);
 	if (fb->depth_texture) {

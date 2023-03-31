@@ -1,6 +1,6 @@
 #include "header/local.h"
 
-#define MAX_BATCH_INDICES 4096
+#define MAX_BATCH_INDICES (4096*2)
 
 static unsigned int 	batch_indices[MAX_BATCH_INDICES];
 static size_t 		batch_numindices;

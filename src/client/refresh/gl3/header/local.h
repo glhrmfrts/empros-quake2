@@ -195,7 +195,11 @@ typedef struct
 	hmm_vec4 lightstyles[MAX_LIGHTSTYLES];
 } gl3UniStyles_t;
 
-enum { MAX_FRAME_SHADOWS = 10 };
+enum {
+	MAX_SHADOW_LIGHTS = 32,
+	DEFAULT_SHADOWMAP_SIZE = 512,
+	SHADOW_ATLAS_SIZE = 2048,
+};
 
 enum {
 	GL3_SHADOW_ATLAS_TU = GL_TEXTURE5,
@@ -220,15 +224,6 @@ typedef struct {
 	int light_type;
 	int cast_shadow;
 } gl3UniShadowSingle_t;
-
-typedef struct
-{
-	int use_shadow;
-	int num_shadow_maps;
-	int pad1;
-	int pad2;
-	gl3UniShadowSingle_t shadows[MAX_FRAME_SHADOWS];
-} gl3UniShadows_t;
 
 enum {
 	// width and height used to be 128, so now we should be able to get the same lightmap data
@@ -348,13 +343,11 @@ typedef struct
 	gl3Uni3D_t uni3DData;
 	gl3UniLights_t uniLightsData;
 	gl3UniStyles_t uniStylesData;
-	gl3UniShadows_t uniShadowsData;
 	GLuint uniCommonUBO;
 	GLuint uni2DUBO;
 	GLuint uni3DUBO;
 	GLuint uniLightsUBO;
 	GLuint uniStylesUBO;
-	GLuint uniShadowsUBO;
 
 	gl3ViewParams_t viewParams;
 
@@ -744,8 +737,13 @@ extern cvar_t* r_motionblur_samples;
 extern cvar_t* r_bloom;
 extern cvar_t* r_bloom_threshold;
 extern cvar_t *r_ssao;
+extern cvar_t *r_ssao_radius;
 extern cvar_t *r_hdr;
 extern cvar_t *r_hdr_exposure;
+
+extern cvar_t* r_shadowmap;
+extern cvar_t* r_shadowmap_resolution;
+extern cvar_t* r_shadowmap_maxlights;
 
 extern entity_t* weapon_model_entity;
 

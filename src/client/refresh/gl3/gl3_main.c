@@ -217,9 +217,14 @@ GL3_Register(void)
 	r_bloom = ri.Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
 	r_bloom_threshold = ri.Cvar_Get("r_bloom_threshold", "1", CVAR_ARCHIVE);
 	r_ssao = ri.Cvar_Get("r_ssao", "0", CVAR_ARCHIVE);
+	r_ssao_radius = ri.Cvar_Get("r_ssao_radius", "1", CVAR_ARCHIVE);
 	r_hdr = ri.Cvar_Get("r_hdr", "1", CVAR_ARCHIVE);
 	r_hdr_exposure = ri.Cvar_Get("r_hdr_exposure", "1", CVAR_ARCHIVE);
 	r_flashlight = ri.Cvar_Get("r_flashlight", "0", CVAR_ARCHIVE);
+
+	r_shadowmap = ri.Cvar_Get("r_shadowmap", "1", CVAR_ARCHIVE);
+	r_shadowmap_resolution = ri.Cvar_Get("r_shadowmap_resolution", "512", CVAR_ARCHIVE);
+	r_shadowmap_maxlights = ri.Cvar_Get("r_shadowmap_maxlights", "16", CVAR_ARCHIVE);
 
 #if 0 // TODO!
 	//gl_lefthand = ri.Cvar_Get("hand", "0", CVAR_USERINFO | CVAR_ARCHIVE);
@@ -1416,7 +1421,6 @@ GL3_RenderView(refdef_t *fd)
 	SetupGL();
 
 	extern qboolean shadowDebug;
-
 	if (shadowDebug) return;
 
 	GL3_PostFx_BeforeScene();

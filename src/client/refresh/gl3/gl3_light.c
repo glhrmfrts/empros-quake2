@@ -113,6 +113,8 @@ GL3_PushDlights(void)
 
 	for (i = 0; i < gl3_newrefdef.num_dlights; i++, l++)
 	{
+		if (gl3state.uniLightsData.numDynLights >= MAX_DLIGHTS) continue;
+
 		float effectiveIntensity = l->intensity;
 		if (r_hdr->value)
 		{
@@ -166,8 +168,6 @@ GL3_PushDlights(void)
 	{
 		memset(&gl3state.uniLightsData.dynLights[i], 0, (MAX_DLIGHTS-i)*sizeof(gl3state.uniLightsData.dynLights[0]));
 	}
-
-	// GL3_UpdateUBOLights();
 }
 
 static int
