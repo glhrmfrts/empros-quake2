@@ -8,7 +8,8 @@
         "shared.h": "c",
         "vector": "c",
         "xstring": "c",
-        "local.h": "c"
+        "local.h": "c",
+        "debug.h": "c"
     },
     "editor.insertSpaces": false
 }

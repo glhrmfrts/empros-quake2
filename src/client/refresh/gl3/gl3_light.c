@@ -137,6 +137,8 @@ GL3_PushDlights(void)
 		}
 
 		gl3state.uniLightsData.numDynLights++;
+
+		GL3_Debug_AddSphere(udl->origin, l->intensity, (const vec3_t){1,0,0});
 	}
 
 #if 0

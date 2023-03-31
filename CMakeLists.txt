@@ -506,6 +506,7 @@ set(GL1-Header
 	)
 
 set(GL3-Source
+	${REF_SRC_DIR}/gl3/gl3_debug.c
 	${REF_SRC_DIR}/gl3/gl3_draw.c
 	${REF_SRC_DIR}/gl3/gl3_fog.c
 	${REF_SRC_DIR}/gl3/gl3_framebuffer.c

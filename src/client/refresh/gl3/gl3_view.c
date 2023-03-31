@@ -19,7 +19,7 @@ SignbitsForPlane(cplane_t *out)
 	return bits;
 }
 
-void GL3_SetViewParams(const vec3_t pos, const vec3_t angles, float fovX, float fovY)
+void GL3_SetViewParams(const vec3_t pos, const vec3_t angles, float fovX, float fovY, float nearZ, float farZ, float aspectRatio)
 {
 	gl3state.viewParams.fovX = fovX;
 	gl3state.viewParams.fovY = fovY;
@@ -58,6 +58,51 @@ void GL3_SetViewParams(const vec3_t pos, const vec3_t angles, float fovX, float 
 		gl3state.viewParams.frustum[i].type = PLANE_ANYZ;
 		gl3state.viewParams.frustum[i].dist = DotProduct(gl3state.viewParams.origin, gl3state.viewParams.frustum[i].normal);
 		gl3state.viewParams.frustum[i].signbits = SignbitsForPlane(&gl3state.viewParams.frustum[i]);
+	}
+
+	// Define vertices
+	{
+		// first put Z axis going up
+		hmm_mat4 viewMat = gl3_identityMat4;
+
+		// now rotate by view angles
+		hmm_mat4 rotMat = rotAroundAxisZYX(angles[1], angles[0] + 90, angles[2]);
+		viewMat = HMM_MultiplyMat4( viewMat, rotMat );
+
+		rotMat = rotAroundAxisZYX(90, 0, 0);
+		viewMat = HMM_MultiplyMat4( viewMat, rotMat );
+
+		// TODO: zoom?
+
+		nearZ = max(nearZ, 0.0f);
+		farZ = max(farZ, nearZ);
+
+		float halfViewSize = tanf((fovY) * M_PI / 360.0);
+
+		hmm_vec4 cnear, cfar;
+		cnear.Z = nearZ;
+		cnear.Y = cnear.Z * halfViewSize;
+		cnear.X = cnear.Y * aspectRatio;
+		cfar.Z = farZ;
+		cfar.Y = cfar.Z * halfViewSize;
+		cfar.X = cfar.Y * aspectRatio;
+
+		hmm_vec4* vertices = gl3state.viewParams.vertices;
+		vertices[0] = HMM_MultiplyMat4ByVec4(viewMat, cnear);
+		vertices[1] = HMM_MultiplyMat4ByVec4(viewMat, (hmm_vec4){cnear.X, -cnear.Y, cnear.Z, 1.0f});
+		vertices[2] = HMM_MultiplyMat4ByVec4(viewMat, (hmm_vec4){-cnear.X, -cnear.Y, cnear.Z, 1.0f});
+		vertices[3] = HMM_MultiplyMat4ByVec4(viewMat, (hmm_vec4){-cnear.X, cnear.Y, cnear.Z, 1.0f});
+		vertices[4] = HMM_MultiplyMat4ByVec4(viewMat, cfar);
+		vertices[5] = HMM_MultiplyMat4ByVec4(viewMat, (hmm_vec4){cfar.X, -cfar.Y, cfar.Z, 1.0f});
+		vertices[6] = HMM_MultiplyMat4ByVec4(viewMat, (hmm_vec4){-cfar.X, -cfar.Y, cfar.Z, 1.0f});
+		vertices[7] = HMM_MultiplyMat4ByVec4(viewMat, (hmm_vec4){-cfar.X, cfar.Y, cfar.Z, 1.0f});
+
+		if (r_shadowmap->value) for (int i = 0; i < 8; i++)
+		{
+			vertices[i].X += pos[0];
+			vertices[i].Y += pos[1];
+			vertices[i].Z += pos[2];
+		}
 	}
 }
 
@@ -269,7 +314,7 @@ hmm_mat4 GL3_MYgluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zoom, GLd
 	// right += - gl1_stereo_convergence->value * (2 * gl_state.camera_separation) / zNear;
 
 	// the following emulates glFrustum(left, right, bottom, top, zNear, zFar)
-	// see https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glFrustum.xml
+	// see https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glFrustum.Xml
 	A = (right+left)/(right-left);
 	B = (top+bottom)/(top-bottom);
 	C = -(zFar+zNear)/(zFar-zNear);

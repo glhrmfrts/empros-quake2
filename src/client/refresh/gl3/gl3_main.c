@@ -38,6 +38,11 @@
 
 #define REF_VERSION "Empros Quake II OpenGL3 Refresher"
 
+enum {
+	DEFAULT_NEARCLIP = 4,
+	DEFAULT_FARCLIP = 4096,
+};
+
 refimport_t ri;
 
 gl3config_t gl3config;
@@ -577,6 +582,8 @@ GL3_Init(void)
 
 	GL3_Shadow_Init();
 
+	GL3_Debug_Init();
+
 	R_Printf(PRINT_ALL, "\n");
 	return true;
 }
@@ -594,6 +601,7 @@ GL3_Shutdown(void)
 	// randomly chose one function that should always be there to test..
 	if(glDeleteBuffers != NULL)
 	{
+		GL3_Debug_Shutdown();
 		GL3_Shadow_Shutdown();
 		GL3_PostFx_Shutdown();
 		GL3_Mod_FreeAll();
@@ -1140,6 +1148,39 @@ GL3_SetGL2D(void)
 	glDisable(GL_BLEND);
 }
 
+static void SetProjViewMatrices()
+{
+		/* set up projection matrix (eye coordinates -> clip coordinates) */
+	{
+		float screenaspect = (float)gl3_newrefdef.width / gl3_newrefdef.height;
+		float dist = (r_farsee->value == 0) ? DEFAULT_FARCLIP : (DEFAULT_FARCLIP*2);
+		gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(gl3_newrefdef.fov_y, screenaspect, 1, DEFAULT_NEARCLIP, dist);
+		//gl3state.uni3DData.transProjMat4 = GL3_Perspective2(gl3_newrefdef.fov_y, screenaspect, 1.0f, 4, dist);
+	}
+
+	/* set up view matrix (world coordinates -> eye coordinates) */
+	{
+		// first put Z axis going up
+		hmm_mat4 viewMat = {{
+			{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
+			{ -1, 0,  0, 0 },
+			{  0, 1,  0, 0 },
+			{  0, 0,  0, 1 }
+		}};
+
+		// now rotate by view angles
+		hmm_mat4 rotMat = rotAroundAxisXYZ(-gl3_newrefdef.viewangles[2], -gl3_newrefdef.viewangles[0], -gl3_newrefdef.viewangles[1]);
+
+		viewMat = HMM_MultiplyMat4( viewMat, rotMat );
+
+		// .. and apply translation for current position
+		hmm_vec3 trans = HMM_Vec3(-gl3_newrefdef.vieworg[0], -gl3_newrefdef.vieworg[1], -gl3_newrefdef.vieworg[2]);
+		viewMat = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
+
+		gl3state.uni3DData.transViewMat4 = viewMat;
+	}
+}
+
 static void
 SetupGL(void)
 {
@@ -1171,38 +1212,9 @@ SetupGL(void)
 #endif // 0
 
 	glViewport(x, y2, w, h);
-
-	/* set up projection matrix (eye coordinates -> clip coordinates) */
-	{
-		float screenaspect = (float)gl3_newrefdef.width / gl3_newrefdef.height;
-		float dist = (r_farsee->value == 0) ? 4096.0f : 8192.0f;
-		gl3state.uni3DData.transProjMat4 = GL3_MYgluPerspective(gl3_newrefdef.fov_y, screenaspect, 1, 4, dist);
-		//gl3state.uni3DData.transProjMat4 = GL3_Perspective2(gl3_newrefdef.fov_y, screenaspect, 1.0f, 4, dist);
-	}
-
 	glCullFace(GL_FRONT);
 
-	/* set up view matrix (world coordinates -> eye coordinates) */
-	{
-		// first put Z axis going up
-		hmm_mat4 viewMat = {{
-			{  0, 0, -1, 0 }, // first *column* (the matrix is colum-major)
-			{ -1, 0,  0, 0 },
-			{  0, 1,  0, 0 },
-			{  0, 0,  0, 1 }
-		}};
-
-		// now rotate by view angles
-		hmm_mat4 rotMat = rotAroundAxisXYZ(-gl3_newrefdef.viewangles[2], -gl3_newrefdef.viewangles[0], -gl3_newrefdef.viewangles[1]);
-
-		viewMat = HMM_MultiplyMat4( viewMat, rotMat );
-
-		// .. and apply translation for current position
-		hmm_vec3 trans = HMM_Vec3(-gl3_newrefdef.vieworg[0], -gl3_newrefdef.vieworg[1], -gl3_newrefdef.vieworg[2]);
-		viewMat = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
-
-		gl3state.uni3DData.transViewMat4 = viewMat;
-	}
+	SetProjViewMatrices();
 
 	gl3state.uni3DData.transModelMat4 = gl3_identityMat4;
 	gl3state.uni3DData.time = gl3_newrefdef.time;
@@ -1402,7 +1414,11 @@ GL3_RenderView(refdef_t *fd)
 		c_alias_polys = 0;
 	}
 
-	GL3_SetViewParams(gl3_newrefdef.vieworg, gl3_newrefdef.viewangles, gl3_newrefdef.fov_x, gl3_newrefdef.fov_y);
+	GL3_SetViewParams(
+		gl3_newrefdef.vieworg, gl3_newrefdef.viewangles,
+		gl3_newrefdef.fov_x, gl3_newrefdef.fov_y,
+		DEFAULT_NEARCLIP, DEFAULT_FARCLIP,
+		(float)gl3_newrefdef.width / (float)gl3_newrefdef.height);
 
 	GL3_Shadow_BeginFrame();
 	GL3_PushDlights();
@@ -1436,6 +1452,12 @@ GL3_RenderView(refdef_t *fd)
 	GL3_DrawParticles();
 
 	GL3_DrawAlphaSurfaces();
+
+	GL3_Debug_AddFrustum((const vec3_t){0,1,0});
+
+	SetProjViewMatrices();
+	//glDisable(GL_DEPTH_TEST);
+	GL3_Debug_Draw();
 
 	GL3_PostFx_AfterScene();
 

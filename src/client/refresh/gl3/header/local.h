@@ -245,6 +245,7 @@ typedef enum gl3RenderPass {
 } gl3RenderPass_t;
 
 typedef struct {
+	hmm_vec4 vertices[8];
 	cplane_t frustum[4];
 	vec3_t angles;
 	vec3_t vup;
@@ -316,6 +317,8 @@ typedef struct
 	gl3ShaderInfo_t siPostfxBlit;
 
 	gl3ShaderInfo_t siShadowMap;
+
+	gl3ShaderInfo_t si3Ddebug;
 
 	gl3ShaderInfo_t siSentinel;
 
@@ -685,7 +688,21 @@ extern void GL3_Shadow_RenderShadowMaps();
 
 // gl3_view.c
 
-extern void GL3_SetViewParams(const vec3_t pos, const vec3_t angles, float fovX, float fovY);
+extern void GL3_SetViewParams(const vec3_t pos, const vec3_t angles, float fovX, float fovY, float nearClip, float farClip, float aspectRatio);
+
+// gl3_debug.c
+
+extern void GL3_Debug_Init();
+extern void GL3_Debug_AddLine(const vec3_t p1, const vec3_t p2, const vec3_t color);
+extern void GL3_Debug_AddSphere(const vec3_t origin, float radius, const vec3_t color);
+extern void GL3_Debug_AddPlane(const vec3_t origin, const vec3_t normal, float size, const vec3_t color);
+extern void GL3_Debug_AddBox(const vec3_t mins, const vec3_t maxs, const vec3_t color);
+
+// Adds the current frustum to the debug renderer
+extern void GL3_Debug_AddFrustum(const vec3_t color);
+
+extern void GL3_Debug_Draw();
+extern void GL3_Debug_Shutdown();
 
 // ############ Cvars ###########
 

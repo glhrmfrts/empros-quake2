@@ -268,7 +268,44 @@ static void PrepareToRender(gl3_shadow_light_t* light, int viewIndex)
 	gl3_shadow_view_t* view = &light->shadowViews[viewIndex];
 
 	// Make the FOV a bit bigger for culling
-	GL3_SetViewParams(light->position, view->angles, light->coneAngle*1.2f, light->coneAngle*1.2f);
+
+	vec3_t angles;
+	VectorCopy(view->angles, angles);
+
+	// TODO: fix this mess
+	if (viewIndex == 0)
+	{
+		GL3_SetViewParams(light->position, angles, light->coneAngle * 1.2f, light->coneAngle * 1.2f, light->radius * 0.01f, light->radius, 1.0f);
+	}
+	else if (viewIndex == 1)
+	{
+		//angles[1] -= 90;
+		GL3_SetViewParams(light->position, angles, light->coneAngle * 1.2f, light->coneAngle * 1.2f, light->radius * 0.01f, light->radius, 1.0f);
+	}
+	else if (viewIndex == 2)
+	{
+		GL3_SetViewParams(light->position, angles, light->coneAngle * 1.2f, light->coneAngle * 1.2f, light->radius * 0.01f, light->radius, 1.0f);
+	}
+	else if (viewIndex == 3)
+	{
+		angles[0] = -angles[0];
+		GL3_SetViewParams(light->position, angles, light->coneAngle*1.2f, light->coneAngle*1.2f, light->radius*0.01f, light->radius, 1.0f);
+	}
+	else if (viewIndex == 4)
+	{
+		angles[0] -= 90;
+		angles[1] -= 90;
+		GL3_SetViewParams(light->position, angles, light->coneAngle * 1.2f, light->coneAngle * 1.2f, light->radius * 0.01f, light->radius, 1.0f);
+	}
+	else
+	{
+		angles[0] -= 90;
+		angles[1] -= 90;
+		GL3_SetViewParams(light->position, angles, light->coneAngle*1.2f, light->coneAngle*1.2f, light->radius*0.01f, light->radius, 1.0f);
+	}
+
+	//GL3_Debug_AddFrustum((const vec3_t) { 0, 1, 0 });
+
 	GL3_SetupViewCluster();
 	GL3_MarkLeaves();
 
