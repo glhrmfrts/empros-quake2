@@ -1,16 +1,26 @@
-# Yamagi Quake II
+# Empros Quake II
 
-Yamagi Quake II is an enhanced client for id Software's Quake
-II with focus on offline and coop gameplay. Both the gameplay and the graphics
-are unchanged, but many bugs in the last official release were fixed and some
-nice to have features like widescreen support and a modern OpenGL 3.2 renderer
-were added. Unlike most other Quake II source ports Yamagi Quake II is fully 64-bit
-clean. It works perfectly on modern processors and operating systems. Yamagi
-Quake II runs on nearly all common platforms; including FreeBSD, Linux, NetBSD,
-OpenBSD, Windows and macOS (experimental).
+Empros Quake II is an enhanced client for id Software's Quake
+II with focus on offline and coop gameplay. It's a fork of Yamagi Quake II
+with the addition of modern rendering effects for the OpenGL 3 renderer.
+These are subtle effects which do not aim to make Quake II look
+like a modern AAA game (e.g. no over the top bump-mapping),
+but instead try to preserve and enhance the original feel of the game.
 
-This code is built upon Icculus Quake II, which itself is based on Quake II
-3.21. Yamagi Quake II is released under the terms of the GPL version 2. See the
+Current features include:
+
+- Render scaling for retro look without changing the window resolution
+- HDR rendering
+- Post-processing effects: bloom, ambient occlusion, motion blur
+- Realtime shadow mapping for dlights (experimental)
+- Qbism's QBSP map format support for extended limits
+
+Every feature is optional and the renderer was optimized so if you want a vanilla experience
+you can still have it with pretty good performance for big maps.
+
+This code is built upon Yamagi Quake II, which itself is based
+on Icculus Quake II, which itself is based on Quake II 3.21.
+Empros Quake II is released under the terms of the GPL version 2. See the
 LICENSE file for further information.
 
 ## Documentation
@@ -20,7 +30,4 @@ version can be found here: [doc/010_index.md](doc/010_index.md)
 
 ## Releases
 
-The official releases (including Windows binaries) can be found at our
-homepage: https://www.yamagi.org/quake2  
-**Unsupported** preview builds for Windows can be found at
-https://deponie.yamagi.org/quake2/misc/
+Releases will be listed in this repository's [Releases](https://github.com/glhrmfrts/empros-quake2/releases) section.
