@@ -53,6 +53,8 @@ unsigned gl3_rawpalette[256];
 /* screen size info */
 refdef_t gl3_newrefdef;
 
+hmm_vec2 gl3_scaledSize;
+
 viddef_t vid;
 gl3model_t *gl3_worldmodel;
 
@@ -229,6 +231,8 @@ GL3_Register(void)
 
 	r_shadowmap = ri.Cvar_Get("r_shadowmap", "2", CVAR_ARCHIVE);
 	r_shadowmap_maxlights = ri.Cvar_Get("r_shadowmap_maxlights", "16", CVAR_ARCHIVE);
+
+	r_renderscale = ri.Cvar_Get("r_renderscale", "0", CVAR_ARCHIVE);
 
 #if 0 // TODO!
 	//gl_lefthand = ri.Cvar_Get("hand", "0", CVAR_USERINFO | CVAR_ARCHIVE);
@@ -917,7 +921,7 @@ GL3_DrawParticles(void)
 		YQ2_ALIGNAS_TYPE(unsigned) byte color[4];
 		const particle_t *p;
 		// assume the size looks good with window height 480px and scale according to real resolution
-		float pointSize = gl3_particle_size->value * (float)gl3_newrefdef.height/480.0f;
+		float pointSize = gl3_particle_size->value * gl3_scaledSize.Y/480.0f;
 
 		typedef struct part_vtx {
 			GLfloat pos[3];
@@ -1290,120 +1294,16 @@ UpdateFlashlight()
 static void
 GL3_RenderView(refdef_t *fd)
 {
-#if 0 // TODO: keep stereo stuff?
-	if ((gl_state.stereo_mode != STEREO_MODE_NONE) && gl_state.camera_separation) {
-
-		qboolean drawing_left_eye = gl_state.camera_separation < 0;
-		switch (gl_state.stereo_mode) {
-			case STEREO_MODE_ANAGLYPH:
-				{
-
-					// Work out the colour for each eye.
-					int anaglyph_colours[] = { 0x4, 0x3 }; // Left = red, right = cyan.
-
-					if (strlen(gl1_stereo_anaglyph_colors->string) == 2) {
-						int eye, colour, missing_bits;
-						// Decode the colour name from its character.
-						for (eye = 0; eye < 2; ++eye) {
-							colour = 0;
-							switch (toupper(gl1_stereo_anaglyph_colors->string[eye])) {
-								case 'B': ++colour; // 001 Blue
-								case 'G': ++colour; // 010 Green
-								case 'C': ++colour; // 011 Cyan
-								case 'R': ++colour; // 100 Red
-								case 'M': ++colour; // 101 Magenta
-								case 'Y': ++colour; // 110 Yellow
-									anaglyph_colours[eye] = colour;
-									break;
-							}
-						}
-						// Fill in any missing bits.
-						missing_bits = ~(anaglyph_colours[0] | anaglyph_colours[1]) & 0x3;
-						for (eye = 0; eye < 2; ++eye) {
-							anaglyph_colours[eye] |= missing_bits;
-						}
-					}
-
-					// Set the current colour.
-					glColorMask(
-						!!(anaglyph_colours[drawing_left_eye] & 0x4),
-						!!(anaglyph_colours[drawing_left_eye] & 0x2),
-						!!(anaglyph_colours[drawing_left_eye] & 0x1),
-						GL_TRUE
-					);
-				}
-				break;
-			case STEREO_MODE_ROW_INTERLEAVED:
-			case STEREO_MODE_COLUMN_INTERLEAVED:
-			case STEREO_MODE_PIXEL_INTERLEAVED:
-				{
-					qboolean flip_eyes = true;
-					int client_x, client_y;
-
-					//GLimp_GetClientAreaOffset(&client_x, &client_y);
-					client_x = 0;
-					client_y = 0;
-
-					GL3_SetGL2D();
-
-					glEnable(GL_STENCIL_TEST);
-					glStencilMask(GL_TRUE);
-					glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
-					glStencilOp(GL_REPLACE, GL_KEEP, GL_KEEP);
-					glStencilFunc(GL_NEVER, 0, 1);
-
-					glBegin(GL_QUADS);
-					{
-						glVertex2i(0, 0);
-						glVertex2i(vid.width, 0);
-						glVertex2i(vid.width, vid.height);
-						glVertex2i(0, vid.height);
-					}
-					glEnd();
-
-					glStencilOp(GL_INVERT, GL_KEEP, GL_KEEP);
-					glStencilFunc(GL_NEVER, 1, 1);
-
-					glBegin(GL_LINES);
-					{
-						if (gl_state.stereo_mode == STEREO_MODE_ROW_INTERLEAVED || gl_state.stereo_mode == STEREO_MODE_PIXEL_INTERLEAVED) {
-							int y;
-							for (y = 0; y <= vid.height; y += 2) {
-								glVertex2f(0, y - 0.5f);
-								glVertex2f(vid.width, y - 0.5f);
-							}
-							flip_eyes ^= (client_y & 1);
-						}
-
-						if (gl_state.stereo_mode == STEREO_MODE_COLUMN_INTERLEAVED || gl_state.stereo_mode == STEREO_MODE_PIXEL_INTERLEAVED) {
-							int x;
-							for (x = 0; x <= vid.width; x += 2) {
-								glVertex2f(x - 0.5f, 0);
-								glVertex2f(x - 0.5f, vid.height);
-							}
-							flip_eyes ^= (client_x & 1);
-						}
-					}
-					glEnd();
-
-					glStencilMask(GL_FALSE);
-					glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-					glStencilFunc(GL_EQUAL, drawing_left_eye ^ flip_eyes, 1);
-					glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-				}
-				break;
-			default:
-				break;
-		}
-	}
-#endif // 0 (stereo stuff)
-
 	if (r_norefresh->value)
 	{
 		return;
 	}
+
+	int renderScale = ((int)r_renderscale->value) + 1;
+	renderScale = min(renderScale, 8);
+	renderScale = max(renderScale, 1);
+	gl3_scaledSize.X = gl3_newrefdef.width / renderScale;
+	gl3_scaledSize.Y = gl3_newrefdef.height / renderScale;
 
 	gl3_newrefdef = *fd;
 

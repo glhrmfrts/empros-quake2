@@ -5,6 +5,8 @@ enum { MAX_COLOR_TEXTURES = 4 };
 static GLuint screen_vao;
 static GLuint screen_vbo;
 
+// TODO: make this a uniform block
+
 typedef struct {
 	GLint u_SampleCount;
 	GLint u_Intensity;
@@ -46,6 +48,7 @@ static GLuint ssao_noise_texture;
 static GLuint ssao_kernel_ubo;
 static hmm_vec4 ssao_kernel[SSAO_KERNEL_SIZE];
 
+cvar_t* r_renderscale;
 cvar_t* r_motionblur;
 cvar_t* r_motionblur_samples;
 cvar_t* r_hdr;
@@ -123,8 +126,14 @@ void GL3_PostFx_Init()
 	};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), (const void*)vertices, GL_STATIC_DRAW);
 
-	GLuint width = gl3_newrefdef.width;
-	GLuint height = gl3_newrefdef.height;
+	// TODO: create only the necessary FBOs depending on the enabled cvars
+
+	int renderScale = ((int)r_renderscale->value) + 1;
+	renderScale = min(renderScale, 8);
+	renderScale = max(renderScale, 1);
+
+	GLuint width = gl3_newrefdef.width / renderScale;
+	GLuint height = gl3_newrefdef.height / renderScale;
 	GL3_CreateFramebuffer(width, height, 2,
 		GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_HDR,
 		&scene_fbo);
@@ -191,9 +200,20 @@ void GL3_PostFx_Init()
 
 void GL3_PostFx_Shutdown()
 {
+	GL3_DestroyFramebuffer(&scene_fbo);
 	GL3_DestroyFramebuffer(&resolve_multisample_fbo);
+	GL3_DestroyFramebuffer(&resolve_hdr_fbo);
+	GL3_DestroyFramebuffer(&bloom_filter_fbo);
+	GL3_DestroyFramebuffer(&bloom_blur_fbo[0]);
+	GL3_DestroyFramebuffer(&bloom_blur_fbo[1]);
+	GL3_DestroyFramebuffer(&ssao_geom_fbo);
+	GL3_DestroyFramebuffer(&ssao_map_fbo);
+	GL3_DestroyFramebuffer(&ssao_blur_fbo);
+	GL3_DestroyFramebuffer(&motion_blur_mask_fbo);
 	glDeleteVertexArrays(1, &screen_vao);
 	glDeleteBuffers(1, &screen_vbo);
+	glDeleteBuffers(1, &ssao_kernel_ubo);
+	glDeleteTextures(1, &ssao_noise_texture);
 	gl3state.postfx_initialized = false;
 }
 
@@ -230,8 +250,8 @@ void GL3_PostFx_BeforeScene()
 		GL3_DrawEntitiesOnList();
 
 		hmm_vec2 noise_scale;
-		noise_scale.X = (float)gl3_newrefdef.width / 4.0f;
-		noise_scale.Y = (float)gl3_newrefdef.height / 4.0f;
+		noise_scale.X = gl3_scaledSize.X / 4.0f;
+		noise_scale.Y = gl3_scaledSize.Y / 4.0f;
 
 		GL3_BindFramebuffer(&ssao_map_fbo);
 		GL3_UseProgram(gl3state.siPostfxSSAO.shaderProgram);

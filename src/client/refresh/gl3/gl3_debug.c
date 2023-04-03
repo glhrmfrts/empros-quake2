@@ -157,6 +157,8 @@ void GL3_Debug_AddPlane(const vec3_t origin, const vec3_t normal, float size, co
 
 void GL3_Debug_AddBox(const vec3_t mins, const vec3_t maxs, const vec3_t color)
 {
+	// TODO: render a proper box, right now all box planes have the same size
+
 	vec3_t center;
 	VectorAdd(mins, maxs, center);
 	VectorScale(center, 0.5f, center);

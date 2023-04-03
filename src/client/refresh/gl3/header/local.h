@@ -104,6 +104,8 @@ static const int gl3_tex_alpha_format = GL_RGBA;
 extern unsigned gl3_rawpalette[256];
 extern unsigned d_8to24table[256];
 
+extern hmm_vec2 gl3_scaledSize;
+
 typedef struct
 {
 	const char *renderer_string;
@@ -749,6 +751,8 @@ extern cvar_t *r_fixsurfsky;
 
 extern cvar_t *gl3_debugcontext;
 
+extern cvar_t *r_renderscale;
+
 extern cvar_t *r_motionblur;
 extern cvar_t* r_motionblur_samples;
 extern cvar_t* r_bloom;
@@ -787,12 +791,12 @@ typedef struct gl3_framebuffer_s
 	GLuint depth_texture;
 } gl3_framebuffer_t;
 
-void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_textures, gl3_framebuffer_flag_t flags, gl3_framebuffer_t* out);
-void GL3_DestroyFramebuffer(gl3_framebuffer_t* fb);
-void GL3_BindFramebuffer(const gl3_framebuffer_t* fb);
-void GL3_UnbindFramebuffer();
-void GL3_BindFramebufferTexture(const gl3_framebuffer_t* fb, int index, int unit);
-void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit);
+extern void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_textures, gl3_framebuffer_flag_t flags, gl3_framebuffer_t* out);
+extern void GL3_DestroyFramebuffer(gl3_framebuffer_t* fb);
+extern void GL3_BindFramebuffer(const gl3_framebuffer_t* fb);
+extern void GL3_UnbindFramebuffer();
+extern void GL3_BindFramebufferTexture(const gl3_framebuffer_t* fb, int index, int unit);
+extern void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit);
 
 extern void GL3_PostFx_Init();
 extern void GL3_PostFx_Shutdown();
@@ -834,23 +838,11 @@ typedef struct gl3_shadow_light_s {
 	gl3_shadow_view_t shadowViews[6];
 } gl3_shadow_light_t;
 
-/*
-void GL3_Shadow_AddSpotLight(
-	const vec3_t origin,
-	const vec3_t angles,
-	const vec3_t color,
-	float coneangle,
-	float zfar,
-	int resolution,
-	float intensity,
-	qboolean isstatic);
-*/
 void GL3_Shadow_Init();
 void GL3_Shadow_BeginFrame();
 
 // Returns true if we could add this light to the shadow map or false otherwise
 qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity);
-
 
 void GL3_Shadow_RenderShadowMaps();
 void GL3_Shadow_Shutdown();

@@ -50,12 +50,14 @@ static cvar_t *r_hdr;
 static cvar_t *r_bloom;
 static cvar_t *r_ssao;
 static cvar_t *r_shadowmap;
+static cvar_t *r_renderscale;
 
 static menuframework_s s_opengl_menu;
 
 static menulist_s s_renderer_list;
 static menulist_s s_mode_list;
 static menulist_s s_display_list;
+static menulist_s s_renderscale_list;
 static menulist_s s_uiscale_list;
 static menuslider_s s_brightness_slider;
 static menuslider_s s_motionblur_slider;
@@ -301,6 +303,7 @@ ApplyChanges(void *unused)
 		}
 	}
 
+	Cvar_SetValue("r_renderscale", (float)s_renderscale_list.curvalue);
 	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
 	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
 	Cvar_SetValue("r_ssao", (float)s_ssao_list.curvalue);
@@ -487,6 +490,10 @@ VID_MenuInit(void)
 	{
 		r_shadowmap = Cvar_Get("r_shadowmap", "2", CVAR_ARCHIVE);
 	}
+	if (!r_renderscale)
+	{
+		r_renderscale = Cvar_Get("r_renderscale", "1", CVAR_ARCHIVE);
+	}
 
 	s_opengl_menu.x = viddef.width * 0.50;
 	s_opengl_menu.nitems = 0;
@@ -546,6 +553,14 @@ VID_MenuInit(void)
 	s_fov_slider.minvalue = 60;
 	s_fov_slider.maxvalue = 120;
 	s_fov_slider.curvalue = fov->value;
+
+	static const char* renderscale_names[] = {"1x", "2x", "3x", "4x", NULL};
+	s_renderscale_list.generic.type = MTYPE_SPINCONTROL;
+	s_renderscale_list.generic.name = "render scale";
+	s_renderscale_list.generic.x = 0;
+	s_renderscale_list.generic.y = (y += 10);
+	s_renderscale_list.itemnames = renderscale_names;
+	s_renderscale_list.curvalue = (int)r_renderscale->value;
 
 	s_uiscale_list.generic.type = MTYPE_SPINCONTROL;
 	s_uiscale_list.generic.name = "ui scale";
@@ -683,6 +698,7 @@ VID_MenuInit(void)
 
 	Menu_AddItem(&s_opengl_menu, (void *)&s_brightness_slider);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_fov_slider);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_renderscale_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_uiscale_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_fs_box);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_vsync_list);
@@ -699,7 +715,7 @@ VID_MenuInit(void)
 	Menu_Center(&s_opengl_menu);
 
 	s_opengl_menu.x -= 8;
-	s_opengl_menu.y += 20;
+	s_opengl_menu.y += 30;
 }
 
 void
