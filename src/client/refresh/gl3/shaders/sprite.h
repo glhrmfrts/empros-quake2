@@ -2,8 +2,6 @@ static const char* fragmentSrc3Dsprite = MULTILINE_STRING(
 
 		// it gets attributes and uniforms from fragmentCommon3D
 
-		uniform sampler2D tex;
-
 		void main()
 		{
 			vec4 texel = texture(tex, passTexCoord);
@@ -25,8 +23,6 @@ static const char* fragmentSrc3Dsprite = MULTILINE_STRING(
 static const char* fragmentSrc3DspriteAlpha = MULTILINE_STRING(
 
 		// it gets attributes and uniforms from fragmentCommon3D
-
-		uniform sampler2D tex;
 
 		void main()
 		{

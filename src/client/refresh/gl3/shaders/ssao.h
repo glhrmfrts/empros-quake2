@@ -26,9 +26,6 @@ static const char* vertexSrc3DSSAO = MULTILINE_STRING(
 
 static const char* fragmentSrc3DSSAO = MULTILINE_STRING(
 		in vec3 passViewCoord;
-		in vec3 passNormal;
-
-		uniform sampler2D tex;
 
 		out vec4 outColor2;
 

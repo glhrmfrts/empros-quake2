@@ -325,6 +325,7 @@ GL3_LightPoint(entity_t *currententity, vec3_t p, vec3_t color)
 		VectorCopy(pointcolor, color);
 	}
 
+#if 0
 	/* add dynamic lights */
 	dl = gl3_newrefdef.dlights;
 
@@ -340,6 +341,7 @@ GL3_LightPoint(entity_t *currententity, vec3_t p, vec3_t color)
 			VectorMA(color, add, dl->color, color);
 		}
 	}
+#endif
 
 	VectorScale(color, r_modulate->value, color);
 }

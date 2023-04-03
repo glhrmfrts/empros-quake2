@@ -27,16 +27,14 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 
 		// it gets attributes and uniforms from fragmentCommon3D
 
-		uniform sampler2D tex;
-
 		in vec4 passColor;
-		in vec3 passWorldCoord;
-		in vec3 passNormal;
 
 		void main()
 		{
 			vec4 albedo = texture(tex, passTexCoord);
 			vec4 texel = vec4(1.0);
+
+			texel.rgb += CalculateDLighting();
 
 			// apply gamma correction and intensity
 			texel.rgb *= intensity;
