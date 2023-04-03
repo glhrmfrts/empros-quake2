@@ -759,7 +759,6 @@ extern cvar_t *r_hdr;
 extern cvar_t *r_hdr_exposure;
 
 extern cvar_t* r_shadowmap;
-extern cvar_t* r_shadowmap_resolution;
 extern cvar_t* r_shadowmap_maxlights;
 
 extern entity_t* weapon_model_entity;

@@ -5,7 +5,6 @@
 
 #define eprintf(...)  R_Printf(PRINT_ALL, __VA_ARGS__)
 
-// TODO: fix culling alias entities
 // TODO: integrate this new system with the mapper-designed shadow lights
 
 #define SUN_SHADOW_BIAS (0.01f)
@@ -16,7 +15,6 @@
 
 cvar_t* r_flashlight;
 cvar_t* r_shadowmap;
-cvar_t* r_shadowmap_resolution;
 cvar_t* r_shadowmap_maxlights;
 
 qboolean gl3_rendering_shadow_maps;
@@ -47,6 +45,8 @@ static const float faceSelectionData2[] = {
 
 static GLuint faceSelectionTex1;
 static GLuint faceSelectionTex2;
+
+static int shadowMapResolutionConfig;
 
 enum { MAX_CUBE_FACES = 6 };
 
@@ -102,8 +102,15 @@ void GL3_Shadow_BeginFrame()
 	r_shadowmap_maxlights->value = min(r_shadowmap_maxlights->value, 32);
 	r_shadowmap_maxlights->value = max(r_shadowmap_maxlights->value, 1);
 
-	r_shadowmap_resolution->value = min(r_shadowmap_resolution->value, DEFAULT_SHADOWMAP_SIZE);
-	r_shadowmap_resolution->value = max(r_shadowmap_resolution->value, 32);
+	shadowMapResolutionConfig = 0;
+	if (r_shadowmap->value == 1.0f)
+	{
+		shadowMapResolutionConfig = 128;
+	}
+	else if (r_shadowmap->value == 2.0f)
+	{
+		shadowMapResolutionConfig = 512;
+	}
 }
 
 static const vec3_t pointLightDirection[] = {
@@ -192,7 +199,7 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 
 qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
 {
-	if (!r_shadowmap->value)
+	if (!r_shadowmap->value || !shadowMapResolutionConfig)
 		return false;
 
 	if (shadowLightFrameCount >= (int)r_shadowmap_maxlights->value)
@@ -203,7 +210,7 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 	VectorSubtract(pos, gl3_newrefdef.vieworg, lightToView);
 	float distanceSqr = DotProduct(lightToView, lightToView);
 
-	int shadowMapResolution = (int)r_shadowmap_resolution->value;
+	int shadowMapResolution = shadowMapResolutionConfig;
 	if (distanceSqr > (400.0f * 400.0f))
 		shadowMapResolution /= 2;
 	if (distanceSqr > (700.0f * 700.0f))

@@ -50,7 +50,6 @@ static cvar_t *r_hdr;
 static cvar_t *r_bloom;
 static cvar_t *r_ssao;
 static cvar_t *r_shadowmap;
-static cvar_t *r_shadowmap_resolution;
 
 static menuframework_s s_opengl_menu;
 
@@ -305,6 +304,7 @@ ApplyChanges(void *unused)
 	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
 	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
 	Cvar_SetValue("r_ssao", (float)s_ssao_list.curvalue);
+	Cvar_SetValue("r_shadowmap", (float)s_shadowmap_list.curvalue);
 
 	if (restart)
 	{
@@ -479,6 +479,15 @@ VID_MenuInit(void)
 		r_bloom = Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
 	}
 
+	if (!r_ssao)
+	{
+		r_ssao = Cvar_Get("r_ssao", "1", CVAR_ARCHIVE);
+	}
+	if (!r_shadowmap)
+	{
+		r_shadowmap = Cvar_Get("r_shadowmap", "2", CVAR_ARCHIVE);
+	}
+
 	s_opengl_menu.x = viddef.width * 0.50;
 	s_opengl_menu.nitems = 0;
 
@@ -610,6 +619,15 @@ VID_MenuInit(void)
 		s_msaa_list.curvalue--;
 	}
 
+	static const char* shadowmap_names[] = { "off", "low", "high", NULL };
+
+	s_shadowmap_list.generic.type = MTYPE_SPINCONTROL;
+	s_shadowmap_list.generic.name = "realtime shadowmap";
+	s_shadowmap_list.generic.x = 0;
+	s_shadowmap_list.generic.y = (y += 10);
+	s_shadowmap_list.itemnames = shadowmap_names;
+	s_shadowmap_list.curvalue = (int)r_shadowmap->value;
+
 	static const char* off_on_names[] = { "off", "on", NULL };
 
 	s_hdr_list.generic.type = MTYPE_SPINCONTROL;
@@ -625,6 +643,13 @@ VID_MenuInit(void)
 	s_bloom_list.generic.y = (y += 10);
 	s_bloom_list.itemnames = off_on_names;
 	s_bloom_list.curvalue = (r_bloom->value == 0.0f) ? 0 : 1;
+
+	s_ssao_list.generic.type = MTYPE_SPINCONTROL;
+	s_ssao_list.generic.name = "ambient occlusion";
+	s_ssao_list.generic.x = 0;
+	s_ssao_list.generic.y = (y += 10);
+	s_ssao_list.itemnames = off_on_names;
+	s_ssao_list.curvalue = (r_ssao->value == 0.0f) ? 0 : 1;
 
 	s_motionblur_slider.generic.type = MTYPE_SLIDER;
 	s_motionblur_slider.generic.name = "motion blur";
@@ -663,8 +688,10 @@ VID_MenuInit(void)
 	Menu_AddItem(&s_opengl_menu, (void *)&s_vsync_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_af_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_msaa_list);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_shadowmap_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_hdr_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_bloom_list);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_ssao_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_motionblur_slider);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_defaults_action);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_apply_action);
@@ -672,7 +699,7 @@ VID_MenuInit(void)
 	Menu_Center(&s_opengl_menu);
 
 	s_opengl_menu.x -= 8;
-	s_opengl_menu.y += 10;
+	s_opengl_menu.y += 20;
 }
 
 void

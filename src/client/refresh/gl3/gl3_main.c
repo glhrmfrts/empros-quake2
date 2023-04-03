@@ -227,8 +227,7 @@ GL3_Register(void)
 	r_hdr_exposure = ri.Cvar_Get("r_hdr_exposure", "1", CVAR_ARCHIVE);
 	r_flashlight = ri.Cvar_Get("r_flashlight", "0", CVAR_ARCHIVE);
 
-	r_shadowmap = ri.Cvar_Get("r_shadowmap", "1", CVAR_ARCHIVE);
-	r_shadowmap_resolution = ri.Cvar_Get("r_shadowmap_resolution", "512", CVAR_ARCHIVE);
+	r_shadowmap = ri.Cvar_Get("r_shadowmap", "2", CVAR_ARCHIVE);
 	r_shadowmap_maxlights = ri.Cvar_Get("r_shadowmap_maxlights", "16", CVAR_ARCHIVE);
 
 #if 0 // TODO!
