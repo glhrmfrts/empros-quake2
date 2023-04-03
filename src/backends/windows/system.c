@@ -417,8 +417,20 @@ Sys_GetGameAPI(void *parms)
 			return NULL; /* couldn't find one anywhere */
 		}
 
+		Com_DPrintf("Searching library in: %s\n", path);
+
 		/* Try emprosgame.dll */
+
 		Com_sprintf(name, sizeof(name), "%s/%s", path, "emprosgame.dll");
+		MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);
+		game_library = LoadLibraryW(wname);
+		if (game_library)
+		{
+			Com_DPrintf("Loading library: %s\n", name);
+			break;
+		}
+
+		Com_sprintf(name, sizeof(name), "%s/%s", path, "emprosgamex86.dll");
 		MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);
 		game_library = LoadLibraryW(wname);
 		if (game_library)

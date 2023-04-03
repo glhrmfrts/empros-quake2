@@ -806,16 +806,18 @@ GL3_DrawSpriteModel(entity_t *e, gl3model_t *currentmodel)
 
 	GL3_Bind(currentmodel->skins[e->frame]->texnum);
 
-	if (alpha == 1.0)
+	if (gl3state.renderPass == RENDER_PASS_SCENE)
 	{
-		// use shader with alpha test
-		GL3_UseProgram(gl3state.si3DspriteAlpha.shaderProgram);
-	}
-	else
-	{
-		glEnable(GL_BLEND);
-
-		GL3_UseProgram(gl3state.si3Dsprite.shaderProgram);
+		if (alpha == 1.0)
+		{
+			// use shader with alpha test
+			GL3_UseProgram(gl3state.si3DspriteAlpha.shaderProgram);
+		}
+		else
+		{
+			glEnable(GL_BLEND);
+			GL3_UseProgram(gl3state.si3Dsprite.shaderProgram);
+		}
 	}
 
 	verts[0].texCoord[0] = 0;
@@ -872,7 +874,10 @@ GL3_DrawNullModel(entity_t *currententity)
 	gl3state.uniCommonData.color = HMM_Vec4( shadelight[0], shadelight[1], shadelight[2], 1 );
 	GL3_UpdateUBOCommon();
 
-	GL3_UseProgram(gl3state.si3DcolorOnly.shaderProgram);
+	if (gl3state.renderPass == RENDER_PASS_SCENE)
+	{
+		GL3_UseProgram(gl3state.si3DcolorOnly.shaderProgram);
+	}
 
 	GL3_BindVAO(gl3state.vao3D);
 	GL3_BindVBO(gl3state.vbo3D);
@@ -1453,7 +1458,7 @@ GL3_RenderView(refdef_t *fd)
 
 	GL3_DrawAlphaSurfaces();
 
-	GL3_Debug_AddFrustum((const vec3_t){0,1,0});
+	//GL3_Debug_AddFrustum((const vec3_t){0,1,0});
 
 	SetProjViewMatrices();
 	//glDisable(GL_DEPTH_TEST);

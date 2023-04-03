@@ -48,6 +48,9 @@ static cvar_t *gl_msaa_samples;
 static cvar_t *r_motionblur;
 static cvar_t *r_hdr;
 static cvar_t *r_bloom;
+static cvar_t *r_ssao;
+static cvar_t *r_shadowmap;
+static cvar_t *r_shadowmap_resolution;
 
 static menuframework_s s_opengl_menu;
 
@@ -64,6 +67,8 @@ static menulist_s s_af_list;
 static menulist_s s_msaa_list;
 static menulist_s s_hdr_list;
 static menulist_s s_bloom_list;
+static menulist_s s_ssao_list;
+static menulist_s s_shadowmap_list;
 static menuaction_s s_defaults_action;
 static menuaction_s s_apply_action;
 
@@ -299,6 +304,7 @@ ApplyChanges(void *unused)
 
 	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
 	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
+	Cvar_SetValue("r_ssao", (float)s_ssao_list.curvalue);
 
 	if (restart)
 	{

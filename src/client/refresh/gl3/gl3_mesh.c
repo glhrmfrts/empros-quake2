@@ -575,6 +575,7 @@ CullAliasModel(vec3_t bbox[8], entity_t *e)
 		return GL3_CullBox(mins, maxs);
 	}
 
+#if 0
 	{
 		vec3_t dmins, dmaxs;
 		VectorCopy(mins, dmins);
@@ -586,6 +587,7 @@ CullAliasModel(vec3_t bbox[8], entity_t *e)
 		}
 		GL3_Debug_AddBox(dmins, dmaxs, (const vec3_t){1,0,0});
 	}
+#endif
 
 	/* compute a full bounding box */
 	for (i = 0; i < 8; i++)

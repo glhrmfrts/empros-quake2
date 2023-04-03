@@ -501,8 +501,11 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 			}
 			else
 			{
-				// shadow map or ssao
-				GL3_SurfBatch_Add(psurf);
+				if (!(psurf->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66)))
+				{
+					// shadow map or ssao
+					GL3_SurfBatch_Add(psurf);
+				}
 			}
 		}
 	}

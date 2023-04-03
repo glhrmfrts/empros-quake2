@@ -236,6 +236,8 @@ void GL3_Debug_AddFrustum(const vec3_t color)
 
 void GL3_Debug_Draw()
 {
+	if (numIndices == 0) return;
+
 	GL3_UseProgram(gl3state.si3Ddebug.shaderProgram);
 
 	gl3state.uni3DData.transModelMat4 = gl3_identityMat4;
