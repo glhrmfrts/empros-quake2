@@ -637,7 +637,7 @@ VID_MenuInit(void)
 	static const char* shadowmap_names[] = { "off", "low", "high", NULL };
 
 	s_shadowmap_list.generic.type = MTYPE_SPINCONTROL;
-	s_shadowmap_list.generic.name = "realtime shadowmap";
+	s_shadowmap_list.generic.name = "[experimental] realtime shadowmap";
 	s_shadowmap_list.generic.x = 0;
 	s_shadowmap_list.generic.y = (y += 10);
 	s_shadowmap_list.itemnames = shadowmap_names;
