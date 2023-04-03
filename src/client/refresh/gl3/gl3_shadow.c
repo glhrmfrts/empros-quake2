@@ -13,6 +13,9 @@
 
 #define POINT_SHADOW_BIAS SPOT_SHADOW_BIAS
 
+#define DEFAULT_SLOPE_SCALE_BIAS 1.5f
+#define DEFAULT_DEPTH_BIAS 2.0f
+
 cvar_t* r_flashlight;
 cvar_t* r_shadowmap;
 cvar_t* r_shadowmap_maxlights;
@@ -105,7 +108,7 @@ void GL3_Shadow_BeginFrame()
 	shadowMapResolutionConfig = 0;
 	if (r_shadowmap->value == 1.0f)
 	{
-		shadowMapResolutionConfig = 128;
+		shadowMapResolutionConfig = 256;
 	}
 	else if (r_shadowmap->value == 2.0f)
 	{
@@ -250,7 +253,7 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 	float shadowStrength = 0.5f;
 
 	gl3UniDynLight* dlight = &gl3state.uniLightsData.dynLights[light->dlightIndex];
-	dlight->shadowParameters = HMM_Vec4(0.5f / (float)SHADOW_ATLAS_SIZE, 0.5f / (float)SHADOW_ATLAS_SIZE, shadowStrength, 0.0f);
+	dlight->shadowParameters = HMM_Vec4(1.0f / (float)SHADOW_ATLAS_SIZE, 1.0f / (float)SHADOW_ATLAS_SIZE, shadowStrength, 0.0f);
 
 	float nearClip = light->radius*0.01f;
 	float farClip = light->radius;
@@ -361,6 +364,9 @@ void GL3_Shadow_RenderShadowMaps()
 	if (!r_shadowmap->value)
 		return false;
 
+	glEnable(GL_POLYGON_OFFSET_FILL);
+	glPolygonOffset(DEFAULT_SLOPE_SCALE_BIAS, DEFAULT_DEPTH_BIAS);
+
 	// Unbind the shadow atlas before rendering to it
 	GL3_SelectTMU(GL3_SHADOW_ATLAS_TU);
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -418,4 +424,6 @@ void GL3_Shadow_RenderShadowMaps()
 	gl3state.currentShadowLight = NULL;
 
 	GL3_InvalidateTextureBindings();
+
+	glDisable(GL_POLYGON_OFFSET_FILL);
 }

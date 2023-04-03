@@ -161,7 +161,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			vec3 normLightVec = (lightVec.xzy / depth) * zoom;
 			vec2 coords = vec2(dot(normLightVec.zxx, axis), dot(normLightVec.yzy, axis)) * adjust.xy + adjust.zw;
 			coords = coords * pointParameters.xy + pointParameters.zw;
-			float bias = 0.0001f;
+			float bias = 0.0001f * dot(passNormal, normalize(lightVec));
 			return vec4(coords, (q + r / depth) - bias, 1.0);
 		}
 
@@ -197,7 +197,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 				{
 					vec4 shadowPos = GetPointShadowPos(i, lightToPos);
 					fact *= clamp(SampleShadowMap(shadowAtlasTex, shadowPos, shadowParams), 0.0, 1.0);
-					shadowDebugColor = DebugShadowMapColor(shadowPos).rgb;
+					//shadowDebugColor = DebugShadowMapColor(shadowPos).rgb;
 				}
 
 				res += dynLights[i].lightColor.rgb * fact * NdotL;

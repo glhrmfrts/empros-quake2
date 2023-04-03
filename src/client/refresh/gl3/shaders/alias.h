@@ -32,14 +32,13 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 		void main()
 		{
 			vec4 albedo = texture(tex, passTexCoord);
-			vec4 texel = vec4(1.0);
+			vec4 texel = min(vec4(1.5), passColor);
 
 			texel.rgb += CalculateDLighting();
 
 			// apply gamma correction and intensity
 			texel.rgb *= intensity;
 			texel.a *= alpha; // is alpha even used here?
-			texel *= min(vec4(1.5), passColor);
 
 			outColor = albedo*texel;
 
