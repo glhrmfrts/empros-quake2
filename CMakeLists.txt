@@ -598,62 +598,62 @@ endif()
 
 # Main Quake 2 executable
 
+set (MAIN_EXE_NAME empquake2)
+set (WRAPPER_EXE_NAME quake2)
+set (DED_EXE_NAME q2ded)
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-	add_executable(yquake2 ${Client-Source} ${Client-Header} ${Platform-Specific-Source}
+	add_executable(${MAIN_EXE_NAME} ${Client-Source} ${Client-Header} ${Platform-Specific-Source}
 			${Backends-Generic-Source})
-	set_target_properties(yquake2 PROPERTIES
+	set_target_properties(${MAIN_EXE_NAME} PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 			)
-	target_link_libraries(yquake2 ${yquake2LinkerFlags} ${yquake2ClientLinkerFlags}
+	target_link_libraries(${MAIN_EXE_NAME} ${yquake2LinkerFlags} ${yquake2ClientLinkerFlags}
 			${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
 
 	# Wrapper for the Windows binary
-	add_executable(quake2 ${Wrapper-Source})
-	set_target_properties(quake2 PROPERTIES
+	add_executable(${WRAPPER_EXE_NAME} ${Wrapper-Source})
+	target_link_options(${WRAPPER_EXE_NAME} PRIVATE "/SUBSYSTEM:WINDOWS")
+	set_target_properties(${WRAPPER_EXE_NAME} PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 			)
 else()
-	add_executable(quake2 ${Client-Source} ${Client-Header} ${Platform-Specific-Source}
+	add_executable(${WRAPPER_EXE_NAME} ${Client-Source} ${Client-Header} ${Platform-Specific-Source}
 			${Backends-Generic-Source})
-	set_target_properties(quake2 PROPERTIES
+	set_target_properties(${WRAPPER_EXE_NAME} PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 			)
-	target_link_libraries(quake2 ${yquake2LinkerFlags} ${yquake2ClientLinkerFlags}
+	target_link_libraries(${WRAPPER_EXE_NAME} ${yquake2LinkerFlags} ${yquake2ClientLinkerFlags}
 			${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags})
 endif()
 
 # Quake 2 Dedicated Server
-add_executable(q2ded ${Server-Source} ${Server-Header} ${Platform-Specific-Source}
+add_executable(${DED_EXE_NAME} ${Server-Source} ${Server-Header} ${Platform-Specific-Source}
 		${Backends-Generic-Source})
-set_target_properties(q2ded PROPERTIES
+set_target_properties(${DED_EXE_NAME} PROPERTIES
 	COMPILE_DEFINITIONS "DEDICATED_ONLY"
 	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 	)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-	target_link_libraries(q2ded ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
+	target_link_libraries(${DED_EXE_NAME} ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
 else()
-	target_link_libraries(q2ded ${yquake2LinkerFlags} ${yquake2ServerLinkerFlags} ${yquake2ZLibLinkerFlags})
+	target_link_libraries(${DED_EXE_NAME} ${yquake2LinkerFlags} ${yquake2ServerLinkerFlags} ${yquake2ZLibLinkerFlags})
 endif()
 
 # Build the game dynamic library
 add_library(game MODULE ${Game-Source} ${Game-Header})
 set_target_properties(game PROPERTIES
 		PREFIX ""
-		LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release/baseq2
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release/baseq2
-		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
-		)
-target_link_libraries(game ${yquake2LinkerFlags})
-
-# Build the GL1 dynamic library
-add_library(ref_gl1 MODULE ${GL1-Source} ${GL1-Header} ${REF-Platform-Specific-Source})
-set_target_properties(ref_gl1 PROPERTIES
-		PREFIX ""
 		LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
 		)
-target_link_libraries(ref_gl1 ${yquake2LinkerFlags} ${yquake2OpenGLLinkerFlags} ${yquake2SDLLinkerFlags} OpenGL32)
+add_custom_command(TARGET game POST_BUILD
+	COMMAND python3 scripts/copy_game_dll.py ${CMAKE_BUILD_TYPE}
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+	COMMENT "Copying game.dll to baseq2 dir"
+	)
+target_link_libraries(game ${yquake2LinkerFlags})
 
 # Build the GL3 dynamic library
 add_library(ref_gl3 MODULE ${GL3-Source} ${GL3-Header} ${REF-Platform-Specific-Source})
