@@ -395,6 +395,14 @@ Sys_UnloadGame(void)
 void *
 Sys_GetGameAPI(void *parms)
 {
+	static const char* libNames[] = {
+		"emprosgame.dll",
+		"emprosgamex86.dll",
+		"game.dll",
+		"gamex86_64.dll",
+		"gamex86.dll",
+	};
+
 	void *(*GetGameAPI)(void *);
 	char name[MAX_OSPATH];
 	WCHAR wname[MAX_OSPATH];
@@ -419,47 +427,20 @@ Sys_GetGameAPI(void *parms)
 
 		Com_DPrintf("Searching library in: %s\n", path);
 
-		/* Try emprosgame.dll */
-
-		Com_sprintf(name, sizeof(name), "%s/%s", path, "emprosgame.dll");
-		MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);
-		game_library = LoadLibraryW(wname);
-		if (game_library)
+		for (int i = 0; i < sizeof(libNames)/sizeof(libNames[0]); i++)
 		{
-			Com_DPrintf("Loading library: %s\n", name);
-			break;
-		}
-
-		Com_sprintf(name, sizeof(name), "%s/%s", path, "emprosgamex86.dll");
-		MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);
-		game_library = LoadLibraryW(wname);
-		if (game_library)
-		{
-			Com_DPrintf("Loading library: %s\n", name);
-			break;
-		}
-
-		/* Try game.dll */
-		Com_sprintf(name, sizeof(name), "%s/%s", path, "game.dll");
-		MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);
-		game_library = LoadLibraryW(wname);
-		if (game_library)
-		{
-			Com_DPrintf("Loading library: %s\n", name);
-			break;
-		}
-
-		/* Try gamex86.dll as fallback */
- 		Com_sprintf(name, sizeof(name), "%s/%s", path, "gamex86.dll");
-		MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);
-		game_library = LoadLibraryW(wname);
-		if (game_library)
-		{
-			Com_DPrintf("Loading library: %s\n", name);
-			break;
+			Com_sprintf(name, sizeof(name), "%s/%s", path, libNames[i]);
+			MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);
+			game_library = LoadLibraryW(wname);
+			if (game_library)
+			{
+				Com_DPrintf("Loading library: %s\n", name);
+				goto found;
+			}
 		}
 	}
 
+found:
 	GetGameAPI = (void *)GetProcAddress(game_library, "GetGameAPI");
 
 	if (!GetGameAPI)
