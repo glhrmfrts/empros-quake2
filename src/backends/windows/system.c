@@ -427,7 +427,7 @@ Sys_GetGameAPI(void *parms)
 
 		Com_DPrintf("Searching library in: %s\n", path);
 
-		for (int i = 0; i < sizeof(libNames)/sizeof(libNames[0]); i++)
+		for (int i = 0; i < ArrayCount(libNames); i++)
 		{
 			Com_sprintf(name, sizeof(name), "%s/%s", path, libNames[i]);
 			MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_OSPATH);

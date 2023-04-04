@@ -43,6 +43,7 @@ extern cvar_t *vid_gamma;
 extern cvar_t *vid_fullscreen;
 extern cvar_t *vid_renderer;
 static cvar_t *r_vsync;
+static cvar_t *gl_texturemode;
 static cvar_t *gl_anisotropic;
 static cvar_t *gl_msaa_samples;
 static cvar_t *r_motionblur;
@@ -64,6 +65,7 @@ static menuslider_s s_motionblur_slider;
 static menuslider_s s_fov_slider;
 static menulist_s s_fs_box;
 static menulist_s s_vsync_list;
+static menulist_s s_texmode_list;
 static menulist_s s_af_list;
 static menulist_s s_msaa_list;
 static menulist_s s_hdr_list;
@@ -86,6 +88,37 @@ typedef struct
 
 renderer rendererlist[MAXRENDERERS];
 int numrenderer;
+
+static const char* texModes[] = {
+	"GL_NEAREST",
+	"GL_LINEAR",
+	"GL_LINEAR_MIPMAP_LINEAR",
+	"GL_NEAREST_MIPMAP_NEAREST",
+	"GL_NEAREST_MIPMAP_LINEAR",
+	"GL_LINEAR_MIPMAP_NEAREST",
+};
+
+static const char* texNames[] = {
+	"nearest",
+	"bilinear",
+	"trilinear",
+	"nearest mipmap nearest",
+	"nearest mipmap linear",
+	"linear mipmap nearest",
+	NULL,
+};
+
+static int TextureModeIndex(const char* modeStr)
+{
+	for (int i = 0; i < ArrayCount(texModes); i++)
+	{
+		if (0 == stricmp(modeStr, texModes[i]))
+		{
+			return i;
+		}
+	}
+	return 0;
+}
 
 static void
 Renderer_FillRenderdef(void)
@@ -267,6 +300,12 @@ ApplyChanges(void *unused)
 		restart = true;
 	}
 
+	if (s_texmode_list.curvalue >= 0 && s_texmode_list.curvalue < ArrayCount(texModes))
+	{
+		Cvar_Set("gl_texturemode", texModes[s_texmode_list.curvalue]);
+		restart = true;
+	}
+
 	/* anisotropic filtering */
 	if (s_af_list.curvalue == 0)
 	{
@@ -322,10 +361,10 @@ VID_MenuInit(void)
 {
 	int y = 0;
 
-    // Renderer selection box.
+	// Renderer selection box.
 	// MAXRENDERERS + Custom + NULL.
 	static const char *renderers[MAXRENDERERS + 2] = { NULL };
-    Renderer_FillRenderdef();
+	Renderer_FillRenderdef();
 
 	for (int i = 0; i < numrenderer; i++)
 	{
@@ -455,6 +494,11 @@ VID_MenuInit(void)
 	if (!r_vsync)
 	{
 		r_vsync = Cvar_Get("r_vsync", "1", CVAR_ARCHIVE);
+	}
+
+	if (!gl_texturemode)
+	{
+		gl_texturemode = Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
 	}
 
 	if (!gl_anisotropic)
@@ -602,6 +646,13 @@ VID_MenuInit(void)
 	s_vsync_list.itemnames = yesno_names;
 	s_vsync_list.curvalue = (r_vsync->value != 0);
 
+	s_texmode_list.generic.type = MTYPE_SPINCONTROL;
+	s_texmode_list.generic.name = "texture filtering";
+	s_texmode_list.generic.x = 0;
+	s_texmode_list.generic.y = (y += 10);
+	s_texmode_list.itemnames = texNames;
+	s_texmode_list.curvalue = TextureModeIndex(gl_texturemode->string);
+
 	s_af_list.generic.type = MTYPE_SPINCONTROL;
 	s_af_list.generic.name = "aniso filtering";
 	s_af_list.generic.x = 0;
@@ -702,6 +753,7 @@ VID_MenuInit(void)
 	Menu_AddItem(&s_opengl_menu, (void *)&s_uiscale_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_fs_box);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_vsync_list);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_texmode_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_af_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_msaa_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_shadowmap_list);
@@ -715,7 +767,7 @@ VID_MenuInit(void)
 	Menu_Center(&s_opengl_menu);
 
 	s_opengl_menu.x -= 8;
-	s_opengl_menu.y += 30;
+	s_opengl_menu.y += 40;
 }
 
 void

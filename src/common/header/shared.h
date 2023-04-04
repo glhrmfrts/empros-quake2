@@ -97,6 +97,8 @@ typedef unsigned char byte;
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
+#define ArrayCount(arr) (sizeof(arr)/sizeof((arr)[0]))
+
 #define MAX_STRING_CHARS 2048       /* max length of a string passed to Cmd_TokenizeString */
 #define MAX_STRING_TOKENS 80        /* max tokens resulting from Cmd_TokenizeString */
 #define MAX_TOKEN_CHARS 1024        /* max length of an individual token */

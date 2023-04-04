@@ -89,7 +89,7 @@ void GL3_FogLerp_f(void)
 	default:
 		R_Printf(PRINT_ALL, "usage: foglerp <time> <density> <red> <green> <blue>\n");
 		R_Printf(PRINT_ALL, "       fog <time> <density>\n");
-		break;
+		return;
 	}
 
 	old_time = gl3_newrefdef.time;
