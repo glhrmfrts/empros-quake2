@@ -1094,8 +1094,6 @@ SetupFrame(void)
 {
 	gl3_framecount++;
 
-	GL3_SetupViewCluster();
-
 	for (int i = 0; i < 4; i++)
 	{
 		v_blend[i] = gl3_newrefdef.blend[i];
@@ -1343,9 +1341,10 @@ GL3_RenderView(refdef_t *fd)
 	extern qboolean shadowDebug;
 	if (shadowDebug) return;
 
-	GL3_PostFx_BeforeScene();
+	GL3_SetupViewCluster();
+	GL3_MarkLeaves();
 
-	GL3_MarkLeaves(); /* done here so we know if we're in water */
+	GL3_PostFx_BeforeScene();
 
 	gl3state.currenttexture = -1;
 

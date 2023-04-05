@@ -404,8 +404,6 @@ void GL3_Shadow_RenderShadowMaps()
 
 		// Restore original 3D params
 		gl3state.viewParams = oldViewParams;
-		GL3_SetupViewCluster();
-		GL3_MarkLeaves();
 
 		gl3state.uni3DData.transViewMat4 = old_view;
 		gl3state.uni3DData.transProjMat4 = old_proj;
