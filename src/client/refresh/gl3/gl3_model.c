@@ -543,7 +543,7 @@ static int calcTexinfoAndFacesSize(byte *mod_base, const lump_t *fl, const lump_
 	// 256-55000 bytes are allocated (usually on the lower end),
 	// so just assume 48k per face to be safe
 	ret += numWarpFaces * 49152;
-	ret += 1000000; // and 1MB extra just in case
+	ret += 5000000; // and 5MB extra just in case
 
 	return ret;
 }
