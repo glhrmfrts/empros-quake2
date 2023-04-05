@@ -32,7 +32,7 @@
 #include "shared.h"
 #include "crc.h"
 
-#define YQ2VERSION "8.01"
+#define YQ2VERSION "2023.1.1"
 #define BASEDIRNAME "baseq2"
 
 #ifndef YQ2OSTYPE
@@ -48,9 +48,9 @@
 #endif
 
 #ifdef _WIN32
- #define CFGDIR "YamagiQ2"
+ #define CFGDIR "EmprosQ2"
 #else
- #define CFGDIR ".yq2"
+ #define CFGDIR ".empq2"
 #endif
 
 /* ================================================================== */

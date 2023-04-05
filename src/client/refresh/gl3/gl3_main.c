@@ -174,8 +174,8 @@ GL3_Register(void)
 	r_retexturing = ri.Cvar_Get("r_retexturing", "1", CVAR_ARCHIVE);
 	r_scale8bittextures = ri.Cvar_Get("r_scale8bittextures", "0", CVAR_ARCHIVE);
 	gl3_debugcontext = ri.Cvar_Get("gl3_debugcontext", "0", 0);
-	r_mode = ri.Cvar_Get("r_mode", "4", CVAR_ARCHIVE);
-	r_customwidth = ri.Cvar_Get("r_customwidth", "1024", CVAR_ARCHIVE);
+	r_mode = ri.Cvar_Get("r_mode", "-2", CVAR_ARCHIVE);
+	r_customwidth = ri.Cvar_Get("r_customwidth", "1366", CVAR_ARCHIVE);
 	r_customheight = ri.Cvar_Get("r_customheight", "768", CVAR_ARCHIVE);
 	gl3_particle_size = ri.Cvar_Get("gl3_particle_size", "40", CVAR_ARCHIVE);
 	gl3_particle_fade_factor = ri.Cvar_Get("gl3_particle_fade_factor", "1.2", CVAR_ARCHIVE);
@@ -198,10 +198,10 @@ GL3_Register(void)
 	r_2D_unfiltered = ri.Cvar_Get("r_2D_unfiltered", "0", CVAR_ARCHIVE);
 	gl_nobind = ri.Cvar_Get("gl_nobind", "0", 0);
 
-	gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
+	gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_NEAREST_MIPMAP_LINEAR", CVAR_ARCHIVE);
 	gl_anisotropic = ri.Cvar_Get("r_anisotropic", "0", CVAR_ARCHIVE);
 
-	vid_fullscreen = ri.Cvar_Get("vid_fullscreen", "0", CVAR_ARCHIVE);
+	vid_fullscreen = ri.Cvar_Get("vid_fullscreen", "2", CVAR_ARCHIVE);
 	vid_gamma = ri.Cvar_Get("vid_gamma", "1.2", CVAR_ARCHIVE);
 	gl3_intensity = ri.Cvar_Get("gl3_intensity", "1.5", CVAR_ARCHIVE);
 	gl3_intensity_2D = ri.Cvar_Get("gl3_intensity_2D", "1.5", CVAR_ARCHIVE);
@@ -225,7 +225,7 @@ GL3_Register(void)
 	r_motionblur_samples = ri.Cvar_Get("r_motionblur_samples", "4", CVAR_ARCHIVE);
 	r_bloom = ri.Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
 	r_bloom_threshold = ri.Cvar_Get("r_bloom_threshold", "1", CVAR_ARCHIVE);
-	r_ssao = ri.Cvar_Get("r_ssao", "0", CVAR_ARCHIVE);
+	r_ssao = ri.Cvar_Get("r_ssao", "1", CVAR_ARCHIVE);
 	r_ssao_radius = ri.Cvar_Get("r_ssao_radius", "1", CVAR_ARCHIVE);
 	r_hdr = ri.Cvar_Get("r_hdr", "1", CVAR_ARCHIVE);
 	r_hdr_exposure = ri.Cvar_Get("r_hdr_exposure", "1", CVAR_ARCHIVE);
@@ -274,7 +274,7 @@ GL3_Register(void)
 //	gl_cull = ri.Cvar_Get("gl_cull", "1", 0);
 	//gl1_flashblend = ri.Cvar_Get("gl1_flashblend", "0", 0);
 
-	//gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
+	//gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_NEAREST_MIPMAP_LINEAR", CVAR_ARCHIVE);
 	gl1_texturealphamode = ri.Cvar_Get("gl1_texturealphamode", "default", CVAR_ARCHIVE);
 	gl1_texturesolidmode = ri.Cvar_Get("gl1_texturesolidmode", "default", CVAR_ARCHIVE);
 	//gl_anisotropic = ri.Cvar_Get("r_anisotropic", "0", CVAR_ARCHIVE);

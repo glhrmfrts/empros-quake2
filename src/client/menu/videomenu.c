@@ -426,7 +426,7 @@ VID_MenuInit(void)
 
 	if (!r_mode)
 	{
-		r_mode = Cvar_Get("r_mode", "4", 0);
+		r_mode = Cvar_Get("r_mode", "-2", 0);
 	}
 
 	if (!vid_displayindex)
@@ -476,7 +476,7 @@ VID_MenuInit(void)
 
 	if (!gl_texturemode)
 	{
-		gl_texturemode = Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
+		gl_texturemode = Cvar_Get("gl_texturemode", "GL_NEAREST_MIPMAP_LINEAR", CVAR_ARCHIVE);
 	}
 
 	if (!gl_anisotropic)
@@ -514,7 +514,7 @@ VID_MenuInit(void)
 	}
 	if (!r_renderscale)
 	{
-		r_renderscale = Cvar_Get("r_renderscale", "1", CVAR_ARCHIVE);
+		r_renderscale = Cvar_Get("r_renderscale", "0", CVAR_ARCHIVE);
 	}
 
 	s_opengl_menu.x = viddef.width * 0.50;

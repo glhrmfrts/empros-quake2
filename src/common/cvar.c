@@ -214,6 +214,11 @@ Cvar_Get(char *var_name, char *var_value, int flags)
 	cvar_t *var;
 	cvar_t **pos;
 
+	if (0 == strcmp(var_name, "vid_fullscreen"))
+	{
+		puts("asd");
+	}
+
 	if (flags & (CVAR_USERINFO | CVAR_SERVERINFO))
 	{
 		if (!Cvar_InfoValidate(var_name))
