@@ -32,7 +32,6 @@
 #include "header/local.h"
 #include "header/qal.h"
 #include "header/vorbis.h"
-#include <string.h>
 
 /* During registration it is possible to have more sounds
    than could actually be referenced during gameplay,
@@ -73,6 +72,8 @@ cvar_t *s_ambient;
 cvar_t* s_underwater;
 cvar_t* s_underwater_gain_hf;
 cvar_t* s_doppler;
+cvar_t* s_occlusion_strength;
+cvar_t* s_reverb_preset;
 cvar_t* s_ps_sorting;
 
 channel_t channels[MAX_CHANNELS];
@@ -164,7 +165,7 @@ static qboolean
 S_IsSilencedMuzzleFlash(const wavinfo_t* info, const void* raw_data, const char* name)
 {
 	/* Skip the prefix. */
-	static const size_t base_sound_string_length = 6;
+	static const size_t base_sound_string_length = 6; //strlen("sound/");
 	const char* base_name = name + base_sound_string_length;
 
 	/* Match to well-known muzzle flash sound names. */
@@ -1108,33 +1109,17 @@ S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx,
 
 	if (sfx->name[0])
 	{
-		vec3_t orientation, direction;
-		vec_t distance_direction;
-		int dir_x, dir_y, dir_z;
-		int effect_duration = 0;
-		int effect_volume = -1;
+		vec3_t direction = {0};
+		unsigned int effect_duration = 0;
+		unsigned short int effect_volume = 0;
 
-		VectorSubtract(listener_forward, listener_up, orientation);
-
-		// with !fixed we have all sounds related directly to player,
+		// with !ps->fixed we have all sounds related directly to player,
 		// e.g. players fire, pain, menu
-		if (!ps->fixed_origin)
-		{
-			VectorCopy(orientation, direction);
-			distance_direction = 0;
-		}
-		else
+		// else, they come from the environment
+		if (ps->fixed_origin)
 		{
 			VectorSubtract(listener_origin, ps->origin, direction);
-			distance_direction = VectorLength(direction);
 		}
-
-		VectorNormalize(direction);
-		VectorNormalize(orientation);
-
-		dir_x = 16 * orientation[0] * direction[0];
-		dir_y = 16 * orientation[1] * direction[1];
-		dir_z = 16 * orientation[2] * direction[2];
 
 		if (sfx->cache)
 		{
@@ -1145,16 +1130,21 @@ S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx,
 				effect_duration /= 2;
 			}
 
-			/* sound near player has 16 points */
-			effect_volume = sfx->cache->volume / 16;
+			// The following may be ugly: cache length in SDL is much, much bigger
+			// than the one in OpenAL, so much that it's definitely not in ms.
+			// If that changes in the future, this must be removed.
+			if (sound_started == SS_SDL)
+			{
+				effect_duration /= 45;
+			}
+
+			effect_volume = sfx->cache->volume;
 		}
 
-		Haptic_Feedback(
-			sfx->name, (16 - distance_direction / 32) * effect_volume,
-			effect_duration,
-			sfx->cache->begin, sfx->cache->end,
-			sfx->cache->attack, sfx->cache->fade,
-			dir_x, dir_y, dir_z);
+#if 0
+		Controller_Rumble(sfx->name, direction, !ps->fixed_origin,
+			effect_duration, effect_volume);
+#endif
 	}
 
 	ps->entnum = entnum;
@@ -1553,6 +1543,9 @@ S_Init(void)
 	s_underwater_gain_hf = Cvar_Get("s_underwater_gain_hf", "0.25", CVAR_ARCHIVE);
 	s_doppler = Cvar_Get("s_doppler", "0", CVAR_ARCHIVE);
 	s_ps_sorting = Cvar_Get("s_ps_sorting", "1", CVAR_ARCHIVE);
+	/* Reverb and occlusion is fully disabled by default */
+	s_reverb_preset = Cvar_Get("s_reverb_preset", "-1", CVAR_ARCHIVE);
+	s_occlusion_strength = Cvar_Get("s_occlusion_strength", "0", CVAR_ARCHIVE);
 
 	Cmd_AddCommand("play", S_Play);
 	Cmd_AddCommand("stopsound", S_StopAllSounds);
