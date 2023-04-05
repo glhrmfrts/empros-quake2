@@ -18,7 +18,14 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
  * 02111-1307, USA.
  *
- * Joystick threshold code is partially based on http://ioquake3.org code.
+ * Joystick reading and deadzone handling is based on:
+ * http://joshsutphin.com/2013/04/12/doing-thumbstick-dead-zones-right.html
+ * ...and implementation is partially based on code from:
+ * - http://quakespasm.sourceforge.net
+ * - https://github.com/Minimuino/thumbstick-deadzones
+ *
+ * Flick Stick handling is based on:
+ * http://gyrowiki.jibbsmart.com/blog:good-gyro-controls-part-2:the-flick-stick
  *
  * =======================================================================
  *
@@ -30,8 +37,8 @@
 #include <SDL.h>
 
 #include "header/input.h"
-#include "../../client/header/keyboard.h"
-#include "../../client/header/client.h"
+#include "../header/keyboard.h"
+#include "../header/client.h"
 
 // ----
 
@@ -43,21 +50,44 @@
 
 // ----
 
+enum {
+	LAYOUT_DEFAULT			= 0,
+	LAYOUT_SOUTHPAW,
+	LAYOUT_LEGACY,
+	LAYOUT_LEGACY_SOUTHPAW,
+	LAYOUT_FLICK_STICK,
+	LAYOUT_FLICK_STICK_SOUTHPAW
+};
+
+typedef struct
+{
+	float x;
+	float y;
+} thumbstick_t;
+
+typedef enum
+{
+	REASON_NONE,
+	REASON_CONTROLLERINIT,
+	REASON_GYROCALIBRATION
+} updates_countdown_reasons;
+
+// ----
+
 // These are used to communicate the events collected by
 // IN_Update() called at the beginning of a frame to the
 // actual movement functions called at a later time.
 static float mouse_x, mouse_y;
-static int back_button_id = -1;
-static float joystick_yaw, joystick_pitch;
-static float joystick_forwardmove, joystick_sidemove;
-static float joystick_up;
+static int sdl_back_button = SDL_CONTROLLER_BUTTON_BACK;
+static int joystick_left_x, joystick_left_y, joystick_right_x, joystick_right_y;
+static float gyro_yaw, gyro_pitch;
 static qboolean mlooking;
 
 // The last time input events were processed.
 // Used throughout the client.
 int sys_frame_time;
 
-// the joystick altselector that turns K_JOYX into K_JOYX_ALT
+// the joystick altselector that turns K_BTN_X into K_BTN_X_ALT
 // is pressed
 qboolean joy_altselector_pressed = false;
 
@@ -69,7 +99,7 @@ cvar_t *m_pitch;
 cvar_t *m_side;
 cvar_t *m_up;
 cvar_t *m_yaw;
-cvar_t *sensitivity;
+static cvar_t *sensitivity;
 
 static cvar_t *exponential_speedup;
 static cvar_t *in_grab;
@@ -78,58 +108,69 @@ static cvar_t *windowed_mouse;
 
 // ----
 
-struct hapric_effects_cache {
-	int effect_volume;
-	int effect_duration;
-	int effect_begin;
-	int effect_end;
-	int effect_attack;
-	int effect_fade;
-	int effect_id;
-	int effect_x;
-	int effect_y;
-	int effect_z;
-};
+qboolean show_gamepad = false, show_haptic = false, show_gyro = false;
 
-qboolean show_haptic;
-
-static SDL_Haptic *joystick_haptic = NULL;
-static SDL_Joystick *joystick = NULL;
 static SDL_GameController *controller = NULL;
 
-#define HAPTIC_EFFECT_LIST_SIZE 16
-
-static int last_haptic_volume = 0;
-static int last_haptic_efffect_size = HAPTIC_EFFECT_LIST_SIZE;
-static int last_haptic_efffect_pos = 0;
-static struct hapric_effects_cache last_haptic_efffect[HAPTIC_EFFECT_LIST_SIZE];
-
 // Joystick sensitivity
-cvar_t *joy_yawsensitivity;
-cvar_t *joy_pitchsensitivity;
-cvar_t *joy_forwardsensitivity;
-cvar_t *joy_sidesensitivity;
-cvar_t *joy_upsensitivity;
-cvar_t *joy_expo;
+static cvar_t *joy_yawsensitivity;
+static cvar_t *joy_pitchsensitivity;
+static cvar_t *joy_forwardsensitivity;
+static cvar_t *joy_sidesensitivity;
 
-// Joystick direction settings
-static cvar_t *joy_axis_leftx;
-static cvar_t *joy_axis_lefty;
-static cvar_t *joy_axis_rightx;
-static cvar_t *joy_axis_righty;
-static cvar_t *joy_axis_triggerleft;
-static cvar_t *joy_axis_triggerright;
-
-// Joystick threshold settings
-static cvar_t *joy_axis_leftx_threshold;
-static cvar_t *joy_axis_lefty_threshold;
-static cvar_t *joy_axis_rightx_threshold;
-static cvar_t *joy_axis_righty_threshold;
-static cvar_t *joy_axis_triggerleft_threshold;
-static cvar_t *joy_axis_triggerright_threshold;
+// Joystick's analog sticks configuration
+cvar_t *joy_layout;
+static cvar_t *joy_left_expo;
+static cvar_t *joy_left_snapaxis;
+static cvar_t *joy_left_deadzone;
+static cvar_t *joy_right_expo;
+static cvar_t *joy_right_snapaxis;
+static cvar_t *joy_right_deadzone;
+static cvar_t *joy_flick_threshold;
+static cvar_t *joy_flick_smoothed;
 
 // Joystick haptic
 static cvar_t *joy_haptic_magnitude;
+
+// Gyro mode (0=off, 3=on, 1-2=uses button to enable/disable)
+cvar_t *gyro_mode;
+cvar_t *gyro_turning_axis;	// yaw or roll
+
+// Gyro sensitivity
+static cvar_t *gyro_yawsensitivity;
+static cvar_t *gyro_pitchsensitivity;
+
+// Gyro is being used in this very moment
+static qboolean gyro_active = false;
+
+// Gyro calibration
+static float gyro_accum[3];
+static unsigned int num_samples;
+
+static cvar_t *gyro_calibration_x;
+static cvar_t *gyro_calibration_y;
+static cvar_t *gyro_calibration_z;
+
+// To ignore SDL_JOYDEVICEADDED at game init. Allows for hot plugging of game controller afterwards.
+static qboolean first_init = true;
+
+// Countdown of calls to IN_Update(), needed for controller init and gyro calibration
+static unsigned short int updates_countdown = 30;
+
+// Reason for the countdown
+static updates_countdown_reasons countdown_reason = REASON_CONTROLLERINIT;
+
+// Flick Stick
+#define FLICK_TIME 6		// number of frames it takes for a flick to execute
+static float target_angle;	// angle to end up facing at the end of a flick
+static unsigned short int flick_progress = FLICK_TIME;
+
+// Flick Stick's rotation input samples to smooth out
+#define MAX_SMOOTH_SAMPLES 8
+static float flick_samples[MAX_SMOOTH_SAMPLES];
+static unsigned short int front_sample = 0;
+
+extern void CalibrationFinishedCallback(void);
 
 /* ------------------------------------------------------------------ */
 
@@ -183,7 +224,6 @@ IN_TranslateSDLtoQ2Key(unsigned int keysym)
 		case SDLK_RIGHT:
 			key = K_RIGHTARROW;
 			break;
-
 
 		case SDLK_RALT:
 		case SDLK_LALT:
@@ -261,7 +301,6 @@ IN_TranslateSDLtoQ2Key(unsigned int keysym)
 		case SDLK_F15:
 			key = K_F15;
 			break;
-
 
 		case SDLK_KP_7:
 			key = K_KP_HOME;
@@ -420,6 +459,48 @@ IN_TranslateScancodeToQ2Key(SDL_Scancode sc)
 	return 0;
 }
 
+static int
+IN_TranslateGamepadBtnToQ2Key(int btn)
+{
+
+#define MY_BTN_CASE(X,Y) case SDL_CONTROLLER_BUTTON_ ## X : return K_ ## Y;
+
+	switch( btn )
+	{
+		// case SDL_CONTROLLER_BUTTON_A : return K_BTN_A;
+		MY_BTN_CASE(A,BTN_A)
+		MY_BTN_CASE(B,BTN_B)
+		MY_BTN_CASE(X,BTN_X)
+		MY_BTN_CASE(Y,BTN_Y)
+		MY_BTN_CASE(LEFTSHOULDER,SHOULDER_LEFT)
+		MY_BTN_CASE(RIGHTSHOULDER,SHOULDER_RIGHT)
+		MY_BTN_CASE(LEFTSTICK,STICK_LEFT)
+		MY_BTN_CASE(RIGHTSTICK,STICK_RIGHT)
+		MY_BTN_CASE(DPAD_UP,DPAD_UP)
+		MY_BTN_CASE(DPAD_DOWN,DPAD_DOWN)
+		MY_BTN_CASE(DPAD_LEFT,DPAD_LEFT)
+		MY_BTN_CASE(DPAD_RIGHT,DPAD_RIGHT)
+#if SDL_VERSION_ATLEAST(2, 0, 14)	// support for newer buttons
+		MY_BTN_CASE(PADDLE1,PADDLE_1)
+		MY_BTN_CASE(PADDLE2,PADDLE_2)
+		MY_BTN_CASE(PADDLE3,PADDLE_3)
+		MY_BTN_CASE(PADDLE4,PADDLE_4)
+		MY_BTN_CASE(MISC1,BTN_MISC1)
+		MY_BTN_CASE(TOUCHPAD,TOUCHPAD)
+#endif
+		MY_BTN_CASE(BACK,BTN_BACK)
+		MY_BTN_CASE(GUIDE,BTN_GUIDE)
+		MY_BTN_CASE(START,BTN_START)
+	}
+
+#undef MY_BTN_CASE
+
+	return 0;
+}
+
+static void IN_Controller_Init(qboolean notify_user);
+static void IN_Controller_Shutdown(qboolean notify_user);
+
 /* ------------------------------------------------------------------ */
 
 /*
@@ -434,7 +515,6 @@ IN_Update(void)
 	SDL_Event event;
 	unsigned int key;
 
-	static char last_hat = SDL_HAT_CENTERED;
 	static qboolean left_trigger = false;
 	static qboolean right_trigger = false;
 
@@ -579,16 +659,29 @@ IN_Update(void)
 					// be on another display now!
 					glimp_refreshRate = -1;
 				}
+				else if (event.window.event == SDL_WINDOWEVENT_MINIMIZED ||
+					event.window.event == SDL_WINDOWEVENT_HIDDEN)
+				{
+					Cvar_SetValue("paused", 1);
+				}
 				break;
 
 			case SDL_CONTROLLERBUTTONUP:
-			case SDL_CONTROLLERBUTTONDOWN: /* Handle Controller Back button */
+			case SDL_CONTROLLERBUTTONDOWN:
 			{
 				qboolean down = (event.type == SDL_CONTROLLERBUTTONDOWN);
 
-				if (event.cbutton.button == SDL_CONTROLLER_BUTTON_BACK)
+				// Handle Back Button first, to override its original key
+				if (event.cbutton.button == sdl_back_button)
 				{
 					Key_Event(K_JOY_BACK, down, true);
+					break;
+				}
+
+				key = IN_TranslateGamepadBtnToQ2Key(event.cbutton.button);
+				if(key != 0)
+				{
+					Key_Event(key, down, true);
 				}
 
 				break;
@@ -596,187 +689,126 @@ IN_Update(void)
 
 			case SDL_CONTROLLERAXISMOTION:  /* Handle Controller Motion */
 			{
-				char *direction_type;
-				float threshold = 0;
-				float fix_value = 0;
 				int axis_value = event.caxis.value;
 
 				switch (event.caxis.axis)
 				{
-					/* left/right */
-					case SDL_CONTROLLER_AXIS_LEFTX:
-						direction_type = joy_axis_leftx->string;
-						threshold = joy_axis_leftx_threshold->value;
-						break;
-
-					/* top/bottom */
-					case SDL_CONTROLLER_AXIS_LEFTY:
-						direction_type = joy_axis_lefty->string;
-						threshold = joy_axis_lefty_threshold->value;
-						break;
-
-					/* second left/right */
-					case SDL_CONTROLLER_AXIS_RIGHTX:
-						direction_type = joy_axis_rightx->string;
-						threshold = joy_axis_rightx_threshold->value;
-						break;
-
-					/* second top/bottom */
-					case SDL_CONTROLLER_AXIS_RIGHTY:
-						direction_type = joy_axis_righty->string;
-						threshold = joy_axis_righty_threshold->value;
-						break;
-
 					case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
-						direction_type = joy_axis_triggerleft->string;
-						threshold = joy_axis_triggerleft_threshold->value;
+					{
+						qboolean new_left_trigger = axis_value > 8192;
+						if (new_left_trigger != left_trigger)
+						{
+							left_trigger = new_left_trigger;
+							Key_Event(K_TRIG_LEFT, left_trigger, true);
+						}
 						break;
+					}
 
 					case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
-						direction_type = joy_axis_triggerright->string;
-						threshold = joy_axis_triggerright_threshold->value;
-						break;
-
-					default:
-						direction_type = "none";
-				}
-
-				if (threshold > 0.9)
-				{
-					threshold = 0.9;
-				}
-
-				if (axis_value < 0 && (axis_value > (32768 * threshold)))
-				{
-					axis_value = 0;
-				}
-				else if (axis_value > 0 && (axis_value < (32768 * threshold)))
-				{
-					axis_value = 0;
-				}
-
-				// Smoothly ramp from dead zone to maximum value (from ioquake)
-				// https://github.com/ioquake/ioq3/blob/master/code/sdl/sdl_input.c
-				fix_value = ((float) abs(axis_value) / 32767.0f - threshold) / (1.0f - threshold);
-
-				if (fix_value < 0.0f)
-				{
-					fix_value = 0.0f;
-				}
-
-				// Apply expo
-				fix_value = pow(fix_value, joy_expo->value);
-
-				axis_value = (int) (32767 * ((axis_value < 0) ? -fix_value : fix_value));
-
-				if (cls.key_dest == key_game && (int) cl_paused->value == 0)
-				{
-					if (strcmp(direction_type, "sidemove") == 0)
 					{
-						joystick_sidemove = axis_value * joy_sidesensitivity->value;
-
-						// We need to be twice faster because with joystic we run...
-						joystick_sidemove *= cl_sidespeed->value * 2.0f;
-					}
-					else if (strcmp(direction_type, "forwardmove") == 0)
-					{
-						joystick_forwardmove = axis_value * joy_forwardsensitivity->value;
-
-						// We need to be twice faster because with joystic we run...
-						joystick_forwardmove *= cl_forwardspeed->value * 2.0f;
-					}
-					else if (strcmp(direction_type, "yaw") == 0)
-					{
-						joystick_yaw = axis_value * joy_yawsensitivity->value;
-						joystick_yaw *= cl_yawspeed->value;
-					}
-					else if (strcmp(direction_type, "pitch") == 0)
-					{
-						joystick_pitch = axis_value * joy_pitchsensitivity->value;
-						joystick_pitch *= cl_pitchspeed->value;
-					}
-					else if (strcmp(direction_type, "updown") == 0)
-					{
-						joystick_up = axis_value * joy_upsensitivity->value;
-						joystick_up *= cl_upspeed->value;
-					}
-				}
-
-				if (strcmp(direction_type, "triggerleft") == 0)
-				{
-					qboolean new_left_trigger = abs(axis_value) > (32767 / 4);
-
-					if (new_left_trigger != left_trigger)
-					{
-						left_trigger = new_left_trigger;
-						Key_Event(K_TRIG_LEFT, left_trigger, true);
-					}
-				}
-				else if (strcmp(direction_type, "triggerright") == 0)
-				{
-					qboolean new_right_trigger = abs(axis_value) > (32767 / 4);
-
-					if (new_right_trigger != right_trigger)
-					{
-						right_trigger = new_right_trigger;
-						Key_Event(K_TRIG_RIGHT, right_trigger, true);
-					}
-				}
-
-				break;
-			}
-
-			// Joystick can have more buttons than on general game controller
-			// so try to map not free buttons
-			case SDL_JOYBUTTONUP:
-			case SDL_JOYBUTTONDOWN:
-			{
-				qboolean down = (event.type == SDL_JOYBUTTONDOWN);
-
-				// Ignore back button, we don't need event for such button
-				if (back_button_id == event.jbutton.button)
-				{
-					return;
-				}
-
-				if (event.jbutton.button <= (K_JOY32 - K_JOY1))
-				{
-					Key_Event(event.jbutton.button + K_JOY1, down, true);
-				}
-
-				break;
-			}
-
-			case SDL_JOYHATMOTION:
-			{
-				if (last_hat != event.jhat.value)
-				{
-					char diff = last_hat ^event.jhat.value;
-					int i;
-
-					for (i = 0; i < 4; i++)
-					{
-						if (diff & (1 << i))
+						qboolean new_right_trigger = axis_value > 8192;
+						if (new_right_trigger != right_trigger)
 						{
-							// check that we have button up for some bit
-							if (last_hat & (1 << i))
-							{
-								Key_Event(i + K_HAT_UP, false, true);
-							}
-
-							/* check that we have button down for some bit */
-							if (event.jhat.value & (1 << i))
-							{
-								Key_Event(i + K_HAT_UP, true, true);
-							}
+							right_trigger = new_right_trigger;
+							Key_Event(K_TRIG_RIGHT, right_trigger, true);
 						}
+						break;
 					}
-
-					last_hat = event.jhat.value;
 				}
 
+				if (!cl_paused->value && cls.key_dest == key_game)
+				{
+					switch (event.caxis.axis)
+					{
+						case SDL_CONTROLLER_AXIS_LEFTX:
+							joystick_left_x = axis_value;
+							break;
+						case SDL_CONTROLLER_AXIS_LEFTY:
+							joystick_left_y = axis_value;
+							break;
+						case SDL_CONTROLLER_AXIS_RIGHTX:
+							joystick_right_x = axis_value;
+							break;
+						case SDL_CONTROLLER_AXIS_RIGHTY:
+							joystick_right_y = axis_value;
+							break;
+					}
+				}
 				break;
 			}
+
+#if SDL_VERSION_ATLEAST(2, 0, 16)	// support for controller sensors (gyro, accelerometer)
+			case SDL_CONTROLLERSENSORUPDATE:
+				if (event.csensor.sensor != SDL_SENSOR_GYRO)
+				{
+					break;
+				}
+				if (countdown_reason == REASON_GYROCALIBRATION && updates_countdown)
+				{
+					gyro_accum[0] += event.csensor.data[0];
+					gyro_accum[1] += event.csensor.data[1];
+					gyro_accum[2] += event.csensor.data[2];
+					num_samples++;
+					break;
+				}
+
+				if (gyro_active && gyro_mode->value &&
+					!cl_paused->value && cls.key_dest == key_game)
+				{
+					if (!gyro_turning_axis->value)
+					{
+						gyro_yaw = event.csensor.data[1] - gyro_calibration_y->value;		// yaw
+					}
+					else
+					{
+						gyro_yaw = -(event.csensor.data[2] - gyro_calibration_z->value);	// roll
+					}
+					gyro_pitch = event.csensor.data[0] - gyro_calibration_x->value;
+				}
+				else
+				{
+					gyro_yaw = gyro_pitch = 0;
+				}
+				break;
+#endif	// SDL_VERSION_ATLEAST(2, 0, 16)
+
+			case SDL_CONTROLLERDEVICEREMOVED:
+				if (!controller)
+				{
+					break;
+				}
+				if (event.cdevice.which == SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller))) {
+					Cvar_SetValue("paused", 1);
+					IN_Controller_Shutdown(true);
+					IN_Controller_Init(false);
+				}
+				break;
+
+			case SDL_JOYDEVICEADDED:
+				if (!controller)
+				{
+					// This should be lower, but some controllers just don't want to get detected by the OS
+					updates_countdown = 100;
+					countdown_reason = REASON_CONTROLLERINIT;
+				}
+				break;
+
+#if SDL_VERSION_ATLEAST(2, 24, 0)	// support for battery status changes
+			case SDL_JOYBATTERYUPDATED:
+				if (!controller || event.jbattery.which != SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller)))
+				{
+					break;
+				}
+				if (event.jbattery.level == SDL_JOYSTICK_POWER_LOW)
+				{
+					Com_Printf("WARNING: Gamepad battery Low, it is recommended to connect it by cable.\n");
+				}
+				else if (event.jbattery.level == SDL_JOYSTICK_POWER_EMPTY)
+				{
+					SCR_CenterPrint("ALERT: Gamepad battery almost Empty.\n");
+				}
+				break;
+#endif	// SDL_VERSION_ATLEAST(2, 24, 0)
 
 			case SDL_QUIT:
 				Com_Quit();
@@ -802,6 +834,242 @@ IN_Update(void)
 	// We need to save the frame time so other subsystems
 	// know the exact time of the last input events.
 	sys_frame_time = Sys_Milliseconds();
+
+	// Hot plugging delay handling, to not be "overwhelmed" because some controllers
+	// present themselves as two different devices, triggering SDL_JOYDEVICEADDED
+	// too many times. They could trigger it even at game initialization.
+	// Also used to keep time of the 'controller gyro calibration' pause.
+	if (updates_countdown)
+	{
+		updates_countdown--;
+		if (!updates_countdown)		// Countdown finished, apply needed action by reason
+		{
+			switch (countdown_reason)
+			{
+				case REASON_CONTROLLERINIT:
+					if (!first_init)
+					{
+						IN_Controller_Shutdown(false);
+						IN_Controller_Init(true);
+					}
+					else
+					{
+						first_init = false;
+					}
+					break;
+
+				case REASON_GYROCALIBRATION:	// finish and save calibration
+					{
+						const float inverseSamples = 1.f / num_samples;
+						Cvar_SetValue("gyro_calibration_x", gyro_accum[0] * inverseSamples);
+						Cvar_SetValue("gyro_calibration_y", gyro_accum[1] * inverseSamples);
+						Cvar_SetValue("gyro_calibration_z", gyro_accum[2] * inverseSamples);
+						Com_Printf("Calibration results:\n X=%f Y=%f Z=%f\n",
+							gyro_calibration_x->value, gyro_calibration_y->value, gyro_calibration_z->value);
+						CalibrationFinishedCallback();
+						break;
+					}
+
+				default:
+					break;	// avoiding compiler warning
+			}
+			countdown_reason = REASON_NONE;
+		}
+	}
+}
+
+/*
+ * Joystick vector magnitude
+ */
+static float
+IN_StickMagnitude(thumbstick_t stick)
+{
+	return sqrtf((stick.x * stick.x) + (stick.y * stick.y));
+}
+
+/*
+ * Scales "v" from [deadzone, 1] range to [0, 1] range, then inherits sign
+ */
+static float
+IN_MapRange(float v, float deadzone, float sign)
+{
+	return ((v - deadzone) / (1 - deadzone)) * sign;
+}
+
+/*
+ * Radial deadzone based on github.com/jeremiah-sypult/Quakespasm-Rift
+ */
+static thumbstick_t
+IN_RadialDeadzone(thumbstick_t stick, float deadzone)
+{
+	thumbstick_t result = {0};
+	float magnitude = min(IN_StickMagnitude(stick), 1.0f);
+	deadzone = min( max(deadzone, 0.0f), 0.9f);		// clamp to [0.0, 0.9]
+
+	if ( magnitude > deadzone )
+	{
+		const float scale = ((magnitude - deadzone) / (1.0 - deadzone)) / magnitude;
+		result.x = stick.x * scale;
+		result.y = stick.y * scale;
+	}
+
+	return result;
+}
+
+/*
+ * Sloped axial deadzone based on github.com/Minimuino/thumbstick-deadzones
+ * Provides a "snap-to-axis" feeling, without losing precision near the center of the stick
+ */
+static thumbstick_t
+IN_SlopedAxialDeadzone(thumbstick_t stick, float deadzone)
+{
+	thumbstick_t result = {0};
+	float abs_x = fabsf(stick.x);
+	float abs_y = fabsf(stick.y);
+	float sign_x = copysignf(1.0f, stick.x);
+	float sign_y = copysignf(1.0f, stick.y);
+	deadzone = min(deadzone, 0.5f);
+	float deadzone_x = deadzone * abs_y;	// deadzone of one axis depends...
+	float deadzone_y = deadzone * abs_x;	// ...on the value of the other axis
+
+	if (abs_x > deadzone_x)
+	{
+		result.x = IN_MapRange(abs_x, deadzone_x, sign_x);
+	}
+	if (abs_y > deadzone_y)
+	{
+		result.y = IN_MapRange(abs_y, deadzone_y, sign_y);
+	}
+
+	return result;
+}
+
+/*
+ * Exponent applied on stick magnitude
+ */
+static thumbstick_t
+IN_ApplyExpo(thumbstick_t stick, float exponent)
+{
+	thumbstick_t result = {0};
+	float magnitude = IN_StickMagnitude(stick);
+	if (magnitude == 0)
+	{
+		return result;
+	}
+
+	const float eased = powf(magnitude, exponent) / magnitude;
+	result.x = stick.x * eased;
+	result.y = stick.y * eased;
+	return result;
+}
+
+/*
+ * Delete flick stick's buffer of angle samples for smoothing
+ */
+static void
+IN_ResetSmoothSamples()
+{
+	front_sample = 0;
+	for (int i = 0; i < MAX_SMOOTH_SAMPLES; i++)
+	{
+		flick_samples[i] = 0.0f;
+	}
+}
+
+/*
+ * Soft tiered smoothing for angle rotations with Flick Stick
+ * http://gyrowiki.jibbsmart.com/blog:tight-and-smooth:soft-tiered-smoothing
+ */
+static float
+IN_SmoothedStickRotation(float value)
+{
+	float top_threshold = joy_flick_smoothed->value;
+	float bottom_threshold = top_threshold / 2.0f;
+	if (top_threshold == 0)
+	{
+		return value;
+	}
+
+	// sample in the circular smoothing buffer we want to write over
+	front_sample = (front_sample + 1) % MAX_SMOOTH_SAMPLES;
+
+	// if input > top threshold, it'll all be consumed immediately
+	//				0 gets put into the smoothing buffer
+	// if input < bottom threshold, it'll all be put in the smoothing buffer
+	//				0 for immediate consumption
+	float immediate_weight = (fabsf(value) - bottom_threshold)
+					/ (top_threshold - bottom_threshold);
+	immediate_weight = min( max(immediate_weight, 0.0f), 1.0f ); // clamp to [0, 1] range
+
+	// now we can push the smooth sample
+	float smooth_weight = 1.0f - immediate_weight;
+	flick_samples[front_sample] = value * smooth_weight;
+
+	// calculate smoothed result
+	float average = 0;
+	for (int i = 0; i < MAX_SMOOTH_SAMPLES; i++)
+	{
+		average += flick_samples[i];
+	}
+	average /= MAX_SMOOTH_SAMPLES;
+
+	// finally, add immediate portion (original input)
+	return average + value * immediate_weight;
+}
+
+/*
+ * Flick Stick handling: detect if the player just started one, or return the
+ * player rotation if stick was already flicked
+ */
+static float
+IN_FlickStick(thumbstick_t stick, float axial_deadzone)
+{
+	static qboolean is_flicking;
+	static float last_stick_angle;
+	thumbstick_t processed = stick;
+	float angle_change = 0;
+
+	if (IN_StickMagnitude(stick) > min(joy_flick_threshold->value, 1.0f))	// flick!
+	{
+		// Make snap-to-axis only if player wasn't already flicking
+		if (!is_flicking || flick_progress < FLICK_TIME)
+		{
+			processed = IN_SlopedAxialDeadzone(stick, axial_deadzone);
+		}
+
+		const float stick_angle = (180 / M_PI) * atan2f(-processed.x, -processed.y);
+
+		if (!is_flicking)
+		{
+			// Flicking begins now, with a new target
+			is_flicking = true;
+			flick_progress = 0;
+			target_angle = stick_angle;
+			IN_ResetSmoothSamples();
+		}
+		else
+		{
+			// Was already flicking, just turning now
+			angle_change = stick_angle - last_stick_angle;
+
+			// angle wrap: https://stackoverflow.com/a/11498248/1130520
+			angle_change = fmod(angle_change + 180.0f, 360.0f);
+			if (angle_change < 0)
+			{
+				angle_change += 360.0f;
+			}
+			angle_change -= 180.0f;
+			angle_change = IN_SmoothedStickRotation(angle_change);
+		}
+
+		last_stick_angle = stick_angle;
+	}
+	else
+	{
+		is_flicking = false;
+	}
+
+	return angle_change;
 }
 
 /*
@@ -810,8 +1078,20 @@ IN_Update(void)
 void
 IN_Move(usercmd_t *cmd)
 {
+	// Factor used to transform from SDL joystick input ([-32768, 32767])  to [-1, 1] range
+	static const float normalize_sdl_axis = 1.0f / 32768.0f;
+
+	// Flick Stick's factors to change to the target angle with a feeling of "ease out"
+	static const float rotation_factor[FLICK_TIME] =
+	{
+		0.305555556f, 0.249999999f, 0.194444445f, 0.138888889f, 0.083333333f, 0.027777778f
+	};
+
 	static float old_mouse_x;
 	static float old_mouse_y;
+	static float joystick_yaw, joystick_pitch;
+	static float joystick_forwardmove, joystick_sidemove;
+	static thumbstick_t left_stick = {0}, right_stick = {0};
 
 	if (m_filter->value)
 	{
@@ -886,37 +1166,125 @@ IN_Move(usercmd_t *cmd)
 		mouse_x = mouse_y = 0;
 	}
 
+	// Joystick reading and processing
+	left_stick.x = joystick_left_x * normalize_sdl_axis;
+	left_stick.y = joystick_left_y * normalize_sdl_axis;
+	right_stick.x = joystick_right_x * normalize_sdl_axis;
+	right_stick.y = joystick_right_y * normalize_sdl_axis;
+
+	if (left_stick.x || left_stick.y)
+	{
+		left_stick = IN_RadialDeadzone(left_stick, joy_left_deadzone->value);
+		if ((int)joy_layout->value == LAYOUT_FLICK_STICK_SOUTHPAW)
+		{
+			cl.viewangles[YAW] += IN_FlickStick(left_stick, joy_left_snapaxis->value);
+		}
+		else
+		{
+			left_stick = IN_SlopedAxialDeadzone(left_stick, joy_left_snapaxis->value);
+			left_stick = IN_ApplyExpo(left_stick, joy_left_expo->value);
+		}
+	}
+
+	if (right_stick.x || right_stick.y)
+	{
+		right_stick = IN_RadialDeadzone(right_stick, joy_right_deadzone->value);
+		if ((int)joy_layout->value == LAYOUT_FLICK_STICK)
+		{
+			cl.viewangles[YAW] += IN_FlickStick(right_stick, joy_right_snapaxis->value);
+		}
+		else
+		{
+			right_stick = IN_SlopedAxialDeadzone(right_stick, joy_right_snapaxis->value);
+			right_stick = IN_ApplyExpo(right_stick, joy_right_expo->value);
+		}
+	}
+
+	switch((int)joy_layout->value)
+	{
+		case LAYOUT_SOUTHPAW:
+			joystick_forwardmove = right_stick.y;
+			joystick_sidemove = right_stick.x;
+			joystick_yaw = left_stick.x;
+			joystick_pitch = left_stick.y;
+			break;
+		case LAYOUT_LEGACY:
+			joystick_forwardmove = left_stick.y;
+			joystick_sidemove = right_stick.x;
+			joystick_yaw = left_stick.x;
+			joystick_pitch = right_stick.y;
+			break;
+		case LAYOUT_LEGACY_SOUTHPAW:
+			joystick_forwardmove = right_stick.y;
+			joystick_sidemove = left_stick.x;
+			joystick_yaw = right_stick.x;
+			joystick_pitch = left_stick.y;
+			break;
+		case LAYOUT_FLICK_STICK:	// yaw already set by now
+			joystick_forwardmove = left_stick.y;
+			joystick_sidemove = left_stick.x;
+			break;
+		case LAYOUT_FLICK_STICK_SOUTHPAW:
+			joystick_forwardmove = right_stick.y;
+			joystick_sidemove = right_stick.x;
+			break;
+		default:	// LAYOUT_DEFAULT
+			joystick_forwardmove = left_stick.y;
+			joystick_sidemove = left_stick.x;
+			joystick_yaw = right_stick.x;
+			joystick_pitch = right_stick.y;
+	}
+
 	// To make the the viewangles changes independent of framerate we need to scale
 	// with frametime (assuming the configured values are for 60hz)
 	//
-	// 1/32768 is to normalize the input values from SDL (they're between -32768 and
-	// 32768 and we want -1 to 1) for movement this is not needed, as those are
-	// absolute values independent of framerate
-	float joyViewFactor = (1.0f/32768.0f) * (cls.rframetime/0.01666f);
+	// For movement this is not needed, as those are absolute values independent of framerate
+	float joyViewFactor = cls.rframetime/0.01666f;
+	float gyroViewFactor = (1.0f / M_PI) * joyViewFactor;
 
 	if (joystick_yaw)
 	{
-		cl.viewangles[YAW] -= (m_yaw->value * joystick_yaw) * joyViewFactor;
+		cl.viewangles[YAW] -= (m_yaw->value * joy_yawsensitivity->value
+					* cl_yawspeed->value * joystick_yaw) * joyViewFactor;
 	}
 
 	if(joystick_pitch)
 	{
-		cl.viewangles[PITCH] += (m_pitch->value * joystick_pitch) * joyViewFactor;
+		cl.viewangles[PITCH] += (m_pitch->value * joy_pitchsensitivity->value
+					* cl_pitchspeed->value * joystick_pitch) * joyViewFactor;
 	}
 
 	if (joystick_forwardmove)
 	{
-		cmd->forwardmove -= (m_forward->value * joystick_forwardmove) / 32768;
+		// We need to be twice as fast because with joystick we run...
+		cmd->forwardmove -= m_forward->value * joy_forwardsensitivity->value
+					* cl_forwardspeed->value * 2.0f * joystick_forwardmove;
 	}
 
 	if (joystick_sidemove)
 	{
-		cmd->sidemove += (m_side->value * joystick_sidemove) / 32768;
+		// We need to be twice as fast because with joystick we run...
+		cmd->sidemove += m_side->value * joy_sidesensitivity->value
+					* cl_sidespeed->value * 2.0f * joystick_sidemove;
 	}
 
-	if (joystick_up)
+	if (gyro_yaw)
 	{
-		cmd->upmove -= (m_up->value * joystick_up) / 32768;
+		cl.viewangles[YAW] += m_yaw->value * gyro_yawsensitivity->value
+					* cl_yawspeed->value * gyro_yaw * gyroViewFactor;
+	}
+
+	if (gyro_pitch)
+	{
+		cl.viewangles[PITCH] -= m_pitch->value * gyro_pitchsensitivity->value
+					* cl_pitchspeed->value * gyro_pitch * gyroViewFactor;
+	}
+
+	// Flick Stick: flick in progress, changing the yaw angle to the target progressively
+	if (flick_progress < FLICK_TIME)
+	{
+		cl.viewangles[YAW] += target_angle * rotation_factor[flick_progress];
+		flick_progress++;
 	}
 }
 
@@ -953,6 +1321,32 @@ IN_JoyAltSelectorUp(void)
 	joy_altselector_pressed = false;
 }
 
+static void
+IN_GyroActionDown(void)
+{
+	switch ((int)gyro_mode->value)
+	{
+		case 1:
+			gyro_active = true;
+			return;
+		case 2:
+			gyro_active = false;
+	}
+}
+
+static void
+IN_GyroActionUp(void)
+{
+	switch ((int)gyro_mode->value)
+	{
+		case 1:
+			gyro_active = false;
+			return;
+		case 2:
+			gyro_active = true;
+	}
+}
+
 /*
  * Removes all pending events from SDLs queue.
  */
@@ -966,229 +1360,344 @@ In_FlushQueue(void)
 
 /* ------------------------------------------------------------------ */
 
-static void IN_Haptic_Shutdown(void);
-
 /*
- * Init haptic effects
- */
-static int
-IN_Haptic_Effect_Init(int effect_x, int effect_y, int effect_z,
-				 int period, int magnitude,
-				 int delay, int attack, int fade)
-{
-	static SDL_HapticEffect haptic_effect;
-
-	/* limit magnitude */
-	if (magnitude > SHRT_MAX)
-	{
-		magnitude = SHRT_MAX;
-	}
-	else if (magnitude < 0)
-	{
-		magnitude = 0;
-	}
-
-	SDL_memset(&haptic_effect, 0, sizeof(SDL_HapticEffect)); // 0 is safe default
-
-	haptic_effect.type = SDL_HAPTIC_SINE;
-	haptic_effect.periodic.direction.type = SDL_HAPTIC_CARTESIAN; // Cartesian/3d coordinates
-	haptic_effect.periodic.direction.dir[0] = effect_x;
-	haptic_effect.periodic.direction.dir[1] = effect_y;
-	haptic_effect.periodic.direction.dir[2] = effect_z;
-	haptic_effect.periodic.period = period;
-	haptic_effect.periodic.magnitude = magnitude;
-	haptic_effect.periodic.length = period;
-	haptic_effect.periodic.delay = delay;
-	haptic_effect.periodic.attack_length = attack;
-	haptic_effect.periodic.fade_length = fade;
-
-	int effect_id = SDL_HapticNewEffect(joystick_haptic, &haptic_effect);
-
-	if (effect_id < 0)
-	{
-		Com_Printf ("SDL_HapticNewEffect failed: %s\n", SDL_GetError());
-		Com_Printf ("Please try to rerun game. Effects will be disabled for now.\n");
-
-		IN_Haptic_Shutdown();
-	}
-
-	return effect_id;
-}
-
-static void
-IN_Haptic_Effects_Info(void)
-{
-	show_haptic = true;
-
-	Com_Printf ("Joystic/Mouse haptic:\n");
-	Com_Printf (" * %d effects\n", SDL_HapticNumEffects(joystick_haptic));
-	Com_Printf (" * %d effects in same time\n", SDL_HapticNumEffectsPlaying(joystick_haptic));
-	Com_Printf (" * %d haptic axis\n", SDL_HapticNumAxes(joystick_haptic));
-}
-
-static void
-IN_Haptic_Effects_Init(void)
-{
-	last_haptic_efffect_size = SDL_HapticNumEffectsPlaying(joystick_haptic);
-
-	if (last_haptic_efffect_size > HAPTIC_EFFECT_LIST_SIZE)
-	{
-		last_haptic_efffect_size = HAPTIC_EFFECT_LIST_SIZE;
-	}
-
-	for (int i=0; i<HAPTIC_EFFECT_LIST_SIZE; i++)
-	{
-		last_haptic_efffect[i].effect_id = -1;
-		last_haptic_efffect[i].effect_volume = 0;
-		last_haptic_efffect[i].effect_duration = 0;
-		last_haptic_efffect[i].effect_begin = 0;
-		last_haptic_efffect[i].effect_end = 0;
-		last_haptic_efffect[i].effect_attack = 0;
-		last_haptic_efffect[i].effect_fade = 0;
-		last_haptic_efffect[i].effect_x = 0;
-		last_haptic_efffect[i].effect_y = 0;
-		last_haptic_efffect[i].effect_z = 0;
-	}
-}
-
-/*
- * Shuts the backend down
- */
-static void
-IN_Haptic_Effect_Shutdown(int * effect_id)
-{
-	if (!effect_id)
-	{
-		return;
-	}
-
-	if (*effect_id >= 0)
-	{
-		SDL_HapticDestroyEffect(joystick_haptic, *effect_id);
-	}
-
-	*effect_id = -1;
-}
-
-static void
-IN_Haptic_Effects_Shutdown(void)
-{
-	for (int i=0; i<HAPTIC_EFFECT_LIST_SIZE; i++)
-	{
-		last_haptic_efffect[i].effect_volume = 0;
-		last_haptic_efffect[i].effect_duration = 0;
-		last_haptic_efffect[i].effect_begin = 0;
-		last_haptic_efffect[i].effect_end = 0;
-		last_haptic_efffect[i].effect_attack = 0;
-		last_haptic_efffect[i].effect_fade = 0;
-		last_haptic_efffect[i].effect_x = 0;
-		last_haptic_efffect[i].effect_y = 0;
-		last_haptic_efffect[i].effect_z = 0;
-
-		IN_Haptic_Effect_Shutdown(&last_haptic_efffect[i].effect_id);
-	}
-}
-
-/*
- * Haptic Feedback:
- *    effect_volume=0..SHRT_MAX
- *    effect{x,y,z} - effect direction
- *    name - sound file name
+ * Controller_Rumble:
+ *	name = sound file name
+ *	effect_volume = 0..USHRT_MAX
+ *	effect_duration is in ms
+ *	source = origin of audio
+ *	from_player = if source is the client (player)
  */
 void
-Haptic_Feedback(char *name, int effect_volume, int effect_duration,
-			   int effect_begin, int effect_end,
-			   int effect_attack, int effect_fade,
-			   int effect_x, int effect_y, int effect_z)
+Controller_Rumble(const char *name, vec3_t source, qboolean from_player,
+		unsigned int duration, unsigned short int volume)
 {
-	if (!joystick_haptic)
+	vec_t intens = 0.0f, low_freq = 1.0f, hi_freq = 1.0f, dist_prop;
+	unsigned short int max_distance = 4;
+	unsigned int effect_volume;
+
+	if (!show_haptic || !controller || joy_haptic_magnitude->value <= 0
+		|| volume == 0 || duration == 0)
 	{
 		return;
 	}
 
-	if (joy_haptic_magnitude->value <= 0)
+	if (strstr(name, "weapons/"))
 	{
-		return;
-	}
+		intens = 1.75f;
 
-	if (effect_volume <= 0)
-	{
-		return;
-	}
-
-	if (effect_duration <= 0)
-	{
-		return;
-	}
-
-	if (last_haptic_volume != (int)(joy_haptic_magnitude->value * 255))
-	{
-		IN_Haptic_Effects_Shutdown();
-		IN_Haptic_Effects_Init();
-	}
-
-	last_haptic_volume = joy_haptic_magnitude->value * 255;
-
-	if (
-		strstr(name, "misc/menu") ||
-		strstr(name, "weapons/") ||
-		/* detect pain for any player model */
-		((
-			strstr(name, "player/") ||
-			strstr(name, "players/")
-		) && (
-			strstr(name, "/pain")
-		)) ||
-		strstr(name, "player/step") ||
-		strstr(name, "player/land")
-	)
-	{
-		// check last effect for reuse
-		if (
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_volume != effect_volume ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_duration != effect_duration ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_begin != effect_begin ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_end != effect_end ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_attack != effect_attack ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_fade != effect_fade ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_x != effect_x ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_y != effect_y ||
-		    last_haptic_efffect[last_haptic_efffect_pos].effect_z != effect_z)
+		if (strstr(name, "/blastf") || strstr(name, "/hyprbf") || strstr(name, "/nail"))
 		{
-			if ((SDL_HapticQuery(joystick_haptic) & SDL_HAPTIC_SINE)==0)
-			{
-				return;
-			}
+			intens = 0.125f;	// dampen blasters and nailgun's fire
+			low_freq = 0.7f;
+			hi_freq = 1.2f;
+		}
+		else if (strstr(name, "/shotgf") || strstr(name, "/rocklf"))
+		{
+			low_freq = 1.1f;	// shotgun & RL shouldn't feel so weak
+			duration *= 0.7;
+		}
+		else if (strstr(name, "/sshotf"))
+		{
+			duration *= 0.6;	// the opposite for super shotgun
+		}
+		else if (strstr(name, "/machgf") || strstr(name, "/disint"))
+		{
+			intens = 1.125f;	// machine gun & disruptor fire
+		}
+		else if (strstr(name, "/grenlb") || strstr(name, "/hgrenb")	// bouncing grenades
+			|| strstr(name, "open") || strstr(name, "warn"))	// rogue's items
+		{
+			return;	// ... don't have feedback
+		}
+		else if (strstr(name, "/plasshot"))	// phalanx cannon
+		{
+			intens = 1.0f;
+			hi_freq = 0.3f;
+			duration *= 0.5;
+		}
+		else if (strstr(name, "x"))		// explosions...
+		{
+			low_freq = 1.1f;
+			hi_freq = 0.9f;
+			max_distance = 550;		// can be felt far away
+		}
+		else if (strstr(name, "r"))		// reloads & ion ripper fire
+		{
+			low_freq = 0.1f;
+			hi_freq = 0.6f;
+		}
+	}
+	else if (strstr(name, "player/land"))
+	{
+		intens = 2.2f;	// fall without injury
+		low_freq = 1.1f;
+	}
+	else if (strstr(name, "player/") || strstr(name, "players/"))
+	{
+		low_freq = 1.2f;	// exaggerate player damage
+		if (strstr(name, "/burn") || strstr(name, "/pain100") || strstr(name, "/pain75"))
+		{
+			intens = 2.4f;
+		}
+		else if (strstr(name, "/fall") || strstr(name, "/pain50") || strstr(name, "/pain25"))
+		{
+			intens = 2.7f;
+		}
+		else if (strstr(name, "/death"))
+		{
+			intens = 2.9f;
+		}
+	}
+	else if (strstr(name, "doors/"))
+	{
+		intens = 0.125f;
+		low_freq = 0.4f;
+		max_distance = 280;
+	}
+	else if (strstr(name, "plats/"))
+	{
+		intens = 1.0f;			// platforms rumble...
+		max_distance = 200;		// when player near them
+	}
+	else if (strstr(name, "world/"))
+	{
+		max_distance = 3500;	// ambient events
+		if (strstr(name, "/dish") || strstr(name, "/drill2a") || strstr(name, "/dr_")
+			|| strstr(name, "/explod1") || strstr(name, "/rocks")
+			|| strstr(name, "/rumble"))
+		{
+			intens = 0.28f;
+			low_freq = 0.7f;
+		}
+		else if (strstr(name, "/quake"))
+		{
+			intens = 0.67f;		// (earth)quakes are more evident
+			low_freq = 1.2f;
+		}
+		else if (strstr(name, "/train2"))
+		{
+			intens = 0.28f;
+			max_distance = 290;	// just machinery
+		}
+	}
 
-			int hapric_volume = joy_haptic_magnitude->value * effect_volume; // 32767 max strength;
+	if (intens == 0.0f)
+	{
+		return;
+	}
 
-			if (effect_duration <= 0)
-			{
-				return;
-			}
+	if (from_player)
+	{
+		dist_prop = 1.0f;
+	}
+	else
+	{
+		dist_prop = VectorLength(source);
+		if (dist_prop > max_distance)
+		{
+			return;
+		}
+		dist_prop = (max_distance - dist_prop) / max_distance;
+	}
 
-			Com_Printf("%s: volume %d: %d ms %d:%d:%d ms speed: %.2f\n",
-				name,  effect_volume, effect_duration - effect_end,
-				effect_begin, effect_attack, effect_fade,
-				(float)effect_volume / effect_fade);
+	effect_volume = joy_haptic_magnitude->value * intens * dist_prop * volume;
+	low_freq = min(effect_volume * low_freq, USHRT_MAX);
+	hi_freq = min(effect_volume * hi_freq, USHRT_MAX);
 
-			// FIFO for effects
-			last_haptic_efffect_pos = (last_haptic_efffect_pos+1) % last_haptic_efffect_size;
-			IN_Haptic_Effect_Shutdown(&last_haptic_efffect[last_haptic_efffect_pos].effect_id);
-			last_haptic_efffect[last_haptic_efffect_pos].effect_volume = effect_volume;
-			last_haptic_efffect[last_haptic_efffect_pos].effect_duration = effect_duration;
-			last_haptic_efffect[last_haptic_efffect_pos].effect_attack = effect_attack;
-			last_haptic_efffect[last_haptic_efffect_pos].effect_fade = effect_fade;
-			last_haptic_efffect[last_haptic_efffect_pos].effect_x = effect_x;
-			last_haptic_efffect[last_haptic_efffect_pos].effect_y = effect_y;
-			last_haptic_efffect[last_haptic_efffect_pos].effect_z = effect_z;
-			last_haptic_efffect[last_haptic_efffect_pos].effect_id = IN_Haptic_Effect_Init(
-				effect_x, effect_y, effect_z,
-				effect_duration - effect_end, hapric_volume,
-				effect_begin, effect_attack, effect_fade);
+	// Com_Printf("%-29s: vol %5u - %4u ms - dp %.3f l %5.0f h %5.0f\n",
+	//	name, effect_volume, duration, dist_prop, low_freq, hi_freq);
+
+#if SDL_VERSION_ATLEAST(2, 0, 9)
+	SDL_GameControllerRumble(controller, low_freq, hi_freq, duration);
+#endif
+}
+
+/*
+ * Gyro calibration functions, called from menu
+ */
+void
+StartCalibration(void)
+{
+	gyro_accum[0] = 0.0;
+	gyro_accum[1] = 0.0;
+	gyro_accum[2] = 0.0;
+	num_samples = 0;
+	updates_countdown = 300;
+	countdown_reason = REASON_GYROCALIBRATION;
+}
+
+qboolean
+IsCalibrationZero(void)
+{
+	return (!gyro_calibration_x->value && !gyro_calibration_y->value && !gyro_calibration_z->value);
+}
+
+/*
+ * Game Controller
+ */
+static void
+IN_Controller_Init(qboolean notify_user)
+{
+	cvar_t *cvar;
+	int nummappings;
+	char controllerdb[MAX_OSPATH] = {0};
+	SDL_Joystick *joystick = NULL;
+	SDL_bool is_controller = SDL_FALSE;
+
+	cvar = Cvar_Get("in_sdlbackbutton", "0", CVAR_ARCHIVE);
+	if (cvar)
+	{
+		switch ((int)cvar->value)
+		{
+			case 1:
+				sdl_back_button = SDL_CONTROLLER_BUTTON_START;
+				break;
+			case 2:
+				sdl_back_button = SDL_CONTROLLER_BUTTON_GUIDE;
+				break;
+			default:
+				sdl_back_button = SDL_CONTROLLER_BUTTON_BACK;
+		}
+	}
+
+	cvar = Cvar_Get("in_initjoy", "1", CVAR_NOSET);
+	if (!cvar->value)
+	{
+		return;
+	}
+
+	if (notify_user)
+	{
+		Com_Printf("- Game Controller init attempt -\n");
+	}
+
+	if (!SDL_WasInit(SDL_INIT_GAMECONTROLLER))
+	{
+
+#ifdef SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE	// extended input reports on PS controllers (enables gyro thru bluetooth)
+		SDL_SetHint( SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1" );
+#endif
+#ifdef SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE
+		SDL_SetHint( SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1" );
+#endif
+
+		if (SDL_Init(SDL_INIT_GAMECONTROLLER) == -1)
+		{
+			Com_Printf ("Couldn't init SDL Game Controller: %s.\n", SDL_GetError());
+			return;
+		}
+	}
+
+	Com_Printf ("%i joysticks were found.\n", SDL_NumJoysticks());
+
+	if (!SDL_NumJoysticks())
+	{
+		return;
+	}
+
+	for (const char* rawPath = FS_GetNextRawPath(NULL); rawPath != NULL; rawPath = FS_GetNextRawPath(rawPath))
+	{
+		snprintf(controllerdb, MAX_OSPATH, "%s/gamecontrollerdb.txt", rawPath);
+		nummappings = SDL_GameControllerAddMappingsFromFile(controllerdb);
+		if (nummappings > 0)
+			Com_Printf ("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
+	}
+
+	for (int i = 0; i < SDL_NumJoysticks(); i++)
+	{
+		joystick = SDL_JoystickOpen(i);
+		if (!joystick)
+		{
+			Com_Printf ("Couldn't open joystick %d: %s.\n", i+1, SDL_GetError());
+			continue;	// try next joystick
 		}
 
-		SDL_HapticRunEffect(joystick_haptic, last_haptic_efffect[last_haptic_efffect_pos].effect_id, 1);
+		const char* joystick_name = SDL_JoystickName(joystick);
+		const int name_len = strlen(joystick_name);
+
+		Com_Printf ("Trying joystick %d, '%s'\n", i+1, joystick_name);
+
+		// Ugly hack to detect IMU-only devices - works for Switch controllers at least
+		if (name_len > 4 && !strncmp(joystick_name + name_len - 4, " IMU", 4))
+		{
+			Com_Printf ("Skipping IMU device.\n");
+			SDL_JoystickClose(joystick);
+			joystick = NULL;
+			continue;
+		}
+
+		Com_Printf ("Buttons = %d, Axes = %d, Hats = %d\n", SDL_JoystickNumButtons(joystick),
+			SDL_JoystickNumAxes(joystick), SDL_JoystickNumHats(joystick));
+		is_controller = SDL_IsGameController(i);
+
+		if (!is_controller)
+		{
+			char joystick_guid[65] = {0};
+			SDL_JoystickGUID guid = SDL_JoystickGetDeviceGUID(i);
+
+			SDL_JoystickGetGUIDString(guid, joystick_guid, 64);
+
+			Com_Printf ("To use joystick as game controller, provide its config by either:\n"
+				" * Putting 'gamecontrollerdb.txt' file in your game directory.\n"
+				" * Or setting SDL_GAMECONTROLLERCONFIG environment variable. E.g.:\n");
+			Com_Printf ("SDL_GAMECONTROLLERCONFIG='%s,%s,leftx:a0,lefty:a1,rightx:a2,righty:a3,back:b1,...'\n", joystick_guid, joystick_name);
+		}
+
+		SDL_JoystickClose(joystick);
+		joystick = NULL;
+
+		if (is_controller)
+		{
+			controller = SDL_GameControllerOpen(i);
+			if (!controller)
+			{
+				Com_Printf("SDL Controller error: %s.\n", SDL_GetError());
+				continue;	// try next joystick
+			}
+
+			show_gamepad = true;
+			Com_Printf("Enabled as Game Controller, settings:\n%s\n", SDL_GameControllerMapping(controller));
+
+#if SDL_VERSION_ATLEAST(2, 0, 16)	// support for controller sensors
+
+			if ( SDL_GameControllerHasSensor(controller, SDL_SENSOR_GYRO)
+				&& !SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_GYRO, SDL_TRUE) )
+			{
+				show_gyro = true;
+				Com_Printf( "Gyro sensor enabled at %.2f Hz\n",
+					SDL_GameControllerGetSensorDataRate(controller, SDL_SENSOR_GYRO) );
+			}
+			else
+			{
+				Com_Printf("Gyro sensor not found.\n");
+			}
+
+			if ( SDL_GameControllerHasLED(controller) )
+			{
+				SDL_GameControllerSetLED(controller, 0, 80, 0);	// green light
+			}
+
+#endif	// SDL_VERSION_ATLEAST(2, 0, 16)
+
+#if SDL_VERSION_ATLEAST(2, 0, 18)	// support for query on features from controller
+			if (SDL_GameControllerHasRumble(controller))
+#elif SDL_VERSION_ATLEAST(2, 0, 9)	// support for rumble
+			if (SDL_GameControllerRumble(controller, 1, 1, 1) == 0)
+#else					// no rumble support on SDL < 2.0.9
+			if (false)
+#endif
+			{
+				show_haptic = true;
+				Com_Printf("Rumble support available.\n");
+			}
+			else
+			{
+				Com_Printf("Controller doesn't support rumble.\n");
+			}
+
+			break;
+		}
 	}
 }
 
@@ -1201,7 +1710,8 @@ IN_Init(void)
 	Com_Printf("------- input initialization -------\n");
 
 	mouse_x = mouse_y = 0;
-	joystick_yaw = joystick_pitch = joystick_forwardmove = joystick_sidemove = 0;
+	joystick_left_x = joystick_left_y = joystick_right_x = joystick_right_y = 0;
+	gyro_yaw = gyro_pitch = 0;
 
 	exponential_speedup = Cvar_Get("exponential_speedup", "0", CVAR_ARCHIVE);
 	freelook = Cvar_Get("freelook", "1", CVAR_ARCHIVE);
@@ -1221,22 +1731,30 @@ IN_Init(void)
 	joy_pitchsensitivity = Cvar_Get("joy_pitchsensitivity", "1.0", CVAR_ARCHIVE);
 	joy_forwardsensitivity = Cvar_Get("joy_forwardsensitivity", "1.0", CVAR_ARCHIVE);
 	joy_sidesensitivity = Cvar_Get("joy_sidesensitivity", "1.0", CVAR_ARCHIVE);
-	joy_upsensitivity = Cvar_Get("joy_upsensitivity", "1.0", CVAR_ARCHIVE);
-	joy_expo = Cvar_Get("joy_expo", "2.0", CVAR_ARCHIVE);
 
-	joy_axis_leftx = Cvar_Get("joy_axis_leftx", "sidemove", CVAR_ARCHIVE);
-	joy_axis_lefty = Cvar_Get("joy_axis_lefty", "forwardmove", CVAR_ARCHIVE);
-	joy_axis_rightx = Cvar_Get("joy_axis_rightx", "yaw", CVAR_ARCHIVE);
-	joy_axis_righty = Cvar_Get("joy_axis_righty", "pitch", CVAR_ARCHIVE);
-	joy_axis_triggerleft = Cvar_Get("joy_axis_triggerleft", "triggerleft", CVAR_ARCHIVE);
-	joy_axis_triggerright = Cvar_Get("joy_axis_triggerright", "triggerright", CVAR_ARCHIVE);
+	joy_layout = Cvar_Get("joy_layout", "0", CVAR_ARCHIVE);
+	joy_left_expo = Cvar_Get("joy_left_expo", "2.0", CVAR_ARCHIVE);
+	joy_left_snapaxis = Cvar_Get("joy_left_snapaxis", "0.15", CVAR_ARCHIVE);
+	joy_left_deadzone = Cvar_Get("joy_left_deadzone", "0.16", CVAR_ARCHIVE);
+	joy_right_expo = Cvar_Get("joy_right_expo", "2.0", CVAR_ARCHIVE);
+	joy_right_snapaxis = Cvar_Get("joy_right_snapaxis", "0.15", CVAR_ARCHIVE);
+	joy_right_deadzone = Cvar_Get("joy_right_deadzone", "0.16", CVAR_ARCHIVE);
+	joy_flick_threshold = Cvar_Get("joy_flick_threshold", "0.65", CVAR_ARCHIVE);
+	joy_flick_smoothed = Cvar_Get("joy_flick_smoothed", "8.0", CVAR_ARCHIVE);
 
-	joy_axis_leftx_threshold = Cvar_Get("joy_axis_leftx_threshold", "0.15", CVAR_ARCHIVE);
-	joy_axis_lefty_threshold = Cvar_Get("joy_axis_lefty_threshold", "0.15", CVAR_ARCHIVE);
-	joy_axis_rightx_threshold = Cvar_Get("joy_axis_rightx_threshold", "0.15", CVAR_ARCHIVE);
-	joy_axis_righty_threshold = Cvar_Get("joy_axis_righty_threshold", "0.15", CVAR_ARCHIVE);
-	joy_axis_triggerleft_threshold = Cvar_Get("joy_axis_triggerleft_threshold", "0.15", CVAR_ARCHIVE);
-	joy_axis_triggerright_threshold = Cvar_Get("joy_axis_triggerright_threshold", "0.15", CVAR_ARCHIVE);
+	gyro_calibration_x = Cvar_Get("gyro_calibration_x", "0.0", CVAR_ARCHIVE);
+	gyro_calibration_y = Cvar_Get("gyro_calibration_y", "0.0", CVAR_ARCHIVE);
+	gyro_calibration_z = Cvar_Get("gyro_calibration_z", "0.0", CVAR_ARCHIVE);
+
+	gyro_yawsensitivity = Cvar_Get("gyro_yawsensitivity", "1.0", CVAR_ARCHIVE);
+	gyro_pitchsensitivity = Cvar_Get("gyro_pitchsensitivity", "1.0", CVAR_ARCHIVE);
+	gyro_turning_axis = Cvar_Get("gyro_turning_axis", "0", CVAR_ARCHIVE);
+
+	gyro_mode = Cvar_Get("gyro_mode", "2", CVAR_ARCHIVE);
+	if ((int)gyro_mode->value == 2)
+	{
+		gyro_active = true;
+	}
 
 	windowed_mouse = Cvar_Get("windowed_mouse", "1", CVAR_USERINFO | CVAR_ARCHIVE);
 
@@ -1245,121 +1763,37 @@ IN_Init(void)
 
 	Cmd_AddCommand("+joyaltselector", IN_JoyAltSelectorDown);
 	Cmd_AddCommand("-joyaltselector", IN_JoyAltSelectorUp);
+	Cmd_AddCommand("+gyroaction", IN_GyroActionDown);
+	Cmd_AddCommand("-gyroaction", IN_GyroActionUp);
 
 	SDL_StartTextInput();
 
-	/* Joystick init */
-	if (!SDL_WasInit(SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC))
-	{
-		if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC) == -1)
-		{
-			Com_Printf ("Couldn't init SDL joystick: %s.\n", SDL_GetError ());
-		}
-		else
-		{
-			Com_Printf ("%i joysticks were found.\n", SDL_NumJoysticks());
-
-			if (SDL_NumJoysticks() > 0) {
-				for (int i = 0; i < SDL_NumJoysticks(); i++) {
-					joystick = SDL_JoystickOpen(i);
-
-					Com_Printf ("The name of the joystick is '%s'\n", SDL_JoystickName(joystick));
-					Com_Printf ("Number of Axes: %d\n", SDL_JoystickNumAxes(joystick));
-					Com_Printf ("Number of Buttons: %d\n", SDL_JoystickNumButtons(joystick));
-					Com_Printf ("Number of Balls: %d\n", SDL_JoystickNumBalls(joystick));
-					Com_Printf ("Number of Hats: %d\n", SDL_JoystickNumHats(joystick));
-
-					joystick_haptic = SDL_HapticOpenFromJoystick(joystick);
-
-					if (joystick_haptic == NULL)
-					{
-						Com_Printf("Most likely joystick isn't haptic.\n");
-					}
-					else
-					{
-						IN_Haptic_Effects_Info();
-					}
-
-					if(SDL_IsGameController(i))
-					{
-						SDL_GameControllerButtonBind backBind;
-						controller = SDL_GameControllerOpen(i);
-
-						Com_Printf ("Controller settings: %s\n", SDL_GameControllerMapping(controller));
-						Com_Printf ("Controller axis: \n");
-						Com_Printf (" * leftx = %s\n", joy_axis_leftx->string);
-						Com_Printf (" * lefty = %s\n", joy_axis_lefty->string);
-						Com_Printf (" * rightx = %s\n", joy_axis_rightx->string);
-						Com_Printf (" * righty = %s\n", joy_axis_righty->string);
-						Com_Printf (" * triggerleft = %s\n", joy_axis_triggerleft->string);
-						Com_Printf (" * triggerright = %s\n", joy_axis_triggerright->string);
-
-						Com_Printf ("Controller thresholds: \n");
-						Com_Printf (" * leftx = %f\n", joy_axis_leftx_threshold->value);
-						Com_Printf (" * lefty = %f\n", joy_axis_lefty_threshold->value);
-						Com_Printf (" * rightx = %f\n", joy_axis_rightx_threshold->value);
-						Com_Printf (" * righty = %f\n", joy_axis_righty_threshold->value);
-						Com_Printf (" * triggerleft = %f\n", joy_axis_triggerleft_threshold->value);
-						Com_Printf (" * triggerright = %f\n", joy_axis_triggerright_threshold->value);
-
-						backBind = SDL_GameControllerGetBindForButton(controller, SDL_CONTROLLER_BUTTON_BACK);
-
-						if (backBind.bindType == SDL_CONTROLLER_BINDTYPE_BUTTON)
-						{
-							back_button_id = backBind.value.button;
-							Com_Printf ("\nBack button JOY%d will be unbindable.\n", back_button_id+1);
-						}
-
-						break;
-					}
-					else
-					{
-						char joystick_guid[256] = {0};
-
-						SDL_JoystickGUID guid;
-						guid = SDL_JoystickGetDeviceGUID(i);
-
-						SDL_JoystickGetGUIDString(guid, joystick_guid, 255);
-
-						Com_Printf ("To use joystick as game controller please set SDL_GAMECONTROLLERCONFIG:\n");
-						Com_Printf ("e.g.: SDL_GAMECONTROLLERCONFIG='%s,%s,leftx:a0,lefty:a1,rightx:a2,righty:a3,back:b1,...\n", joystick_guid, SDL_JoystickName(joystick));
-					}
-				}
-			}
-			else
-			{
-				joystick_haptic = SDL_HapticOpenFromMouse();
-
-				if (joystick_haptic == NULL)
-				{
-					Com_Printf("Most likely mouse isn't haptic.\n");
-				}
-				else
-				{
-					IN_Haptic_Effects_Info();
-				}
-			}
-		}
-	}
+	IN_Controller_Init(false);
 
 	Com_Printf("------------------------------------\n\n");
+}
+
+static void
+IN_Controller_Shutdown(qboolean notify_user)
+{
+	if (notify_user)
+	{
+		Com_Printf("- Game Controller disconnected -\n");
+	}
+
+	if (controller)
+	{
+		SDL_GameControllerClose(controller);
+		controller = NULL;
+	}
+	show_gamepad = show_gyro = show_haptic = false;
+	joystick_left_x = joystick_left_y = joystick_right_x = joystick_right_y = 0;
+	gyro_yaw = gyro_pitch = 0;
 }
 
 /*
  * Shuts the backend down
  */
-static void
-IN_Haptic_Shutdown(void)
-{
-	if (joystick_haptic)
-	{
-		IN_Haptic_Effects_Shutdown();
-
-		SDL_HapticClose(joystick_haptic);
-		joystick_haptic = NULL;
-	}
-}
-
 void
 IN_Shutdown(void)
 {
@@ -1367,24 +1801,16 @@ IN_Shutdown(void)
 	Cmd_RemoveCommand("+mlook");
 	Cmd_RemoveCommand("-mlook");
 
+	Cmd_RemoveCommand("+joyaltselector");
+	Cmd_RemoveCommand("-joyaltselector");
+	Cmd_RemoveCommand("+gyroaction");
+	Cmd_RemoveCommand("-gyroaction");
+
 	Com_Printf("Shutting down input.\n");
 
-	IN_Haptic_Shutdown();
+	IN_Controller_Shutdown(false);
 
-	if (controller)
-	{
-		back_button_id = -1;
-		SDL_GameControllerClose(controller);
-		controller  = NULL;
-	}
-
-	if (joystick)
-	{
-		SDL_JoystickClose(joystick);
-		joystick = NULL;
-	}
-
-	const Uint32 subsystems = SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC;
+	const Uint32 subsystems = SDL_INIT_GAMECONTROLLER;
 	if (SDL_WasInit(subsystems) == subsystems)
 		SDL_QuitSubSystem(subsystems);
 }

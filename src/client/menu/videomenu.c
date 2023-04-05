@@ -191,28 +191,6 @@ GetCustomValue(menulist_s *list)
 }
 
 static void
-BrightnessCallback(void *s)
-{
-	menuslider_s *slider = (menuslider_s *)s;
-
-	float gamma = slider->curvalue / 10.0;
-	Cvar_SetValue("vid_gamma", gamma);
-}
-
-static void
-MotionBlurCallback(void *s)
-{
-	menuslider_s *slider = (menuslider_s *)s;
-	Cvar_SetValue("r_motionblur", slider->curvalue / 10.0f);
-}
-
-static void
-FOVCallback(void *s) {
-	menuslider_s *slider = (menuslider_s *)s;
-	Cvar_SetValue("fov", slider->curvalue);
-}
-
-static void
 ResetDefaults(void *unused)
 {
 	VID_MenuInit();
@@ -583,20 +561,20 @@ VID_MenuInit(void)
 	s_brightness_slider.generic.type = MTYPE_SLIDER;
 	s_brightness_slider.generic.name = "brightness";
 	s_brightness_slider.generic.x = 0;
-	s_brightness_slider.generic.y = (y += 20);
-	s_brightness_slider.generic.callback = BrightnessCallback;
-	s_brightness_slider.minvalue = 1;
-	s_brightness_slider.maxvalue = 20;
-	s_brightness_slider.curvalue = vid_gamma->value * 10;
+	s_brightness_slider.generic.y = (y += 10);
+	s_brightness_slider.cvar = "vid_gamma";
+	s_brightness_slider.minvalue = 0.1f;
+	s_brightness_slider.maxvalue = 2.0f;
 
 	s_fov_slider.generic.type = MTYPE_SLIDER;
+	s_fov_slider.generic.name = "field of view";
 	s_fov_slider.generic.x = 0;
 	s_fov_slider.generic.y = (y += 10);
-	s_fov_slider.generic.name = "field of view";
-	s_fov_slider.generic.callback = FOVCallback;
+	s_fov_slider.cvar = "fov";
 	s_fov_slider.minvalue = 60;
 	s_fov_slider.maxvalue = 120;
-	s_fov_slider.curvalue = fov->value;
+	s_fov_slider.slidestep = 1;
+	s_fov_slider.printformat = "%.0f";
 
 	static const char* renderscale_names[] = {"1x", "2x", "3x", "4x", NULL};
 	s_renderscale_list.generic.type = MTYPE_SPINCONTROL;
@@ -721,10 +699,9 @@ VID_MenuInit(void)
 	s_motionblur_slider.generic.name = "motion blur";
 	s_motionblur_slider.generic.x = 0;
 	s_motionblur_slider.generic.y = (y += 10);
-	s_motionblur_slider.generic.callback = MotionBlurCallback;
 	s_motionblur_slider.minvalue = 0;
-	s_motionblur_slider.maxvalue = 20;
-	s_motionblur_slider.curvalue = r_motionblur->value * 10;
+	s_motionblur_slider.maxvalue = 2;
+	s_motionblur_slider.cvar = "r_motionblur";
 
 	s_defaults_action.generic.type = MTYPE_ACTION;
 	s_defaults_action.generic.name = "reset to default";
