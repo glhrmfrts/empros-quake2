@@ -781,6 +781,13 @@ typedef enum gl3_framebuffer_flag_e
 	GL3_FRAMEBUFFER_SHADOWMAP = 16,
 } gl3_framebuffer_flag_t;
 
+typedef enum gl3_framebuffer_usage
+{
+	GL3_FB_NOTUSED,
+	GL3_FB_INUSE,
+	GL3_FB_DEFERRED,
+} gl3_framebuffer_usage_t;
+
 typedef struct gl3_framebuffer_s
 {
 	GLuint id;
@@ -789,6 +796,7 @@ typedef struct gl3_framebuffer_s
 	GLuint num_color_textures;
 	GLuint color_textures[4];
 	GLuint depth_texture;
+	gl3_framebuffer_usage_t inUse;
 } gl3_framebuffer_t;
 
 extern void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_textures, gl3_framebuffer_flag_t flags, gl3_framebuffer_t* out);
@@ -797,6 +805,22 @@ extern void GL3_BindFramebuffer(const gl3_framebuffer_t* fb);
 extern void GL3_UnbindFramebuffer();
 extern void GL3_BindFramebufferTexture(const gl3_framebuffer_t* fb, int index, int unit);
 extern void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit);
+
+extern gl3_framebuffer_t* GL3_NewFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags);
+
+// Borrows a framebuffer by searching in the list of available FBOs or creating a new one
+extern gl3_framebuffer_t* GL3_BorrowFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags);
+
+// Return framebuffer (make available for others to use)
+extern void GL3_ReturnFramebuffer(gl3_framebuffer_t* fbo);
+
+// Return framebuffer at end of frame
+extern void GL3_DeferReturnFramebuffer(gl3_framebuffer_t* fbo);
+
+// Called at end of frame, returns all deferred FBOs
+extern void GL3_ReturnDeferredFramebuffers();
+
+extern void GL3_DestroyAllFramebuffers();
 
 extern void GL3_PostFx_Init();
 extern void GL3_PostFx_Shutdown();

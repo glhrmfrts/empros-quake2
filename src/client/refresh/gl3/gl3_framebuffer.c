@@ -143,3 +143,71 @@ void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit)
 		fb->depth_texture
 	);
 }
+
+// Framebuffer pooling
+
+static gl3_framebuffer_t** fbos;
+static size_t fboCount;
+
+gl3_framebuffer_t* GL3_NewFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags)
+{
+	gl3_framebuffer_t* fbo = calloc(1, sizeof(gl3_framebuffer_t));
+	GL3_CreateFramebuffer(width, height, numColorTextures, flags, fbo);
+	return fbo;
+}
+
+gl3_framebuffer_t* GL3_BorrowFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags)
+{
+	// Try to find a compatible FBO
+	for (size_t i = 0; i < fboCount; i++)
+	{
+		if (fbos[i]->inUse != GL3_FB_NOTUSED) continue;
+
+		if (fbos[i]->width == width && fbos[i]->height == height &&
+			fbos[i]->num_color_textures == numColorTextures && fbos[i]->flags == flags)
+		{
+			fbos[i]->inUse = GL3_FB_INUSE;
+			return fbos[i];
+		}
+	}
+
+	// No compatible FBO was found or available, create a new one
+	gl3_framebuffer_t* fbo = GL3_NewFramebuffer(width, height, numColorTextures, flags);
+	fbo->inUse = GL3_FB_INUSE;
+
+	fbos = realloc(fbos, sizeof(gl3_framebuffer_t*) * (++fboCount));
+	fbos[fboCount - 1] = fbo;
+	return fbo;
+}
+
+void GL3_ReturnFramebuffer(gl3_framebuffer_t* fbo)
+{
+	fbo->inUse = GL3_FB_NOTUSED;
+}
+
+void GL3_DeferReturnFramebuffer(gl3_framebuffer_t* fbo)
+{
+	fbo->inUse = GL3_FB_DEFERRED;
+}
+
+void GL3_ReturnDeferredFramebuffers()
+{
+	for (size_t i = 0; i < fboCount; i++)
+	{
+		if (fbos[i]->inUse == GL3_FB_DEFERRED)
+		{
+			fbos[i]->inUse = GL3_FB_NOTUSED;
+		}
+	}
+}
+
+void GL3_DestroyAllFramebuffers()
+{
+	for (size_t i = 0; i < fboCount; i++)
+	{
+		assert(!fbos[i]->inUse);
+		GL3_DestroyFramebuffer(fbos[i]);
+		free(fbos[i]);
+	}
+	free(fbos);
+}

@@ -607,6 +607,7 @@ GL3_Shutdown(void)
 		GL3_Debug_Shutdown();
 		GL3_Shadow_Shutdown();
 		GL3_PostFx_Shutdown();
+		GL3_DestroyAllFramebuffers();
 		GL3_Mod_FreeAll();
 		GL3_ShutdownMeshes();
 		GL3_ShutdownImages();
@@ -1297,13 +1298,13 @@ GL3_RenderView(refdef_t *fd)
 		return;
 	}
 
+	gl3_newrefdef = *fd;
+
 	int renderScale = ((int)r_renderscale->value) + 1;
 	renderScale = min(renderScale, 8);
 	renderScale = max(renderScale, 1);
 	gl3_scaledSize.X = gl3_newrefdef.width / renderScale;
 	gl3_scaledSize.Y = gl3_newrefdef.height / renderScale;
-
-	gl3_newrefdef = *fd;
 
 	if (!gl3_worldmodel && !(gl3_newrefdef.rdflags & RDF_NOWORLDMODEL))
 	{
@@ -1363,6 +1364,8 @@ GL3_RenderView(refdef_t *fd)
 	GL3_Debug_Draw();
 
 	GL3_PostFx_AfterScene();
+
+	GL3_ReturnDeferredFramebuffers();
 
 	if (r_speeds->value)
 	{
