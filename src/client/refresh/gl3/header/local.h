@@ -534,6 +534,8 @@ extern void GL3_DrawEntitiesOnList(void);
 
 // gl3_fog.c
 
+extern void GL3_Fog_Init(void);
+
 // gnemeth: Command to set the renderer fog
 // usage: fog <density> <red> <green> <blue> - Changes density and color
 // usage: fog <density>                      - Changes density only
@@ -547,6 +549,8 @@ extern void GL3_Fog_f(void);
 extern void GL3_FogLerp_f(void);
 
 extern void GL3_Fog_Set(float r, float g, float b, float d);
+extern hmm_vec4 GL3_Fog_Params();
+
 extern void GL3_Fog_SetupFrame(void);
 
 // gl3_sdl.c
@@ -764,6 +768,8 @@ extern cvar_t *r_hdr_exposure;
 
 extern cvar_t* r_shadowmap;
 extern cvar_t* r_shadowmap_maxlights;
+
+extern cvar_t* r_fog_state;
 
 extern entity_t* weapon_model_entity;
 

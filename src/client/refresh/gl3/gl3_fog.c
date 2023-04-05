@@ -36,6 +36,29 @@ static hmm_vec4 old_fog_params;
 static float lerp_timer;
 static float lerp_time;
 
+cvar_t* r_fog_state;
+
+static void SaveFogState()
+{
+	static char str[128];
+	snprintf(str, sizeof(str), "%f %f %f %f", fog_params.R, fog_params.G, fog_params.B, fog_params.A);
+	ri.Cvar_Set("r_fog_state", str);
+}
+
+static void LoadFogState()
+{
+	char* str = r_fog_state->string;
+	if (!str || strlen(str) == 0) return;
+
+	sscanf(str, "%f %f %f %f", &fog_params.R, &fog_params.G, &fog_params.B, &fog_params.A);
+	old_fog_params = fog_params;
+}
+
+void GL3_Fog_Init()
+{
+	LoadFogState();
+}
+
 void GL3_Fog_f(void)
 {
 	float r, g, b, d;
@@ -44,6 +67,7 @@ void GL3_Fog_f(void)
 		sscanf(ri.Cmd_Argv(1), "%f", &d);
 		fog_params.W = d;
 		old_fog_params.W = d;
+		SaveFogState();
 		break;
 	case 5: // density + color
 		sscanf(ri.Cmd_Argv(1), "%f", &d);
@@ -51,6 +75,7 @@ void GL3_Fog_f(void)
 		sscanf(ri.Cmd_Argv(3), "%f", &g);
 		sscanf(ri.Cmd_Argv(4), "%f", &b);
 		fog_params = old_fog_params = HMM_Vec4(r, g, b, d);
+		SaveFogState();
 		break;
 	default:
 		R_Printf(PRINT_ALL, "usage: fog <density> <red> <green> <blue>\n");
@@ -77,6 +102,7 @@ void GL3_FogLerp_f(void)
 		sscanf(ri.Cmd_Argv(1), "%f", &time);
 		sscanf(ri.Cmd_Argv(2), "%f", &d);
 		fog_params.W = d;
+		SaveFogState();
 		break;
 	case 6: // density + color
 		sscanf(ri.Cmd_Argv(1), "%f", &time);
@@ -85,6 +111,7 @@ void GL3_FogLerp_f(void)
 		sscanf(ri.Cmd_Argv(4), "%f", &g);
 		sscanf(ri.Cmd_Argv(5), "%f", &b);
 		fog_params = HMM_Vec4(r, g, b, d);
+		SaveFogState();
 		break;
 	default:
 		R_Printf(PRINT_ALL, "usage: foglerp <time> <density> <red> <green> <blue>\n");
@@ -101,6 +128,8 @@ void GL3_Fog_Set(float r, float g, float b, float d)
 {
 	fog_params = old_fog_params = HMM_Vec4(r, g, b, d);
 }
+
+hmm_vec4 GL3_Fog_Params() { return fog_params; }
 
 void GL3_Fog_SetupFrame(void)
 {

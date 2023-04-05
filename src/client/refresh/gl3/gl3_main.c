@@ -123,6 +123,8 @@ cvar_t *gl3_debugcontext;
 cvar_t *gl3_usebigvbo;
 cvar_t *r_fixsurfsky;
 
+cvar_t *r_underwaterfog;
+
 void
 GL3_RotateForEntity(entity_t *e)
 {
@@ -233,6 +235,9 @@ GL3_Register(void)
 	r_shadowmap_maxlights = ri.Cvar_Get("r_shadowmap_maxlights", "16", CVAR_ARCHIVE);
 
 	r_renderscale = ri.Cvar_Get("r_renderscale", "0", CVAR_ARCHIVE);
+
+	r_underwaterfog = ri.Cvar_Get("r_underwaterfog", "1", CVAR_ARCHIVE);
+	r_fog_state = ri.Cvar_Get("r_fog_state", "0.0 0.0 0.0 0.0", CVAR_ARCHIVE);
 
 #if 0 // TODO!
 	//gl_lefthand = ri.Cvar_Get("hand", "0", CVAR_USERINFO | CVAR_ARCHIVE);
@@ -584,6 +589,8 @@ GL3_Init(void)
 	GL3_SurfInit();
 
 	GL3_Shadow_Init();
+
+	GL3_Fog_Init();
 
 	GL3_Debug_Init();
 
@@ -1188,6 +1195,8 @@ static void SetProjViewMatrices()
 	}
 }
 
+static hmm_vec4 fogOldParams;
+
 static void
 SetupGL(void)
 {
@@ -1226,6 +1235,11 @@ SetupGL(void)
 	gl3state.uni3DData.transModelMat4 = gl3_identityMat4;
 	gl3state.uni3DData.time = gl3_newrefdef.time;
 
+	if (r_underwaterfog->value && (gl3_newrefdef.rdflags & RDF_UNDERWATER))
+	{
+		fogOldParams = GL3_Fog_Params();
+		GL3_Fog_Set(0.3f, 0.3f, 0.35f, 0.3f);
+	}
 	GL3_Fog_SetupFrame();
 
 // scroll for SURF_FLOWING surfaces
@@ -1366,6 +1380,11 @@ GL3_RenderView(refdef_t *fd)
 	GL3_PostFx_AfterScene();
 
 	GL3_ReturnDeferredFramebuffers();
+
+	if (r_underwaterfog->value && (gl3_newrefdef.rdflags & RDF_UNDERWATER))
+	{
+		GL3_Fog_Set(fogOldParams.R, fogOldParams.G, fogOldParams.B, fogOldParams.A);
+	}
 
 	if (r_speeds->value)
 	{
