@@ -32,6 +32,7 @@
 #include "header/local.h"
 #include "header/qal.h"
 #include "header/vorbis.h"
+#include <string.h>
 
 /* During registration it is possible to have more sounds
    than could actually be referenced during gameplay,
@@ -163,7 +164,7 @@ static qboolean
 S_IsSilencedMuzzleFlash(const wavinfo_t* info, const void* raw_data, const char* name)
 {
 	/* Skip the prefix. */
-	static const size_t base_sound_string_length = 6;// strlen("sound/");
+	static const size_t base_sound_string_length = 6;
 	const char* base_name = name + base_sound_string_length;
 
 	/* Match to well-known muzzle flash sound names. */

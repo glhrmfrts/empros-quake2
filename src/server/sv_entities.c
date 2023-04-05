@@ -640,7 +640,7 @@ SV_BuildClientFrame(client_t *client)
 					VectorSubtract(org, ent->s.origin, delta);
 					len = VectorLength(delta);
 
-					if (len > 1000)
+					if (len > 400)
 					{
 						continue;
 					}
@@ -669,9 +669,6 @@ SV_BuildClientFrame(client_t *client)
 		svs.next_client_entities++;
 		frame->num_entities++;
 	}
-
-	int numents = frame->num_entities;
-	printf("numents: %d\n", numents);
 }
 
 /*
