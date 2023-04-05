@@ -714,9 +714,14 @@ static qboolean createShaders(void)
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for motion blur postfx!\n");
 		return false;
 	}
-	if (!initShaderPostfx(&gl3state.siPostfxBlit, vertexSrcPostfxCommon, fragmentSrcPostfxBlit))
+	if (!initShaderPostfx(&gl3state.siPostfxBlend, vertexSrcPostfxCommon, fragmentSrcPostfxBlend))
 	{
-		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for motion blur postfx!\n");
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for blend postfx!\n");
+		return false;
+	}
+	if (!initShaderPostfx(&gl3state.siPostfxUnderwater, vertexSrcPostfxCommon, fragmentSrcPostfxUnderwater))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for underwtater postfx!\n");
 		return false;
 	}
 

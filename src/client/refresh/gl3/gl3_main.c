@@ -1441,6 +1441,8 @@ GL3_RenderFrame(refdef_t *fd)
 	GL3_SetLightLevel(NULL);
 	GL3_SetGL2D();
 
+#if 0
+	// Done in the PostFx pipeline now
 	if(v_blend[3] != 0.0f)
 	{
 		int x = (vid.width - gl3_newrefdef.width)/2;
@@ -1448,6 +1450,7 @@ GL3_RenderFrame(refdef_t *fd)
 
 		GL3_Draw_Flash(v_blend, x, y, gl3_newrefdef.width, gl3_newrefdef.height);
 	}
+#endif
 }
 
 

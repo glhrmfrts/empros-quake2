@@ -306,7 +306,6 @@ typedef struct
 
 	gl3ShaderInfo_t si3DSSAO;
 
-	// NOTE: make sure siParticle is always the last shaderInfo (or adapt GL3_ShutdownShaders())
 	gl3ShaderInfo_t siParticle; // for particles. surprising, right?
 
 	gl3ShaderInfo_t siPostfxResolveMultisample;
@@ -316,7 +315,8 @@ typedef struct
 	gl3ShaderInfo_t siPostfxMotionBlur;
 	gl3ShaderInfo_t siPostfxBloomFilter;
 	gl3ShaderInfo_t siPostfxBloomBlur;
-	gl3ShaderInfo_t siPostfxBlit;
+	gl3ShaderInfo_t siPostfxBlend;
+	gl3ShaderInfo_t siPostfxUnderwater;
 
 	gl3ShaderInfo_t siShadowMap;
 

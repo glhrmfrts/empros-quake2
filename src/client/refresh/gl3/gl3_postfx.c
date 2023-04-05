@@ -30,7 +30,8 @@ static uniforms_t bloom_blur_uniforms;
 static uniforms_t ssao_map_uniforms;
 static uniforms_t ssao_blur_uniforms;
 static uniforms_t motion_blur_uniforms;
-static uniforms_t blit_uniforms;
+static uniforms_t underwater_uniforms;
+static uniforms_t blend_uniforms;
 
 static gl3_framebuffer_t* sceneFbo;
 
@@ -125,7 +126,8 @@ void GL3_PostFx_Init()
 	GetUniforms(&gl3state.siPostfxSSAO, "SSAO", &ssao_map_uniforms);
 	GetUniforms(&gl3state.siPostfxSSAOBlur, "SSAOBlur", &ssao_blur_uniforms);
 	GetUniforms(&gl3state.siPostfxMotionBlur, "MotionBlur", &motion_blur_uniforms);
-	GetUniforms(&gl3state.siPostfxBlit, "Blit", &blit_uniforms);
+	GetUniforms(&gl3state.siPostfxBlend, "Blend", &blend_uniforms);
+	GetUniforms(&gl3state.siPostfxUnderwater, "Underwater", &underwater_uniforms);
 
 	for (int i = 0; i < SSAO_KERNEL_SIZE; i++)
 	{
@@ -377,7 +379,8 @@ static gl3_framebuffer_t* RenderMotionBlur(
 	GLuint scene_texture, GLuint depth_texture, GLuint mask_texture
 )
 {
-	GL3_UnbindFramebuffer();
+	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, 0);
+	GL3_BindFramebuffer(output);
 	GL3_UseProgram(gl3state.siPostfxMotionBlur.shaderProgram);
 	glUniform1i(motion_blur_uniforms.u_FboSampler[0], 0);
 	glUniform1i(motion_blur_uniforms.u_FboSampler[1], 1);
@@ -391,14 +394,26 @@ static gl3_framebuffer_t* RenderMotionBlur(
 	GL3_BindTexture(2, mask_texture);
 	GL3_BindVAO(screen_vao);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-	return NULL;
+	GL3_DeferReturnFramebuffer(output);
+	return output;
 }
 
-static void RenderBlit(GLuint tex)
+static void RenderUnderwaterBlend(GLuint tex)
 {
 	GL3_UnbindFramebuffer();
-	GL3_UseProgram(gl3state.siPostfxBlit.shaderProgram);
-	glUniform1i(blit_uniforms.u_FboSampler[0], 0);
+	GL3_UseProgram(gl3state.siPostfxUnderwater.shaderProgram);
+	glUniform1i(underwater_uniforms.u_FboSampler[0], 0);
+	glUniform1f(underwater_uniforms.u_AspectRatio, gl3_newrefdef.time);
+	GL3_BindTexture(0, tex);
+	GL3_BindVAO(screen_vao);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+static void RenderBlend(GLuint tex)
+{
+	GL3_UnbindFramebuffer();
+	GL3_UseProgram(gl3state.siPostfxBlend.shaderProgram);
+	glUniform1i(blend_uniforms.u_FboSampler[0], 0);
 	GL3_BindTexture(0, tex);
 	GL3_BindVAO(screen_vao);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -445,10 +460,22 @@ void GL3_PostFx_AfterScene()
 		output = RenderMotionBlur(
 			scene_texture, depth_texture, maskOutput ? maskOutput->color_textures[0] : 0
 		);
+		scene_texture = output->color_textures[0];
+	}
+
+	// Either the underwater or the blend shaders get their blend color from the uniCommon UBO
+	gl3state.uniCommonData.color = HMM_Vec4(
+		gl3_newrefdef.blend[0], gl3_newrefdef.blend[1], gl3_newrefdef.blend[2], gl3_newrefdef.blend[3]
+	);
+	GL3_UpdateUBOCommon();
+
+	if (gl3_newrefdef.rdflags & RDF_UNDERWATER)
+	{
+		RenderUnderwaterBlend(scene_texture);
 	}
 	else
 	{
-		RenderBlit(scene_texture);
+		RenderBlend(scene_texture);
 	}
 
 	previousviewproj = viewproj;
