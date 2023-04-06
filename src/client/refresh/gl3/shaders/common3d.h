@@ -77,10 +77,7 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 		};
 
 		struct DynLight { // gl3UniDynLight in C
-			vec3 lightOrigin;
-			float _pad;
-			//vec3 lightColor;
-			//float lightIntensity;
+			vec4 lightOrigin; // .w is attenuation
 			vec4 lightColor; // .a is intensity; this way it also works on OSX...
 			// (otherwise lightIntensity always contained 1 there)
 			vec4 shadowParameters;
@@ -174,13 +171,12 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 			for(uint i=0u; i<numDynLights; ++i)
 			{
 				float intens = dynLights[i].lightColor.a;
-				float atten = 1.0f / max(0.00001f, intens*intens);
 
-				vec3 lightToPos = dynLights[i].lightOrigin - passWorldCoord;
+				vec3 lightToPos = dynLights[i].lightOrigin.xyz - passWorldCoord;
 				float distanceSqr = max(0.00001f, dot(lightToPos, lightToPos));
 
 				float rangeAtten = Square(
-					clamp(1.0 - Square(distanceSqr * atten), 0.0, 1.0)
+					clamp(1.0 - Square(distanceSqr * dynLights[i].lightOrigin.w), 0.0, 1.0)
 				);
 				float fact = rangeAtten;
 

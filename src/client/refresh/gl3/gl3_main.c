@@ -1164,7 +1164,7 @@ GL3_SetGL2D(void)
 
 static void SetProjViewMatrices()
 {
-		/* set up projection matrix (eye coordinates -> clip coordinates) */
+	/* set up projection matrix (eye coordinates -> clip coordinates) */
 	{
 		float screenaspect = (float)gl3_newrefdef.width / gl3_newrefdef.height;
 		float dist = (r_farsee->value == 0) ? DEFAULT_FARCLIP : (DEFAULT_FARCLIP*2);

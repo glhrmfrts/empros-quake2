@@ -9,7 +9,8 @@
         "vector": "c",
         "xstring": "c",
         "local.h": "c",
-        "debug.h": "c"
+        "debug.h": "c",
+        "ref_shared.h": "c"
     },
     "editor.insertSpaces": false
 }

@@ -178,7 +178,7 @@ extern const hmm_mat4 gl3_identityMat4;
 typedef struct
 {
 	vec3_t origin;
-	GLfloat _padding;
+	GLfloat attenuation;
 	vec3_t color;
 	GLfloat intensity;
 	hmm_vec4 shadowParameters;

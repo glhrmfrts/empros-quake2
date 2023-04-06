@@ -124,11 +124,17 @@ GL3_PushDlights(void)
 		if (GL3_CullSphere(l->origin, effectiveIntensity)) continue;
 
 		int pushIndex = gl3state.uniLightsData.numDynLights;
+
+		// TODO: because of the surface batching, we need to move the lightFlags
+		// vertex attribute to it's own buffer and update it accordingly for this
+		// to work, otherwise this has no effect as of now.
+		// GL3_MarkLights(l, 1 << pushIndex, gl3_worldmodel->nodes);
+
 		gl3UniDynLight* udl = &gl3state.uniLightsData.dynLights[pushIndex];
-		GL3_MarkLights(l, 1 << pushIndex, gl3_worldmodel->nodes);
 		VectorCopy(l->origin, udl->origin);
 		VectorCopy(l->color, udl->color);
 		udl->intensity = effectiveIntensity;
+		udl->attenuation = 1.0f / max(0.00001f, udl->intensity*udl->intensity);
 
 		if (!GL3_Shadow_AddDynLight(i, l->origin, l->intensity))
 		{
