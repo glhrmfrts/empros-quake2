@@ -1,6 +1,6 @@
 # Empros Quake II
 
-Empros Quake II is an enhanced client for id Software's Quake
+Empros Quake II is an (experimental) enhanced client for id Software's Quake
 II with focus on offline and coop gameplay. It's a fork of Yamagi Quake II
 with the addition of modern rendering effects for the OpenGL 3 renderer.
 These are subtle effects which do not aim to make Quake II look
