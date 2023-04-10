@@ -563,7 +563,6 @@ SP_target_splash(edict_t *self)
  *  speed how fast it should be moving otherwise it
  *  will just be dropped
  */
-void ED_CallSpawn(edict_t *ent);
 
 void
 use_target_spawner(edict_t *self, edict_t *other /* unused */, edict_t *activator /* unused */)
@@ -1159,7 +1158,7 @@ target_earthquake_think(edict_t *self)
 				self->noise_index, 1.0, ATTN_NONE, 0);
 		self->last_move_time = level.time + 0.5;
 	}
-	
+
 	for (i = 1, e = g_edicts + i; i < globals.num_edicts; i++, e++)
 	{
 		if (!e->inuse)
@@ -1232,141 +1231,4 @@ SP_target_earthquake(edict_t *self)
 	self->use = target_earthquake_use;
 
 	self->noise_index = gi.soundindex("world/quake.wav");
-}
-
-/*
- * QUAKED target_fog (1 0 0) (-8 -8 -8) (8 8 8)
- * When triggered, changes the fog of the level.
- *  "speed"		  time to interpolate to new fog, in seconds (default: 1)
- *  "wait"		  density of the fog 						 (default: 0.0)
- *  "move_origin" RGB color of the fog 					 	 (default: 0.0 0.0 0.0)
- */
-
-void target_fog_use(edict_t *self, edict_t *other /* unused */, edict_t *activator)
-{
-	char text[200];
-	snprintf(text, sizeof(text), "foglerp %f %f %f %f %f\n", self->speed, self->wait,
-		self->move_origin[0], self->move_origin[1], self->move_origin[2]);
-	gi.AddCommandString(text);
-}
-
-void SP_target_fog(edict_t* self)
-{
-	if (!self) { return; }
-
-	if (!self->targetname)
-	{
-		gi.dprintf("untargeted %s at %s\n", self->classname,
-				vtos(self->s.origin));
-	}
-
-	if (!self->speed)
-	{
-		self->speed = 1;
-	}
-
-	self->use = target_fog_use;
-}
-
-
-/*
- * QUAKED target_steam (1 0 0) (-8 -8 -8) (8 8 8)
- * "count" Number of particles
- * "speed" Speed of particles
- * "angles" Direction of particles
- */
-
-enum { TARGET_STEAM_CONTINUOUS = 1, TARGET_STEAM_START_ON = 2 };
-
-static int steam_sustain_id;
-
-void
-G_SteamParticles(int id, int count, const vec3_t origin, const vec3_t dir, int speed, int sustain)
-{
-	int color = 0;
-	gi.WriteByte(svc_temp_entity);
-	gi.WriteByte(TE_STEAM);
-	gi.WriteShort(id);
-	gi.WriteByte(count);
-	gi.WritePosition(origin);
-	gi.WriteDir(dir);
-	gi.WriteByte(color);
-	gi.WriteShort(speed);
-	if (id != -1)
-	{
-		gi.WriteLong(sustain);
-	}
-	gi.multicast(origin, MULTICAST_PVS);
-}
-
-void use_target_steam(edict_t *self, edict_t *other /* unused */, edict_t *activator /* unused */)
-{
-	if (!self || !activator)
-	{
-		return;
-	}
-
-	int color = 0;
-
-	if (self->noise_index != -1)
-	{
-		// sustain
-		int sustain = self->wait * 1000.0f;
-
-		// if continous, always use a sustain interval of 1 second
-		if (self->spawnflags & TARGET_STEAM_CONTINUOUS)
-		{
-			sustain = 1000;
-		}
-
-		G_SteamParticles(self->noise_index + 1, self->count, self->s.origin, self->movedir, self->speed, sustain);
-
-		// schedule the next sustain message 1 second ahead
-		if (self->spawnflags & TARGET_STEAM_CONTINUOUS)
-		{
-			//self->think = target_steam_next_sustain;
-			//self->nextthink = time + 1.0f;
-		}
-	}
-	else
-	{
-		// instant
-		G_SteamParticles(-1, self->count, self->s.origin, self->movedir, self->speed, 0);
-	}
-
-	if (self->dmg)
-	{
-		T_RadiusDamage(self, activator, self->dmg, NULL,
-				self->dmg + 40, MOD_SPLASH);
-	}
-}
-
-void SP_target_steam(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	self->use = use_target_steam;
-	G_SetMovedir(self->s.angles, self->movedir);
-
-	if (!self->count)
-	{
-		self->count = 32;
-	}
-	if (!self->speed)
-	{
-		self->speed = 100;
-	}
-
-	self->noise_index = -1;
-	if (self->wait != 0.0f || (self->spawnflags & TARGET_STEAM_CONTINUOUS))
-	{
-		self->noise_index = steam_sustain_id++;
-	}
-
-	// keep the enabled state in the 'style' field
-	self->style = (self->spawnflags & TARGET_STEAM_START_ON);
-	self->svflags = SVF_NOCLIENT;
 }

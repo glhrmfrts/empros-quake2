@@ -42,6 +42,33 @@ static int sound_melee1;
 static int sound_melee2;
 static int sound_melee3;
 
+static int  sound_step;
+static int  sound_step2;
+
+void
+brain_footstep(edict_t *self)
+{
+	if (!g_monsterfootsteps->value)
+		return;
+
+	// Lazy loading for savegame compatibility.
+	if (sound_step == 0 || sound_step2 == 0)
+	{
+		sound_step = gi.soundindex("brain/step1.wav");
+		sound_step2 = gi.soundindex("brain/step2.wav");
+	}
+
+	if (randk() % 2 == 0)
+	{
+		gi.sound(self, CHAN_BODY, sound_step, 1, ATTN_NORM, 0);
+	}
+	else
+	{
+		gi.sound(self, CHAN_BODY, sound_step2, 1, ATTN_NORM, 0);
+	}
+}
+
+
 void
 brain_sight(edict_t *self, edict_t *other /* unused */)
 {
@@ -67,7 +94,7 @@ brain_search(edict_t *self)
 void brain_run(edict_t *self);
 void brain_dead(edict_t *self);
 
-mframe_t brain_frames_stand[] = {
+static mframe_t brain_frames_stand[] = {
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
@@ -121,7 +148,7 @@ brain_stand(edict_t *self)
 	self->monsterinfo.currentmove = &brain_move_stand;
 }
 
-mframe_t brain_frames_idle[] = {
+static mframe_t brain_frames_idle[] = {
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
@@ -176,17 +203,17 @@ brain_idle(edict_t *self)
 	self->monsterinfo.currentmove = &brain_move_idle;
 }
 
-mframe_t brain_frames_walk1[] = {
+static mframe_t brain_frames_walk1[] = {
 	{ai_walk, 7, NULL},
 	{ai_walk, 2, NULL},
 	{ai_walk, 3, NULL},
-	{ai_walk, 3, NULL},
+	{ai_walk, 3, brain_footstep},
 	{ai_walk, 1, NULL},
 	{ai_walk, 0, NULL},
 	{ai_walk, 0, NULL},
 	{ai_walk, 9, NULL},
 	{ai_walk, -4, NULL},
-	{ai_walk, -1, NULL},
+	{ai_walk, -1, brain_footstep},
 	{ai_walk, 2, NULL}
 };
 
@@ -209,7 +236,7 @@ brain_walk(edict_t *self)
 	self->monsterinfo.currentmove = &brain_move_walk1;
 }
 
-mframe_t brain_frames_defense[] = {
+static mframe_t brain_frames_defense[] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -229,7 +256,7 @@ mmove_t brain_move_defense =
 	NULL
 };
 
-mframe_t brain_frames_pain3[] = {
+static mframe_t brain_frames_pain3[] = {
 	{ai_move, -2, NULL},
 	{ai_move, 2, NULL},
 	{ai_move, 1, NULL},
@@ -246,7 +273,7 @@ mmove_t brain_move_pain3 =
 	brain_run
 };
 
-mframe_t brain_frames_pain2[] = {
+static mframe_t brain_frames_pain2[] = {
 	{ai_move, -2, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -265,10 +292,10 @@ mmove_t brain_move_pain2 =
    	brain_run
 };
 
-mframe_t brain_frames_pain1[] = {
+static mframe_t brain_frames_pain1[] = {
 	{ai_move, -6, NULL},
 	{ai_move, -2, NULL},
-	{ai_move, -6, NULL},
+	{ai_move, -6, brain_footstep},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -285,7 +312,7 @@ mframe_t brain_frames_pain1[] = {
 	{ai_move, 1, NULL},
 	{ai_move, 7, NULL},
 	{ai_move, 0, NULL},
-	{ai_move, 3, NULL},
+	{ai_move, 3, brain_footstep},
 	{ai_move, -1, NULL}
 };
 
@@ -348,15 +375,15 @@ brain_duck_up(edict_t *self)
 	gi.linkentity(self);
 }
 
-mframe_t brain_frames_duck[] = {
+static mframe_t brain_frames_duck[] = {
 	{ai_move, 0, NULL},
 	{ai_move, -2, brain_duck_down},
 	{ai_move, 17, brain_duck_hold},
-	{ai_move, -3, NULL},
+	{ai_move, -3, brain_footstep},
 	{ai_move, -1, brain_duck_up},
 	{ai_move, -5, NULL},
 	{ai_move, -6, NULL},
-	{ai_move, -6, NULL}
+	{ai_move, -6, brain_footstep}
 };
 
 mmove_t brain_move_duck =
@@ -390,7 +417,7 @@ brain_dodge(edict_t *self, edict_t *attacker, float eta)
 	self->monsterinfo.currentmove = &brain_move_duck;
 }
 
-mframe_t brain_frames_death2[] = {
+static mframe_t brain_frames_death2[] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -406,7 +433,7 @@ mmove_t brain_move_death2 =
 	brain_dead
 };
 
-mframe_t brain_frames_death1[] = {
+static mframe_t brain_frames_death1[] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, -2, NULL},
@@ -493,11 +520,11 @@ brain_hit_left(edict_t *self)
 	}
 }
 
-mframe_t brain_frames_attack1[] = {
+static mframe_t brain_frames_attack1[] = {
 	{ai_charge, 8, NULL},
 	{ai_charge, 3, NULL},
 	{ai_charge, 5, NULL},
-	{ai_charge, 0, NULL},
+	{ai_charge, 0, brain_footstep},
 	{ai_charge, -3, brain_swing_right},
 	{ai_charge, 0, NULL},
 	{ai_charge, -5, NULL},
@@ -511,7 +538,7 @@ mframe_t brain_frames_attack1[] = {
 	{ai_charge, -1, NULL},
 	{ai_charge, -3, NULL},
 	{ai_charge, 2, NULL},
-	{ai_charge, -11, NULL}
+	{ai_charge, -11, brain_footstep}
 };
 
 mmove_t brain_move_attack1 =
@@ -572,7 +599,7 @@ brain_chest_closed(edict_t *self)
 	}
 }
 
-mframe_t brain_frames_attack2[] = {
+static mframe_t brain_frames_attack2[] = {
 	{ai_charge, 5, NULL},
 	{ai_charge, -4, NULL},
 	{ai_charge, -4, NULL},
@@ -618,17 +645,17 @@ brain_melee(edict_t *self)
 	}
 }
 
-mframe_t brain_frames_run[] = {
+static mframe_t brain_frames_run[] = {
 	{ai_run, 9, NULL},
 	{ai_run, 2, NULL},
 	{ai_run, 3, NULL},
-	{ai_run, 3, NULL},
+	{ai_run, 3, brain_footstep},
 	{ai_run, 1, NULL},
 	{ai_run, 0, NULL},
 	{ai_run, 0, NULL},
 	{ai_run, 10, NULL},
 	{ai_run, -4, NULL},
-	{ai_run, -1, NULL},
+	{ai_run, -1, brain_footstep},
 	{ai_run, 2, NULL}
 };
 
@@ -796,6 +823,11 @@ SP_monster_brain(edict_t *self)
 		G_FreeEdict(self);
 		return;
 	}
+
+	// Force recaching at next footstep to ensure
+	// that the sound indices are correct.
+	sound_step = 0;
+	sound_step2 = 0;
 
 	sound_chest_open = gi.soundindex("brain/brnatck1.wav");
 	sound_tentacles_extend = gi.soundindex("brain/brnatck2.wav");

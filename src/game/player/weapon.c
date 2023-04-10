@@ -593,7 +593,7 @@ Weapon_Generic(edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
 
 	if (ent->client->weaponstate == WEAPON_DROPPING)
 	{
-		if (ent->client->ps.gunframe >= FRAME_DEACTIVATE_LAST)
+		if (ent->client->ps.gunframe == FRAME_DEACTIVATE_LAST)
 		{
 			ChangeWeapon(ent);
 			return;
@@ -614,28 +614,24 @@ Weapon_Generic(edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
 			}
 		}
 
-		ent->client->ps.gunframe += 2;
+		ent->client->ps.gunframe++;
 		return;
 	}
 
 	if (ent->client->weaponstate == WEAPON_ACTIVATING)
 	{
-		if (ent->client->ps.gunframe >= FRAME_ACTIVATE_LAST)
+		if (ent->client->ps.gunframe == FRAME_ACTIVATE_LAST)
 		{
 			ent->client->weaponstate = WEAPON_READY;
 			ent->client->ps.gunframe = FRAME_IDLE_FIRST;
 			return;
 		}
 
-		ent->client->ps.gunframe += 2;
+		ent->client->ps.gunframe++;
 		return;
 	}
 
-	const char* current_weapon_classname = ent->client->pers.weapon->classname;
-	qboolean is_chaingun = (0 == strcmp(current_weapon_classname, "weapon_chaingun"));
-	qboolean is_hyper = (0 == strcmp(current_weapon_classname, "weapon_hyperblaster"));
-	qboolean can_change_while_firing = !((is_chaingun || is_hyper) && (ent->client->weaponstate == WEAPON_FIRING));
-	if ((ent->client->newweapon) && can_change_while_firing)
+	if ((ent->client->newweapon) && (ent->client->weaponstate != WEAPON_FIRING))
 	{
 		ent->client->weaponstate = WEAPON_DROPPING;
 		ent->client->ps.gunframe = FRAME_DEACTIVATE_FIRST;
@@ -1357,7 +1353,7 @@ Machinegun_Fire(edict_t *ent)
 			ent->client->machinegun_shots = 9;
 		}
 	}
-
+	
 	/* get start / end positions */
 	VectorAdd(ent->client->v_angle, ent->client->kick_angles, angles);
 	AngleVectors(angles, forward, right, NULL);
@@ -1688,11 +1684,36 @@ weapon_supershotgun_fire(edict_t *ent)
 	v[YAW] = ent->client->v_angle[YAW] - 5;
 	v[ROLL] = ent->client->v_angle[ROLL];
 	AngleVectors(v, forward, NULL, NULL);
+	
+	if (aimfix->value)
+	{	
+		AngleVectors(v, forward, right, NULL);
+
+		VectorScale(forward, -2, ent->client->kick_origin);
+		ent->client->kick_angles[0] = -2;
+
+		VectorSet(offset, 0, 8, ent->viewheight - 8);
+		P_ProjectSource(ent, offset, forward, right, start);
+	}	
+	
 	fire_shotgun(ent, start, forward, damage, kick,
 			DEFAULT_SHOTGUN_HSPREAD, DEFAULT_SHOTGUN_VSPREAD,
 			DEFAULT_SSHOTGUN_COUNT / 2, MOD_SSHOTGUN);
+	
 	v[YAW] = ent->client->v_angle[YAW] + 5;
 	AngleVectors(v, forward, NULL, NULL);
+	
+	if (aimfix->value)
+	{	
+		AngleVectors(v, forward, right, NULL);
+
+		VectorScale(forward, -2, ent->client->kick_origin);
+		ent->client->kick_angles[0] = -2;
+
+		VectorSet(offset, 0, 8, ent->viewheight - 8);
+		P_ProjectSource(ent, offset, forward, right, start);
+	}	
+	
 	fire_shotgun(ent, start, forward, damage, kick,
 			DEFAULT_SHOTGUN_HSPREAD, DEFAULT_SHOTGUN_VSPREAD,
 			DEFAULT_SSHOTGUN_COUNT / 2, MOD_SSHOTGUN);

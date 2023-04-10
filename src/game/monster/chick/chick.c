@@ -51,6 +51,34 @@ static int sound_pain3;
 static int sound_sight;
 static int sound_search;
 
+static int  sound_step;
+static int  sound_step2;
+
+
+void
+chick_footstep(edict_t *self)
+{
+	if (!g_monsterfootsteps->value)
+		return;
+
+	// Lazy loading for savegame compatibility.
+	if (sound_step == 0 || sound_step2 == 0)
+	{
+		sound_step = gi.soundindex("bitch/step1.wav");
+		sound_step2 = gi.soundindex("bitch/step2.wav");
+	}
+
+	if (randk() % 2 == 0)
+	{
+		gi.sound(self, CHAN_BODY, sound_step, 1, ATTN_NORM, 0);
+	}
+	else
+	{
+		gi.sound(self, CHAN_BODY, sound_step2, 1, ATTN_NORM, 0);
+	}
+}
+
+
 void
 ChickMoan(edict_t *self)
 {
@@ -69,7 +97,7 @@ ChickMoan(edict_t *self)
 	}
 }
 
-mframe_t chick_frames_fidget[] = {
+static mframe_t chick_frames_fidget[] = {
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
@@ -129,7 +157,7 @@ chick_fidget(edict_t *self)
 	}
 }
 
-mframe_t chick_frames_stand[] = {
+static mframe_t chick_frames_stand[] = {
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
 	{ai_stand, 0, NULL},
@@ -181,7 +209,7 @@ chick_stand(edict_t *self)
 	self->monsterinfo.currentmove = &chick_move_stand;
 }
 
-mframe_t chick_frames_start_run[] = {
+static mframe_t chick_frames_start_run[] = {
 	{ai_run, 1, NULL},
 	{ai_run, 0, NULL},
 	{ai_run, 0, NULL},
@@ -202,14 +230,14 @@ mmove_t chick_move_start_run =
    	chick_run
 };
 
-mframe_t chick_frames_run[] = {
+static mframe_t chick_frames_run[] = {
 	{ai_run, 6, NULL},
-	{ai_run, 8, NULL},
+	{ai_run, 8, chick_footstep},
 	{ai_run, 13, NULL},
 	{ai_run, 5, NULL},
 	{ai_run, 7, NULL},
 	{ai_run, 4, NULL},
-	{ai_run, 11, NULL},
+	{ai_run, 11, chick_footstep},
 	{ai_run, 5, NULL},
 	{ai_run, 9, NULL},
 	{ai_run, 7, NULL}
@@ -223,14 +251,14 @@ mmove_t chick_move_run =
    	NULL
 };
 
-mframe_t chick_frames_walk[] = {
+static mframe_t chick_frames_walk[] = {
 	{ai_walk, 6, NULL},
-	{ai_walk, 8, NULL},
+	{ai_walk, 8, chick_footstep},
 	{ai_walk, 13, NULL},
 	{ai_walk, 5, NULL},
 	{ai_walk, 7, NULL},
 	{ai_walk, 4, NULL},
-	{ai_walk, 11, NULL},
+	{ai_walk, 11, chick_footstep},
 	{ai_walk, 5, NULL},
 	{ai_walk, 9, NULL},
 	{ai_walk, 7, NULL}
@@ -280,7 +308,7 @@ chick_run(edict_t *self)
 	}
 }
 
-mframe_t chick_frames_pain1[] = {
+static mframe_t chick_frames_pain1[] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -296,7 +324,7 @@ mmove_t chick_move_pain1 =
    	chick_run
 };
 
-mframe_t chick_frames_pain2[] = {
+static mframe_t chick_frames_pain2[] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -312,7 +340,7 @@ mmove_t chick_move_pain2 =
    	chick_run
 };
 
-mframe_t chick_frames_pain3[] = {
+static mframe_t chick_frames_pain3[] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, -6, NULL},
@@ -417,24 +445,24 @@ chick_dead(edict_t *self)
 	gi.linkentity(self);
 }
 
-mframe_t chick_frames_death2[] = {
+static mframe_t chick_frames_death2[] = {
 	{ai_move, -6, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, -1, NULL},
-	{ai_move, -5, NULL},
+	{ai_move, -5, chick_footstep},
 	{ai_move, 0, NULL},
 	{ai_move, -1, NULL},
 	{ai_move, -2, NULL},
 	{ai_move, 1, NULL},
 	{ai_move, 10, NULL},
 	{ai_move, 2, NULL},
-	{ai_move, 3, NULL},
+	{ai_move, 3, chick_footstep},
 	{ai_move, 1, NULL},
 	{ai_move, 2, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 3, NULL},
 	{ai_move, 3, NULL},
-	{ai_move, 1, NULL},
+	{ai_move, 1, chick_footstep},
 	{ai_move, -3, NULL},
 	{ai_move, -5, NULL},
 	{ai_move, 4, NULL},
@@ -451,7 +479,7 @@ mmove_t chick_move_death2 =
    	chick_dead
 };
 
-mframe_t chick_frames_death1[] = {
+static mframe_t chick_frames_death1[] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, -7, NULL},
@@ -518,9 +546,7 @@ chick_die(edict_t *self, edict_t *inflictor /* unused */,
 	self->deadflag = DEAD_DEAD;
 	self->takedamage = DAMAGE_YES;
 
-	n = randk() % 2;
-
-	if (n == 0)
+	if (randk() % 2 == 0)
 	{
 		self->monsterinfo.currentmove = &chick_move_death1;
 		gi.sound(self, CHAN_VOICE, sound_death1, 1, ATTN_NORM, 0);
@@ -584,7 +610,7 @@ chick_duck_up(edict_t *self)
 	gi.linkentity(self);
 }
 
-mframe_t chick_frames_duck[] = {
+static mframe_t chick_frames_duck[] = {
 	{ai_move, 0, chick_duck_down},
 	{ai_move, 1, NULL},
 	{ai_move, 4, chick_duck_hold},
@@ -686,7 +712,7 @@ ChickReload(edict_t *self)
 	gi.sound(self, CHAN_VOICE, sound_missile_reload, 1, ATTN_NORM, 0);
 }
 
-mframe_t chick_frames_start_attack1[] = {
+static mframe_t chick_frames_start_attack1[] = {
 	{ai_charge, 0, Chick_PreAttack1},
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL},
@@ -695,7 +721,7 @@ mframe_t chick_frames_start_attack1[] = {
 	{ai_charge, -3, NULL},
 	{ai_charge, 3, NULL},
 	{ai_charge, 5, NULL},
-	{ai_charge, 7, NULL},
+	{ai_charge, 7, chick_footstep},
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL},
@@ -709,20 +735,20 @@ mmove_t chick_move_start_attack1 =
 	chick_frames_start_attack1,
    	NULL};
 
-mframe_t chick_frames_attack1[] = {
+static mframe_t chick_frames_attack1[] = {
 	{ai_charge, 19, ChickRocket},
 	{ai_charge, -6, NULL},
-	{ai_charge, -5, NULL},
+	{ai_charge, -5, chick_footstep},
 	{ai_charge, -2, NULL},
-	{ai_charge, -7, NULL},
+	{ai_charge, -7, chick_footstep},
 	{ai_charge, 0, NULL},
 	{ai_charge, 1, NULL},
 	{ai_charge, 10, ChickReload},
 	{ai_charge, 4, NULL},
-	{ai_charge, 5, NULL},
+	{ai_charge, 5, chick_footstep},
 	{ai_charge, 6, NULL},
 	{ai_charge, 6, NULL},
-	{ai_charge, 4, NULL},
+	{ai_charge, 4, chick_footstep},
 	{ai_charge, 3, chick_rerocket}
 };
 
@@ -734,12 +760,12 @@ mmove_t chick_move_attack1 =
 	NULL
 };
 
-mframe_t chick_frames_end_attack1[] = {
+static mframe_t chick_frames_end_attack1[] = {
 	{ai_charge, -3, NULL},
 	{ai_charge, 0, NULL},
 	{ai_charge, -6, NULL},
 	{ai_charge, -4, NULL},
-	{ai_charge, -2, NULL}
+	{ai_charge, -2, chick_footstep}
 };
 
 mmove_t chick_move_end_attack1 =
@@ -787,7 +813,7 @@ chick_attack1(edict_t *self)
 	self->monsterinfo.currentmove = &chick_move_attack1;
 }
 
-mframe_t chick_frames_slash[] = {
+static mframe_t chick_frames_slash[] = {
 	{ai_charge, 1, NULL},
 	{ai_charge, 7, ChickSlash},
 	{ai_charge, -7, NULL},
@@ -807,11 +833,11 @@ mmove_t chick_move_slash =
 	NULL
 };
 
-mframe_t chick_frames_end_slash[] = {
+static mframe_t chick_frames_end_slash[] = {
 	{ai_charge, -6, NULL},
 	{ai_charge, -1, NULL},
 	{ai_charge, -6, NULL},
-	{ai_charge, 0, NULL}
+	{ai_charge, 0, chick_footstep}
 };
 
 mmove_t chick_move_end_slash =
@@ -861,10 +887,10 @@ chick_slash(edict_t *self)
 	self->monsterinfo.currentmove = &chick_move_slash;
 }
 
-mframe_t chick_frames_start_slash[] = {
+static mframe_t chick_frames_start_slash[] = {
 	{ai_charge, 1, NULL},
 	{ai_charge, 8, NULL},
-	{ai_charge, 3, NULL}
+	{ai_charge, 3, chick_footstep}
 };
 
 mmove_t chick_move_start_slash =
@@ -924,6 +950,11 @@ SP_monster_chick(edict_t *self)
 		G_FreeEdict(self);
 		return;
 	}
+
+	// Force recaching at next footstep to ensure
+	// that the sound indices are correct.
+	sound_step = 0;
+	sound_step2 = 0;
 
 	sound_missile_prelaunch = gi.soundindex("chick/chkatck1.wav");
 	sound_missile_launch = gi.soundindex("chick/chkatck2.wav");

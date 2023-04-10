@@ -88,8 +88,6 @@ void SP_target_lightramp(edict_t *self);
 void SP_target_earthquake(edict_t *ent);
 void SP_target_character(edict_t *ent);
 void SP_target_string(edict_t *ent);
-void SP_target_fog(edict_t* ent);
-void SP_target_steam(edict_t *self);
 
 void SP_worldspawn(edict_t *ent);
 void SP_viewthing(edict_t *ent);
@@ -150,7 +148,7 @@ void SP_turret_breach(edict_t *self);
 void SP_turret_base(edict_t *self);
 void SP_turret_driver(edict_t *self);
 
-spawn_t spawns[] = {
+static spawn_t spawns[] = {
 	{"item_health", SP_item_health},
 	{"item_health_small", SP_item_health_small},
 	{"item_health_large", SP_item_health_large},
@@ -207,8 +205,6 @@ spawn_t spawns[] = {
 	{"target_earthquake", SP_target_earthquake},
 	{"target_character", SP_target_character},
 	{"target_string", SP_target_string},
-	{"target_fog", SP_target_fog},
-	{"target_steam", SP_target_steam},
 
 	{"worldspawn", SP_worldspawn},
 	{"viewthing", SP_viewthing},
@@ -713,7 +709,7 @@ SpawnEntities(const char *mapname, char *entities, const char *spawnpoint)
 
 /* =================================================================== */
 
-char *single_statusbar =
+static char *single_statusbar =
 	"yb	-24 "
 
 /* health */
@@ -771,7 +767,7 @@ char *single_statusbar =
 	"endif "
 ;
 
-char *dm_statusbar =
+static char *dm_statusbar =
 	"yb	-24 "
 
 /* health */
