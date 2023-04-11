@@ -45,11 +45,13 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			// apply intensity
 			texel.rgb *= intensity;
 
+			float actualEmit = emission*0.1f;
+
 			// apply lightmap
-			vec4 lmTex = (texture(lightmap0, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style0];
-			lmTex     += (texture(lightmap1, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style1];
-			lmTex     += (texture(lightmap2, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style2];
-			lmTex     += (texture(lightmap3, passLMcoord)*(1.0f+emission)) * lightstyles[pass_style3];
+			vec4 lmTex = (texture(lightmap0, passLMcoord)*(1.0f+actualEmit)) * lightstyles[pass_style0];
+			lmTex     += (texture(lightmap1, passLMcoord)*(1.0f+actualEmit)) * lightstyles[pass_style1];
+			lmTex     += (texture(lightmap2, passLMcoord)*(1.0f+actualEmit)) * lightstyles[pass_style2];
+			lmTex     += (texture(lightmap3, passLMcoord)*(1.0f+actualEmit)) * lightstyles[pass_style3];
 
 			if (ssao == 1.0f)
 			{
