@@ -664,13 +664,3 @@ set_target_properties(ref_gl3 PROPERTIES
 		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
 		)
 target_link_libraries(ref_gl3 ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags})
-
-# Build the soft renderer dynamic library
-add_library(ref_soft MODULE ${SOFT-Source} ${SOFT-Header} ${REF-Platform-Specific-Source})
-set_target_properties(ref_soft PROPERTIES
-		PREFIX ""
-		LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
-		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
-		)
-target_link_libraries(ref_soft ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags})

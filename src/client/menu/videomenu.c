@@ -54,6 +54,7 @@ static cvar_t *r_shadowmap;
 static cvar_t *r_renderscale;
 
 static menuframework_s s_opengl_menu;
+static menuframework_s s_fx_menu;
 
 static menulist_s s_renderer_list;
 static menulist_s s_mode_list;
@@ -74,6 +75,7 @@ static menulist_s s_ssao_list;
 static menulist_s s_shadowmap_list;
 static menuaction_s s_defaults_action;
 static menuaction_s s_apply_action;
+static menuaction_s s_fx_action;
 
 // --------
 
@@ -332,6 +334,120 @@ ApplyChanges(void *unused)
 	}
 
 	M_ForceMenuOff();
+}
+
+static void
+InitFXMenu()
+{
+	int y = 0;
+
+	s_fx_menu.x = viddef.width * 0.50;
+	s_fx_menu.nitems = 0;
+
+	static const char* off_on_names[] = { "off", "on", NULL };
+
+	s_hdr_list.generic.type = MTYPE_SPINCONTROL;
+	s_hdr_list.generic.name = "HDR";
+	s_hdr_list.generic.x = 0;
+	s_hdr_list.generic.y = (y += 10);
+	s_hdr_list.itemnames = off_on_names;
+	s_hdr_list.curvalue = (r_hdr->value == 0.0f) ? 0 : 1;
+
+	s_bloom_list.generic.type = MTYPE_SPINCONTROL;
+	s_bloom_list.generic.name = "bloom";
+	s_bloom_list.generic.x = 0;
+	s_bloom_list.generic.y = (y += 10);
+	s_bloom_list.itemnames = off_on_names;
+	s_bloom_list.curvalue = (r_bloom->value == 0.0f) ? 0 : 1;
+
+	s_ssao_list.generic.type = MTYPE_SPINCONTROL;
+	s_ssao_list.generic.name = "ambient occlusion";
+	s_ssao_list.generic.x = 0;
+	s_ssao_list.generic.y = (y += 10);
+	s_ssao_list.itemnames = off_on_names;
+	s_ssao_list.curvalue = (r_ssao->value == 0.0f) ? 0 : 1;
+
+	s_motionblur_slider.generic.type = MTYPE_SLIDER;
+	s_motionblur_slider.generic.name = "motion blur";
+	s_motionblur_slider.generic.x = 0;
+	s_motionblur_slider.generic.y = (y += 10);
+	s_motionblur_slider.minvalue = 0;
+	s_motionblur_slider.maxvalue = 2;
+	s_motionblur_slider.cvar = "r_motionblur";
+
+	Menu_AddItem(&s_fx_menu, &s_hdr_list);
+	Menu_AddItem(&s_fx_menu, &s_bloom_list);
+	Menu_AddItem(&s_fx_menu, &s_ssao_list);
+	Menu_AddItem(&s_fx_menu, &s_motionblur_slider);
+
+	Menu_Center(&s_fx_menu);
+}
+
+static void
+DrawFXMenu()
+{
+	int w, h;
+	float scale = SCR_GetMenuScale();
+
+	/* draw the banner */
+	Draw_GetPicSize(&w, &h, "m_banner_video");
+	Draw_PicScaled(viddef.width / 2 - (w * scale) / 2, viddef.height / 2 - (110 * scale),
+			"m_banner_video", scale);
+
+	/* move cursor to a reasonable starting position */
+	Menu_AdjustCursor(&s_fx_menu, 1);
+
+	/* draw the menu */
+	Menu_Draw(&s_fx_menu);
+}
+
+static const char*
+HandleKeyFXMenu(int key)
+{
+	extern void M_PopMenu(void);
+
+	menuframework_s *m = &s_fx_menu;
+	static const char *sound = "misc/menu1.wav";
+	int menu_key = Key_GetMenuKey(key);
+
+	switch (menu_key)
+	{
+		case K_ESCAPE:
+			M_PopMenu();
+			return NULL;
+		case K_UPARROW:
+			m->cursor--;
+			Menu_AdjustCursor(m, -1);
+			break;
+		case K_DOWNARROW:
+			m->cursor++;
+			Menu_AdjustCursor(m, 1);
+			break;
+		case K_LEFTARROW:
+			Menu_SlideItem(m, -1);
+			break;
+		case K_RIGHTARROW:
+			Menu_SlideItem(m, 1);
+			break;
+		case K_ENTER:
+			Menu_SelectItem(m);
+			break;
+	}
+
+	return sound;
+}
+
+void
+M_Menu_FX_f()
+{
+	InitFXMenu();
+	M_PushMenu(DrawFXMenu, HandleKeyFXMenu);
+}
+
+static void
+CustomizeFxFunc()
+{
+	M_Menu_FX_f();
 }
 
 void
@@ -672,36 +788,11 @@ VID_MenuInit(void)
 	s_shadowmap_list.itemnames = shadowmap_names;
 	s_shadowmap_list.curvalue = (int)r_shadowmap->value;
 
-	static const char* off_on_names[] = { "off", "on", NULL };
-
-	s_hdr_list.generic.type = MTYPE_SPINCONTROL;
-	s_hdr_list.generic.name = "HDR";
-	s_hdr_list.generic.x = 0;
-	s_hdr_list.generic.y = (y += 10);
-	s_hdr_list.itemnames = off_on_names;
-	s_hdr_list.curvalue = (r_hdr->value == 0.0f) ? 0 : 1;
-
-	s_bloom_list.generic.type = MTYPE_SPINCONTROL;
-	s_bloom_list.generic.name = "bloom";
-	s_bloom_list.generic.x = 0;
-	s_bloom_list.generic.y = (y += 10);
-	s_bloom_list.itemnames = off_on_names;
-	s_bloom_list.curvalue = (r_bloom->value == 0.0f) ? 0 : 1;
-
-	s_ssao_list.generic.type = MTYPE_SPINCONTROL;
-	s_ssao_list.generic.name = "ambient occlusion";
-	s_ssao_list.generic.x = 0;
-	s_ssao_list.generic.y = (y += 10);
-	s_ssao_list.itemnames = off_on_names;
-	s_ssao_list.curvalue = (r_ssao->value == 0.0f) ? 0 : 1;
-
-	s_motionblur_slider.generic.type = MTYPE_SLIDER;
-	s_motionblur_slider.generic.name = "motion blur";
-	s_motionblur_slider.generic.x = 0;
-	s_motionblur_slider.generic.y = (y += 10);
-	s_motionblur_slider.minvalue = 0;
-	s_motionblur_slider.maxvalue = 2;
-	s_motionblur_slider.cvar = "r_motionblur";
+	s_fx_action.generic.type = MTYPE_ACTION;
+	s_fx_action.generic.x = 0;
+	s_fx_action.generic.y = (y += 10);
+	s_fx_action.generic.name = "customize fx";
+	s_fx_action.generic.callback = CustomizeFxFunc;
 
 	s_defaults_action.generic.type = MTYPE_ACTION;
 	s_defaults_action.generic.name = "reset to default";
@@ -734,17 +825,14 @@ VID_MenuInit(void)
 	Menu_AddItem(&s_opengl_menu, (void *)&s_af_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_msaa_list);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_shadowmap_list);
-	Menu_AddItem(&s_opengl_menu, (void *)&s_hdr_list);
-	Menu_AddItem(&s_opengl_menu, (void *)&s_bloom_list);
-	Menu_AddItem(&s_opengl_menu, (void *)&s_ssao_list);
-	Menu_AddItem(&s_opengl_menu, (void *)&s_motionblur_slider);
+	Menu_AddItem(&s_opengl_menu, (void *)&s_fx_action);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_defaults_action);
 	Menu_AddItem(&s_opengl_menu, (void *)&s_apply_action);
 
 	Menu_Center(&s_opengl_menu);
 
 	s_opengl_menu.x -= 8;
-	s_opengl_menu.y += 40;
+	s_opengl_menu.y += 10;
 }
 
 void

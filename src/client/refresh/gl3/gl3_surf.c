@@ -550,7 +550,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		VectorAdd(e->origin, currentmodel->mins, mins);
 		VectorAdd(e->origin, currentmodel->maxs, maxs);
 	}
-
+	
 	if (GL3_CullBox(mins, maxs))
 	{
 		return;

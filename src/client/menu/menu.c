@@ -160,7 +160,7 @@ M_PopMenu(void)
  *    to the stack and make the requested menu the menu in
  *    flight.
  */
-static void
+void
 M_PushMenu(void (*draw)(void), const char *(*key)(int))
 {
     int i;
@@ -6033,6 +6033,7 @@ M_Init(void)
     Cmd_AddCommand("menu_multiplayer", M_Menu_Multiplayer_f);
     Cmd_AddCommand("menu_multiplayer_keys", M_Menu_Multiplayer_Keys_f);
     Cmd_AddCommand("menu_video", M_Menu_Video_f);
+    Cmd_AddCommand("menu_fx", M_Menu_FX_f);
     Cmd_AddCommand("menu_options", M_Menu_Options_f);
     Cmd_AddCommand("menu_keys", M_Menu_Keys_f);
     Cmd_AddCommand("menu_joy", M_Menu_Joy_f);

@@ -153,4 +153,8 @@ void Menu_DrawStringR2LDark(int, int, const char *);
 
 float ClampCvar(float min, float max, float value);
 
+void M_PushMenu(void (*draw)(void), const char *(*key)(int));
+
+void M_Menu_FX_f();
+
 #endif
