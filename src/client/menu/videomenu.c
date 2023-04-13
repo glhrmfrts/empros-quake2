@@ -337,6 +337,24 @@ ApplyChanges(void *unused)
 }
 
 static void
+HDRCallback(void* item)
+{
+	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
+}
+
+static void
+BloomCallback(void* item)
+{
+	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
+}
+
+static void
+SSAOCallback(void* item)
+{
+	Cvar_SetValue("r_ssao", (float)s_ssao_list.curvalue);
+}
+
+static void
 InitFXMenu()
 {
 	int y = 0;
@@ -352,6 +370,7 @@ InitFXMenu()
 	s_hdr_list.generic.y = (y += 10);
 	s_hdr_list.itemnames = off_on_names;
 	s_hdr_list.curvalue = (r_hdr->value == 0.0f) ? 0 : 1;
+	s_hdr_list.generic.callback = HDRCallback;
 
 	s_bloom_list.generic.type = MTYPE_SPINCONTROL;
 	s_bloom_list.generic.name = "bloom";
@@ -359,6 +378,7 @@ InitFXMenu()
 	s_bloom_list.generic.y = (y += 10);
 	s_bloom_list.itemnames = off_on_names;
 	s_bloom_list.curvalue = (r_bloom->value == 0.0f) ? 0 : 1;
+	s_bloom_list.generic.callback = BloomCallback;
 
 	s_ssao_list.generic.type = MTYPE_SPINCONTROL;
 	s_ssao_list.generic.name = "ambient occlusion";
@@ -366,6 +386,7 @@ InitFXMenu()
 	s_ssao_list.generic.y = (y += 10);
 	s_ssao_list.itemnames = off_on_names;
 	s_ssao_list.curvalue = (r_ssao->value == 0.0f) ? 0 : 1;
+	s_ssao_list.generic.callback = SSAOCallback;
 
 	s_motionblur_slider.generic.type = MTYPE_SLIDER;
 	s_motionblur_slider.generic.name = "motion blur";

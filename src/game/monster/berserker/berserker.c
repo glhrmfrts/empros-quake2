@@ -166,7 +166,7 @@ berserk_fidget(edict_t *self)
 	}
 
 	self->monsterinfo.currentmove = &berserk_move_stand_fidget;
-	gi.sound(self, CHAN_WEAPON, sound_idle, 1, ATTN_IDLE, 0);
+	//gi.sound(self, CHAN_WEAPON, sound_idle, 1, ATTN_IDLE, 0);
 }
 
 static mframe_t berserk_frames_walk[] = {
