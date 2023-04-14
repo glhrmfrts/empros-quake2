@@ -1379,7 +1379,7 @@ GL3_RenderView(refdef_t *fd)
 
 	GL3_PostFx_AfterScene();
 
-	GL3_ReturnDeferredFramebuffers();
+	GL3_FramebuffersEndFrame();
 
 	if (r_underwaterfog->value && (gl3_newrefdef.rdflags & RDF_UNDERWATER))
 	{
@@ -1717,20 +1717,26 @@ GetRefAPI(refimport_t imp)
 	return re;
 }
 
+#define DEBUG_RENDERER 0
+
 void R_Printf(int level, const char* msg, ...)
 {
+#if DEBUG_RENDERER
 	static FILE* debugFile;
 	if (!debugFile)
 	{
 		debugFile = fopen("r_debug.txt", "w");
 	}
+#endif
 
 	va_list argptr;
 	va_start(argptr, msg);
 
+#if DEBUG_RENDERER
 	vfprintf(debugFile, msg, argptr);
+#endif
 
-	//ri.Com_VPrintf(level, msg, argptr);
+	ri.Com_VPrintf(level, msg, argptr);
 	va_end(argptr);
 }
 

@@ -796,6 +796,7 @@ typedef enum gl3_framebuffer_usage
 
 typedef struct gl3_framebuffer_s
 {
+	char name[32];
 	GLuint id;
 	gl3_framebuffer_flag_t flags;
 	GLuint width, height;
@@ -803,19 +804,37 @@ typedef struct gl3_framebuffer_s
 	GLuint color_textures[4];
 	GLuint depth_texture;
 	gl3_framebuffer_usage_t inUse;
+	int framesWithoutUse;
 } gl3_framebuffer_t;
 
-extern void GL3_CreateFramebuffer(GLuint width, GLuint height, GLuint num_color_textures, gl3_framebuffer_flag_t flags, gl3_framebuffer_t* out);
+extern void GL3_CreateFramebuffer(
+	GLuint width,
+	GLuint height,
+	GLuint num_color_textures,
+	gl3_framebuffer_flag_t flags,
+	gl3_framebuffer_t* out
+);
 extern void GL3_DestroyFramebuffer(gl3_framebuffer_t* fb);
 extern void GL3_BindFramebuffer(const gl3_framebuffer_t* fb);
 extern void GL3_UnbindFramebuffer();
 extern void GL3_BindFramebufferTexture(const gl3_framebuffer_t* fb, int index, int unit);
 extern void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit);
 
-extern gl3_framebuffer_t* GL3_NewFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags);
+extern gl3_framebuffer_t* GL3_NewFramebuffer(
+	GLuint width,
+	GLuint height,
+	GLuint numColorTextures,
+	gl3_framebuffer_flag_t flags
+);
 
 // Borrows a framebuffer by searching in the list of available FBOs or creating a new one
-extern gl3_framebuffer_t* GL3_BorrowFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags);
+extern gl3_framebuffer_t* GL3_BorrowFramebuffer(
+	GLuint width,
+	GLuint height,
+	GLuint numColorTextures,
+	gl3_framebuffer_flag_t flags,
+	const char* name
+);
 
 // Return framebuffer (make available for others to use)
 extern void GL3_ReturnFramebuffer(gl3_framebuffer_t* fbo);
@@ -824,7 +843,7 @@ extern void GL3_ReturnFramebuffer(gl3_framebuffer_t* fbo);
 extern void GL3_DeferReturnFramebuffer(gl3_framebuffer_t* fbo);
 
 // Called at end of frame, returns all deferred FBOs
-extern void GL3_ReturnDeferredFramebuffers();
+extern void GL3_FramebuffersEndFrame();
 
 extern void GL3_DestroyAllFramebuffers();
 

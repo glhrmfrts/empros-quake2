@@ -149,6 +149,40 @@ void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit)
 static gl3_framebuffer_t** fbos;
 static size_t fboCount;
 
+static void
+UseFramebuffer(gl3_framebuffer_t* fbo, const char* name)
+{
+	fbo->inUse = GL3_FB_INUSE;
+	fbo->framesWithoutUse = -1;
+	strncpy(fbo->name, name, sizeof(fbo->name));
+}
+
+static void
+RemoveFramebuffer(int index)
+{
+	R_Printf(PRINT_ALL, "removing framebuffer '%s' {w=%d, h=%d, f=%d, n=%d}\n",
+		fbos[index]->name, fbos[index]->width, fbos[index]->height, fbos[index]->flags, fbos[index]->num_color_textures);
+
+	GL3_DestroyFramebuffer(fbos[index]);
+	free(fbos[index]);
+
+	gl3_framebuffer_t** newfbos = malloc(sizeof(gl3_framebuffer_t*) * (fboCount - 1));
+	size_t newFboCount = 0;
+
+	for (size_t i = 0; i < fboCount; i++)
+	{
+		if (i != index)
+		{
+			newfbos[newFboCount++] = fbos[i];
+		}
+	}
+
+	free(fbos);
+
+	fbos = newfbos;
+	fboCount = newFboCount;
+}
+
 gl3_framebuffer_t* GL3_NewFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags)
 {
 	gl3_framebuffer_t* fbo = calloc(1, sizeof(gl3_framebuffer_t));
@@ -156,7 +190,13 @@ gl3_framebuffer_t* GL3_NewFramebuffer(GLuint width, GLuint height, GLuint numCol
 	return fbo;
 }
 
-gl3_framebuffer_t* GL3_BorrowFramebuffer(GLuint width, GLuint height, GLuint numColorTextures, gl3_framebuffer_flag_t flags)
+gl3_framebuffer_t* GL3_BorrowFramebuffer(
+	GLuint width,
+	GLuint height,
+	GLuint numColorTextures,
+	gl3_framebuffer_flag_t flags,
+	const char* name
+)
 {
 	// Try to find a compatible FBO
 	for (size_t i = 0; i < fboCount; i++)
@@ -166,14 +206,14 @@ gl3_framebuffer_t* GL3_BorrowFramebuffer(GLuint width, GLuint height, GLuint num
 		if (fbos[i]->width == width && fbos[i]->height == height &&
 			fbos[i]->num_color_textures == numColorTextures && fbos[i]->flags == flags)
 		{
-			fbos[i]->inUse = GL3_FB_INUSE;
+			UseFramebuffer(fbos[i], name);
 			return fbos[i];
 		}
 	}
 
 	// No compatible FBO was found or available, create a new one
 	gl3_framebuffer_t* fbo = GL3_NewFramebuffer(width, height, numColorTextures, flags);
-	fbo->inUse = GL3_FB_INUSE;
+	UseFramebuffer(fbo, name);
 
 	fbos = realloc(fbos, sizeof(gl3_framebuffer_t*) * (++fboCount));
 	fbos[fboCount - 1] = fbo;
@@ -190,13 +230,34 @@ void GL3_DeferReturnFramebuffer(gl3_framebuffer_t* fbo)
 	fbo->inUse = GL3_FB_DEFERRED;
 }
 
-void GL3_ReturnDeferredFramebuffers()
+void GL3_FramebuffersEndFrame()
 {
+	// Return all framebuffers which were deferred
+
 	for (size_t i = 0; i < fboCount; i++)
 	{
+		if (fbos[i]->inUse == GL3_FB_NOTUSED)
+		{
+			fbos[i]->framesWithoutUse++;
+		}
 		if (fbos[i]->inUse == GL3_FB_DEFERRED)
 		{
 			fbos[i]->inUse = GL3_FB_NOTUSED;
+		}
+	}
+
+	// Remove all framebuffers which haven't been used in a couple of frames
+
+	size_t removeIndex = 0;
+	for (size_t i = 0; i < fboCount; i++)
+	{
+		if (fbos[removeIndex]->framesWithoutUse > 2)
+		{
+			RemoveFramebuffer(removeIndex);
+		}
+		else
+		{
+			removeIndex++;
 		}
 	}
 }

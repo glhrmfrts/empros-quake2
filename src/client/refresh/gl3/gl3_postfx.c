@@ -202,7 +202,8 @@ void GL3_PostFx_BeforeScene()
 			(GLuint)gl3_scaledSize.X,
 			(GLuint)gl3_scaledSize.Y,
 			2,
-			GL3_FRAMEBUFFER_HDR | GL3_FRAMEBUFFER_DEPTH
+			GL3_FRAMEBUFFER_HDR | GL3_FRAMEBUFFER_DEPTH,
+			"ssaoGeometry"
 		);
 
 		GL3_BindFramebuffer(ssaoGeoFbo);
@@ -223,7 +224,8 @@ void GL3_PostFx_BeforeScene()
 			(GLuint)gl3_scaledSize.X,
 			(GLuint)gl3_scaledSize.Y,
 			1,
-			GL3_FRAMEBUFFER_FILTERED
+			GL3_FRAMEBUFFER_FILTERED,
+			"ssaoMap"
 		);
 		GL3_BindFramebuffer(ssaoMapFbo);
 		GL3_UseProgram(gl3state.siPostfxSSAO.shaderProgram);
@@ -245,7 +247,8 @@ void GL3_PostFx_BeforeScene()
 			(GLuint)(gl3_scaledSize.X*0.5f),
 			(GLuint)(gl3_scaledSize.Y*0.5f),
 			1,
-			GL3_FRAMEBUFFER_FILTERED
+			GL3_FRAMEBUFFER_FILTERED,
+			"ssaoBlur"
 		);
 		GL3_BindFramebuffer(ssaoBlurFbo);
 		GL3_UseProgram(gl3state.siPostfxSSAOBlur.shaderProgram);
@@ -270,7 +273,7 @@ void GL3_PostFx_BeforeScene()
 	gl3state.uni3DData.ssao = r_ssao->value;
 
 	sceneFbo = GL3_BorrowFramebuffer(
-		gl3_scaledSize.X, gl3_scaledSize.Y, 2, GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_HDR
+		gl3_scaledSize.X, gl3_scaledSize.Y, 2, GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_HDR, "Scene"
 	);
 	GL3_DeferReturnFramebuffer(sceneFbo);
 	GL3_BindFramebuffer(sceneFbo);
@@ -280,7 +283,7 @@ void GL3_PostFx_BeforeScene()
 
 static gl3_framebuffer_t* RenderResolveMultisample(GLuint scene_texture, GLuint scene_depth_texture)
 {
-	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 2, GL3_FRAMEBUFFER_HDR);
+	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 2, GL3_FRAMEBUFFER_HDR, "ResolveMultisample");
 	GL3_BindFramebuffer(output);
 	GL3_UseProgram(gl3state.siPostfxResolveMultisample.shaderProgram);
 	glUniform1i(resolve_multisample_uniforms.u_FboSampler[0], 0);
@@ -300,7 +303,7 @@ static gl3_framebuffer_t* RenderBloom(GLuint scene_texture)
 {
 // bloom filter
 	gl3_framebuffer_t* bloomFilterFbo = GL3_BorrowFramebuffer(
-		gl3_scaledSize.X/2.0f, gl3_scaledSize.Y/2.0f, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_HDR
+		gl3_scaledSize.X/2.0f, gl3_scaledSize.Y/2.0f, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_HDR, "BloomFilter"
 	);
 	GL3_BindFramebuffer(bloomFilterFbo);
 	GL3_UseProgram(gl3state.siPostfxBloomFilter.shaderProgram);
@@ -316,10 +319,10 @@ static gl3_framebuffer_t* RenderBloom(GLuint scene_texture)
 	{
 		gl3_framebuffer_t* bloomBlurFbo[2];
 		bloomBlurFbo[0] = GL3_BorrowFramebuffer(
-			gl3_scaledSize.X/2.0f, gl3_scaledSize.Y/2.0f, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_HDR
+			gl3_scaledSize.X/2.0f, gl3_scaledSize.Y/2.0f, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_HDR, "BloomBlur"
 		);
 		bloomBlurFbo[1] = GL3_BorrowFramebuffer(
-			gl3_scaledSize.X/2.0f, gl3_scaledSize.Y/2.0f, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_HDR
+			gl3_scaledSize.X/2.0f, gl3_scaledSize.Y/2.0f, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_HDR, "BloomBlur"
 		);
 
 		qboolean horizontal = true;
@@ -349,7 +352,7 @@ static gl3_framebuffer_t* RenderBloom(GLuint scene_texture)
 
 static gl3_framebuffer_t* RenderResolveHDR(GLuint scene_texture, GLuint bloom_texture)
 {
-	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_NONE);
+	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_NONE, "ResolveHDR");
 	GL3_BindFramebuffer(output);
 	GL3_UseProgram(gl3state.siPostfxResolveHDR.shaderProgram);
 	glUniform1i(resolve_hdr_uniforms.u_FboSampler[0], 0);
@@ -366,7 +369,7 @@ static gl3_framebuffer_t* RenderResolveHDR(GLuint scene_texture, GLuint bloom_te
 
 static gl3_framebuffer_t* RenderMotionBlurMask(entity_t* weapon_model_entity)
 {
-	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_DEPTH);
+	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_DEPTH, "MotionBlurMask");
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	GL3_BindFramebuffer(output);
 	GL3_DrawAliasModel(weapon_model_entity);
@@ -379,7 +382,7 @@ static gl3_framebuffer_t* RenderMotionBlur(
 	GLuint scene_texture, GLuint depth_texture, GLuint mask_texture
 )
 {
-	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, 0);
+	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_NONE, "MotionBlur");
 	GL3_BindFramebuffer(output);
 	GL3_UseProgram(gl3state.siPostfxMotionBlur.shaderProgram);
 	glUniform1i(motion_blur_uniforms.u_FboSampler[0], 0);
