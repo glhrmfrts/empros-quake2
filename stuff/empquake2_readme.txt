@@ -1,7 +1,10 @@
-Empros Quake II
-===============
+Empros Quake II - v2023.1.1
+===========================
 
 This is the readme for the "Empros Quake II" source port, or empquake2 for short.
+
+About
+=====
 
 Empros Quake II is an enhanced client for id Software's Quake
 II with focus on offline and coop gameplay. It's a fork of Yamagi Quake II
@@ -14,12 +17,21 @@ Current features include:
 
 - Render scaling for retro look without changing the window resolution
 - HDR rendering
-- Post-processing effects: bloom, ambient occlusion, motion blur
+- Post-processing effects: bloom, ambient occlusion, motion blur, dithering
+- Support for lightmapped water surfaces
 - Realtime shadow mapping for dlights (experimental)
 - Qbism's QBSP map format support for extended limits
 
 Every feature is optional and the renderer was optimized so if you want a vanilla experience
 you can still have it with pretty good performance for big maps.
+
+How to play
+===========
+
+- Create a new directory in a location of your preference
+- Copy the "baseq2" folder from your Q2 installation into that directory
+- Unzip the contents of the Empros Quake II zip file into that same directory
+- Run "empquake2.exe"
 
 New Cvars
 =========
@@ -32,7 +44,10 @@ New Cvars
 
 - r_bloom => Enable/disable the Bloom effect, requires r_hdr to be set to 1.
 
-- r_ssao => Enable/disable the Screen-space ambient occlusion effect.
+- r_ssao => Enable/disable the Screen-space ambient occlusion effect
+	    (WARNING: this feature is still in an "experimental" state, there may be glitches).
+
+- r_dithering => Controls the intensity of the color dithering. Valid values are integers from 0 to 4.
 
 - r_motionblur => Controls the intensity of the motion blur. Valid values are any decimal number from 0 to 2.
 

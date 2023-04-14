@@ -11,7 +11,7 @@ Current features include:
 
 - Render scaling for retro look without changing the window resolution
 - HDR rendering
-- Post-processing effects: bloom, ambient occlusion, motion blur
+- Post-processing effects: bloom, ambient occlusion, motion blur, dithering
 - Support for lightmapped water surfaces
 - Realtime shadow mapping for dlights (experimental)
 - Qbism's QBSP map format support for extended limits
