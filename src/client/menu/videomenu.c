@@ -337,6 +337,12 @@ ApplyChanges(void *unused)
 }
 
 static void
+RenderScaleCallback(void* item)
+{
+	Cvar_SetValue("r_renderscale", (float)s_renderscale_list.curvalue);
+}
+
+static void
 HDRCallback(void* item)
 {
 	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
@@ -720,6 +726,7 @@ VID_MenuInit(void)
 	s_renderscale_list.generic.y = (y += 10);
 	s_renderscale_list.itemnames = renderscale_names;
 	s_renderscale_list.curvalue = (int)r_renderscale->value;
+	s_renderscale_list.generic.callback = RenderScaleCallback;
 
 	s_uiscale_list.generic.type = MTYPE_SPINCONTROL;
 	s_uiscale_list.generic.name = "ui scale";
