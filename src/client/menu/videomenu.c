@@ -643,7 +643,7 @@ VID_MenuInit(void)
 
 	if (!r_ssao)
 	{
-		r_ssao = Cvar_Get("r_ssao", "1", CVAR_ARCHIVE);
+		r_ssao = Cvar_Get("r_ssao", "0", CVAR_ARCHIVE);
 	}
 	if (!r_shadowmap)
 	{
