@@ -440,12 +440,22 @@ static const char* fragmentSrcPostfxBlend = MULTILINE_STRING(#version 150\n
 		vec4 color; // used as the blend
 	};
 
+	uniform float u_Intensity; // used as dithering colors
+
 	out vec4 outColor;
 
 	void main()
 	{
 		vec4 res = texture(u_FboSampler0, v_TexCoord);
 		res.rgb = color.a * color.rgb + (1.0 - color.a)*res.rgb;
+
+		// dithering
+		float ditherColors = u_Intensity;
+		if (ditherColors > 0.0)
+		{
+			res.rgb = round(res.rgb * ditherColors) / ditherColors;
+		}
+
 		outColor = res;
 	}
 );
@@ -467,6 +477,7 @@ static const char* fragmentSrcPostfxUnderwater = MULTILINE_STRING(#version 150\n
 	uniform sampler2D u_FboSampler0;
 
 	uniform float u_AspectRatio; // Used as time
+	uniform float u_Intensity; // used as dithering colors
 
 	in vec2 v_TexCoord;
 
@@ -497,6 +508,14 @@ static const char* fragmentSrcPostfxUnderwater = MULTILINE_STRING(#version 150\n
 		// apply the v_blend, usually blended as a colored quad with:
 		// glBlendEquation(GL_FUNC_ADD); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		res.rgb = v_blend.a * v_blend.rgb + (1.0 - v_blend.a)*res.rgb;
+
+		// dithering
+		float ditherColors = u_Intensity;
+		if (ditherColors > 0.0)
+		{
+			res.rgb = round(res.rgb * ditherColors) / ditherColors;
+		}
+
 		outColor =  res;
 	}
 );

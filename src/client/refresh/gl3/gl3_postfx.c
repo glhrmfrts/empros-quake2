@@ -50,6 +50,7 @@ cvar_t* r_bloom;
 cvar_t* r_bloom_threshold;
 cvar_t* r_ssao;
 cvar_t* r_ssao_radius;
+cvar_t* r_dithering;
 entity_t* weapon_model_entity;
 
 static GLint GetUniform(const gl3ShaderInfo_t* si, const char* name, const char* shader)
@@ -401,22 +402,36 @@ static gl3_framebuffer_t* RenderMotionBlur(
 	return output;
 }
 
-static void RenderUnderwaterBlend(GLuint tex)
+static float
+DitherColors()
+{
+	static const float ditherColors[] = { DITHER_COLORS };
+	int idx = (int)r_dithering->value;
+	idx = max(idx, 0);
+	idx = min(idx, ArrayCount(ditherColors) - 1);
+	return ditherColors[idx];
+}
+
+static void
+RenderUnderwaterBlend(GLuint tex)
 {
 	GL3_UnbindFramebuffer();
 	GL3_UseProgram(gl3state.siPostfxUnderwater.shaderProgram);
 	glUniform1i(underwater_uniforms.u_FboSampler[0], 0);
 	glUniform1f(underwater_uniforms.u_AspectRatio, gl3_newrefdef.time);
+	glUniform1f(underwater_uniforms.u_Intensity, DitherColors());
 	GL3_BindTexture(0, tex);
 	GL3_BindVAO(screen_vao);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-static void RenderBlend(GLuint tex)
+static void
+RenderBlend(GLuint tex)
 {
 	GL3_UnbindFramebuffer();
 	GL3_UseProgram(gl3state.siPostfxBlend.shaderProgram);
 	glUniform1i(blend_uniforms.u_FboSampler[0], 0);
+	glUniform1f(blend_uniforms.u_Intensity, DitherColors());
 	GL3_BindTexture(0, tex);
 	GL3_BindVAO(screen_vao);
 	glDrawArrays(GL_TRIANGLES, 0, 6);

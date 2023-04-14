@@ -1193,4 +1193,7 @@ size_t verify_fwrite(void *, size_t, size_t, FILE *);
 
 #define PARTICLE_EMISSIVE_FLAG 0x100
 
+#define DITHER_COLORS 		0.0f, 32.0f, 16.0f, 8.0f, 4.0f
+#define DITHER_COLORS_NAMES 	"off", "low", "moderate", "high", "extreme"
+
 #endif /* COMMON_SHARED_H */

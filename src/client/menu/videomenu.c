@@ -50,6 +50,7 @@ static cvar_t *r_motionblur;
 static cvar_t *r_hdr;
 static cvar_t *r_bloom;
 static cvar_t *r_ssao;
+static cvar_t *r_dithering;
 static cvar_t *r_shadowmap;
 static cvar_t *r_renderscale;
 
@@ -62,16 +63,19 @@ static menulist_s s_display_list;
 static menulist_s s_renderscale_list;
 static menulist_s s_uiscale_list;
 static menuslider_s s_brightness_slider;
-static menuslider_s s_motionblur_slider;
 static menuslider_s s_fov_slider;
 static menulist_s s_fs_box;
 static menulist_s s_vsync_list;
 static menulist_s s_texmode_list;
 static menulist_s s_af_list;
 static menulist_s s_msaa_list;
+
 static menulist_s s_hdr_list;
 static menulist_s s_bloom_list;
 static menulist_s s_ssao_list;
+static menulist_s s_dithering_list;
+static menuslider_s s_motionblur_slider;
+
 static menulist_s s_shadowmap_list;
 static menuaction_s s_defaults_action;
 static menuaction_s s_apply_action;
@@ -326,6 +330,7 @@ ApplyChanges(void *unused)
 	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
 	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
 	Cvar_SetValue("r_ssao", (float)s_ssao_list.curvalue);
+	Cvar_SetValue("r_dithering", (float)s_dithering_list.curvalue);
 	Cvar_SetValue("r_shadowmap", (float)s_shadowmap_list.curvalue);
 
 	if (restart)
@@ -361,9 +366,36 @@ SSAOCallback(void* item)
 }
 
 static void
+DitheringCallback(void* item)
+{
+	Cvar_SetValue("r_dithering", (float)s_dithering_list.curvalue);
+}
+
+static void
 InitFXMenu()
 {
 	int y = 0;
+
+	if (!r_motionblur)
+	{
+		r_motionblur = Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
+	}
+	if (!r_hdr)
+	{
+		r_hdr = Cvar_Get("r_hdr", "1", CVAR_ARCHIVE);
+	}
+	if (!r_bloom)
+	{
+		r_bloom = Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
+	}
+	if (!r_ssao)
+	{
+		r_ssao = Cvar_Get("r_ssao", "0", CVAR_ARCHIVE);
+	}
+	if (!r_dithering)
+	{
+		r_dithering = Cvar_Get("r_dithering", "0", CVAR_ARCHIVE);
+	}
 
 	s_fx_menu.x = viddef.width * 0.50;
 	s_fx_menu.nitems = 0;
@@ -394,6 +426,15 @@ InitFXMenu()
 	s_ssao_list.curvalue = (r_ssao->value == 0.0f) ? 0 : 1;
 	s_ssao_list.generic.callback = SSAOCallback;
 
+	static const char* ditherNames[] = { DITHER_COLORS_NAMES, NULL };
+	s_dithering_list.generic.type = MTYPE_SPINCONTROL;
+	s_dithering_list.generic.name = "dithering";
+	s_dithering_list.generic.x = 0;
+	s_dithering_list.generic.y = (y += 10);
+	s_dithering_list.itemnames = ditherNames;
+	s_dithering_list.curvalue = (int)(r_dithering->value);
+	s_dithering_list.generic.callback = DitheringCallback;
+
 	s_motionblur_slider.generic.type = MTYPE_SLIDER;
 	s_motionblur_slider.generic.name = "motion blur";
 	s_motionblur_slider.generic.x = 0;
@@ -405,6 +446,7 @@ InitFXMenu()
 	Menu_AddItem(&s_fx_menu, &s_hdr_list);
 	Menu_AddItem(&s_fx_menu, &s_bloom_list);
 	Menu_AddItem(&s_fx_menu, &s_ssao_list);
+	Menu_AddItem(&s_fx_menu, &s_dithering_list);
 	Menu_AddItem(&s_fx_menu, &s_motionblur_slider);
 
 	Menu_Center(&s_fx_menu);
@@ -632,25 +674,6 @@ VID_MenuInit(void)
 		gl_msaa_samples = Cvar_Get("r_msaa_samples", "0", CVAR_ARCHIVE);
 	}
 
-	if (!r_motionblur)
-	{
-		r_motionblur = Cvar_Get("r_motionblur", "1", CVAR_ARCHIVE);
-	}
-
-	if (!r_hdr)
-	{
-		r_hdr = Cvar_Get("r_hdr", "1", CVAR_ARCHIVE);
-	}
-
-	if (!r_bloom)
-	{
-		r_bloom = Cvar_Get("r_bloom", "1", CVAR_ARCHIVE);
-	}
-
-	if (!r_ssao)
-	{
-		r_ssao = Cvar_Get("r_ssao", "0", CVAR_ARCHIVE);
-	}
 	if (!r_shadowmap)
 	{
 		r_shadowmap = Cvar_Get("r_shadowmap", "2", CVAR_ARCHIVE);

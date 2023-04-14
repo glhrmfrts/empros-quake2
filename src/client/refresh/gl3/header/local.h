@@ -765,6 +765,7 @@ extern cvar_t *r_ssao;
 extern cvar_t *r_ssao_radius;
 extern cvar_t *r_hdr;
 extern cvar_t *r_hdr_exposure;
+extern cvar_t *r_dithering;
 
 extern cvar_t* r_shadowmap;
 extern cvar_t* r_shadowmap_maxlights;
