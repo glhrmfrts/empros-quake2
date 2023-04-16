@@ -19,19 +19,19 @@ Current features include:
 Every feature is optional and the renderer was optimized so if you want a vanilla experience
 you can still have it with pretty good performance for big maps.
 
-[<img src="doc/imgs/q2_0003.png" />]
+<img src="doc/imgs/q2_0003.png" />
 
 ---
 
-[<img src="doc/imgs/q2_0010.png" />]
+<img src="doc/imgs/q2_0010.png" />
 
 ---
 
-[<img src="doc/imgs/q2_0012.png" />]
+<img src="doc/imgs/q2_0012.png" />
 
 ---
 
-[<img src="doc/imgs/q2_0015.png" />]
+<img src="doc/imgs/q2_0015.png" />
 
 ## Documentation
 
