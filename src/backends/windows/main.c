@@ -37,9 +37,34 @@
  * Windows main function. Containts the
  * initialization code and the main loop
  */
-int
-main(int argc, char **argv)
+int WinMain(
+	HINSTANCE hInstance,
+	HINSTANCE hPrevInstance,
+	LPSTR     lpCmdLine,
+	int       nShowCmd
+)
 {
+	int argc = 0;
+	char** argv = NULL;
+	LPWSTR* wargv = NULL;
+
+	// Get C style argc and argv
+	wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
+	argv = malloc(sizeof(char*) * argc);
+
+	for (int i = 0; i < argc; i++)
+	{
+		size_t len = wcslen(wargv[i]);
+		if (len > MAX_OSPATH)
+		{
+			printf("invalid argument, too big: %ls\n", wargv[i]);
+			return 1;
+		}
+		char* arg = malloc(MAX_OSPATH);
+		WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, arg, MAX_OSPATH, NULL, NULL);
+		argv[i] = arg;
+	}
+
 	// Setup FPU if necessary.
 	Sys_SetupFPU();
 

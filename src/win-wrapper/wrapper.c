@@ -29,7 +29,7 @@
 #include <wchar.h>
 #include <stdio.h>
 
-static const WCHAR WRAPPED_EXE[] = L"yquake2.exe";
+static const WCHAR WRAPPED_EXE[] = L"empquake2.exe";
 
 // the struct and OnGetWindowByProcess taken from https://stackoverflow.com/a/17166455
 typedef struct {
