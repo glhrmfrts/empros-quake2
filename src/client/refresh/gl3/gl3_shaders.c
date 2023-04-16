@@ -563,103 +563,103 @@ static void initUBOs(void)
 
 static qboolean createShaders(void)
 {
-	eprintf("si2D\n");
+	// eprintf("si2D\n");
 	if(!initShader2D(&gl3state.si2D, vertexSrc2D, fragmentSrc2D))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 2D rendering!\n");
 		return false;
 	}
-	eprintf("si2Dcolor\n");
+	//eprintf("si2Dcolor\n");
 	if(!initShader2D(&gl3state.si2Dcolor, vertexSrc2Dcolor, fragmentSrc2Dcolor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for color-only 2D rendering!\n");
 		return false;
 	}
-	eprintf("si3Dlm\n");
+	//eprintf("si3Dlm\n");
 	if(!initShader3D(&gl3state.si3Dlm, vertexSrc3Dlm, fragmentSrc3Dlm))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 3D rendering with lightmap!\n");
 		return false;
 	}
-	eprintf("si3DlmTurb\n");
+	//eprintf("si3DlmTurb\n");
 	if(!initShader3D(&gl3state.si3DlmTurb, vertexSrc3Dlm, fragmentSrc3DlmWater))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for textured 3D rendering water with lightmap!\n");
 		return false;
 	}
-	eprintf("si3DTrans\n");
+	//eprintf("si3DTrans\n");
 	if(!initShader3D(&gl3state.si3Dtrans, vertexSrc3D, fragmentSrc3D))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering translucent 3D things!\n");
 		return false;
 	}
-	eprintf("si3DColorOnly\n");
+	//eprintf("si3DColorOnly\n");
 	if(!initShader3D(&gl3state.si3DcolorOnly, vertexSrc3D, fragmentSrc3Dcolor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for flat-colored 3D rendering!\n");
 		return false;
 	}
-	eprintf("si3DTurb\n");
+	//eprintf("si3DTurb\n");
 	if(!initShader3D(&gl3state.si3Dturb, vertexSrc3Dwater, fragmentSrc3Dwater))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for water rendering!\n");
 		return false;
 	}
-	eprintf("si3DlmFlow\n");
+	//eprintf("si3DlmFlow\n");
 	if(!initShader3D(&gl3state.si3DlmFlow, vertexSrc3DlmFlow, fragmentSrc3Dlm))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for scrolling textured 3D rendering with lightmap!\n");
 		return false;
 	}
-	eprintf("si3DTransFlow\n");
+	//eprintf("si3DTransFlow\n");
 	if(!initShader3D(&gl3state.si3DtransFlow, vertexSrc3Dflow, fragmentSrc3D))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for scrolling textured translucent 3D rendering!\n");
 		return false;
 	}
-	eprintf("si3Dsky\n");
+	//eprintf("si3Dsky\n");
 	if(!initShader3D(&gl3state.si3Dsky, vertexSrc3D, fragmentSrc3Dsky))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for sky rendering!\n");
 		return false;
 	}
-	eprintf("si3Dsprite\n");
+	//eprintf("si3Dsprite\n");
 	if(!initShader3D(&gl3state.si3Dsprite, vertexSrc3D, fragmentSrc3Dsprite))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for sprite rendering!\n");
 		return false;
 	}
-	eprintf("si3DSpiretAlpha\n");
+	//eprintf("si3DSpiretAlpha\n");
 	if(!initShader3D(&gl3state.si3DspriteAlpha, vertexSrc3D, fragmentSrc3DspriteAlpha))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for alpha-tested sprite rendering!\n");
 		return false;
 	}
-	eprintf("si3Dalias\n");
+	//eprintf("si3Dalias\n");
 	if(!initShader3D(&gl3state.si3Dalias, vertexSrcAlias, fragmentSrcAlias))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering textured models!\n");
 		return false;
 	}
-	eprintf("si3DaliasColor\n");
+	//eprintf("si3DaliasColor\n");
 	if(!initShader3D(&gl3state.si3DaliasColor, vertexSrcAlias, fragmentSrcAliasColor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering flat-colored models!\n");
 		return false;
 	}
-	eprintf("siShadowMap\n");
+	//eprintf("siShadowMap\n");
 	if(!initShader3D(&gl3state.siShadowMap, vertexSrcShadowMap, fragmentSrcShadowMap))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
 		return false;
 	}
-	eprintf("si3DSSAO\n");
+	//eprintf("si3DSSAO\n");
 	if(!initShader3D(&gl3state.si3DSSAO, vertexSrc3DSSAO, fragmentSrc3DSSAO))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
 		return false;
 	}
-	eprintf("si3DDebug\n");
+	//eprintf("si3DDebug\n");
 	if(!initShader3D(&gl3state.si3Ddebug, vertexSrc3Ddebug, fragmentSrc3Ddebug))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for rendering world shadow map!\n");
