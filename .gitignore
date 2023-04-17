@@ -1,4 +1,5 @@
 /build/
+/build_win32/
 /release/
 *.mk
 *.user

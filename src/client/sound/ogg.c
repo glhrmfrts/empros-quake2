@@ -738,21 +738,21 @@ OGG_LoadAsWav(char *filename, wavinfo_t *info, void **buffer)
 		info->channels = ogg_file->channels;
 		info->loopstart = -1;
 		/* return length * channels */
-		info->samples = stb_vorbis_stream_length_in_samples(ogg_file) / ogg_file->channels;
+		info->samples = stb_vorbis_stream_length_in_samples(ogg_file) * ogg_file->channels;
 		info->dataofs = 0;
 
 		/* alloc memory for uncompressed wav */
-		final_buffer = Z_Malloc(info->samples * sizeof(short) * ogg_file->channels);
+		final_buffer = Z_Malloc(info->samples * sizeof(short));
 
 		/* load sampleas to buffer */
 		read_samples = stb_vorbis_get_samples_short_interleaved(
 			ogg_file, info->channels, final_buffer,
-			info->samples * ogg_file->channels);
+			info->samples);
 
 		if (read_samples > 0)
 		{
 			/* fix sample list size*/
-			if (read_samples < info->samples)
+			if ((read_samples * info->channels) < info->samples)
 			{
 				info->samples = read_samples;
 			}
