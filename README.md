@@ -1,7 +1,7 @@
 # Empros Quake II
 
 Empros Quake II is an experimental enhanced client for id Software's Quake
-II with focus on offline and coop gameplay. It's also a playground for me to
+II with focus on offline gameplay. It's also a playground for me to
 experiment with the implementation of some rendering effects and techniques.
 These are subtle effects which do not aim to make Quake II look
 like a modern AAA game (e.g. no over the top bump-mapping),
