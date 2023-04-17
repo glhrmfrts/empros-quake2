@@ -1,6 +1,5 @@
 #include "../ref_shared.h"
 #include "header/local.h"
-#include "header/HandmadeMath.h"
 #include <float.h>
 
 #define eprintf(...)  R_Printf(PRINT_ALL, __VA_ARGS__)
@@ -27,6 +26,8 @@ static int shadow_light_id_gen;
 static gl3_framebuffer_t shadowAtlasFbo;
 static gl3_shadow_light_t shadowLights[MAX_SHADOW_LIGHTS];
 static int shadowLightFrameCount;
+
+static area_allocator_t shadowMapAllocator;
 
 static const float faceSelectionData1[] = {
 	1.0f, 0.0f, 0.0f, 0.0f,
@@ -99,7 +100,7 @@ void GL3_Shadow_BeginFrame()
 		GL3_Shadow_Init();
 
 	shadowLightFrameCount = 0;
-	GL3_Shadow_InitAllocator(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE);
+	AreaAlloc_Init(&shadowMapAllocator, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE);
 
 	// Sanitize the values
 	r_shadowmap_maxlights->value = min(r_shadowmap_maxlights->value, 32);
@@ -233,7 +234,7 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 
 	l->shadowMapWidth = shadowMapResolution * 3;
 	l->shadowMapHeight = shadowMapResolution * 2;
-	if (!GL3_Shadow_Allocate(l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY))
+	if (!AreaAlloc_Allocate(&shadowMapAllocator, l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY))
 	{
 		shadowLightFrameCount--;
 		return false;

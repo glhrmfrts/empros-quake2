@@ -29,9 +29,6 @@
 #include "../ref_shared.h"
 #include "header/local.h"
 
-#define HANDMADE_MATH_IMPLEMENTATION
-#include "header/HandmadeMath.h"
-
 #define DG_DYNARR_IMPLEMENTATION
 #include "header/DG_dynarr.h"
 

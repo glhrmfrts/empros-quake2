@@ -29,7 +29,6 @@
 
 #include "../ref_shared.h"
 #include "header/local.h"
-#include "header/HandmadeMath.h"
 
 static hmm_vec4 fog_params;
 static hmm_vec4 old_fog_params;

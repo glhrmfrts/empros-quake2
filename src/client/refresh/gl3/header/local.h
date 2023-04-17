@@ -43,7 +43,7 @@
 
 #include "../../ref_shared.h"
 
-#include "HandmadeMath.h"
+#include "../../../common/header/HandmadeMath.h"
 
 #if 0 // only use this for development ..
 #define STUB_ONCE(msg) do { \
@@ -896,9 +896,6 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 
 void GL3_Shadow_RenderShadowMaps();
 void GL3_Shadow_Shutdown();
-
-void GL3_Shadow_InitAllocator(int width, int height, int maxWidth, int maxHeight);
-qboolean GL3_Shadow_Allocate(int width, int height, int* x, int* y);
 
 extern cvar_t* r_flashlight;
 

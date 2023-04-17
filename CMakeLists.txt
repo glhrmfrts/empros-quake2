@@ -524,7 +524,6 @@ set(GL3-Source
 	${REF_SRC_DIR}/gl3/gl3_warp.c
 	${REF_SRC_DIR}/gl3/gl3_shaders.c
 	${REF_SRC_DIR}/gl3/gl3_shadow.c
-	${REF_SRC_DIR}/gl3/gl3_shadowmapallocator.c
 	${REF_SRC_DIR}/gl3/gl3_view.c
 	${REF_SRC_DIR}/gl3/gl3_md2.c
 	${REF_SRC_DIR}/gl3/gl3_sp2.c
@@ -535,6 +534,8 @@ set(GL3-Source
 	${REF_SRC_DIR}/files/pvs.c
 	${COMMON_SRC_DIR}/shared/shared.c
 	${COMMON_SRC_DIR}/shared/rand.c
+	${COMMON_SRC_DIR}/shared/hmmath.c
+	${COMMON_SRC_DIR}/areaalloc.c
 	${COMMON_SRC_DIR}/md4.c
 	)
 
@@ -547,10 +548,10 @@ set(GL3-Header
 	${REF_SRC_DIR}/gl3/glad/include/glad/glad.h
 	${REF_SRC_DIR}/gl3/glad/include/KHR/khrplatform.h
 	${REF_SRC_DIR}/gl3/header/DG_dynarr.h
-	${REF_SRC_DIR}/gl3/header/HandmadeMath.h
 	${REF_SRC_DIR}/gl3/header/local.h
 	${REF_SRC_DIR}/gl3/header/model.h
 	${COMMON_SRC_DIR}/header/shared.h
+	${COMMON_SRC_DIR}/header/HandmadeMath.h
 	)
 
 set(SOFT-Source

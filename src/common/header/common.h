@@ -836,6 +836,33 @@ void Sys_SetHighDPIMode(void);
 const char *Sys_GetBinaryDir(void);
 void Sys_SetupFPU(void);
 
+// areaalloc.c
+
+typedef struct allocator_area
+{
+	int left;
+	int top;
+	int right;
+	int bottom;
+} allocator_area_t;
+
+typedef struct
+{
+	int width;
+	int height;
+	int maxWidth;
+	int maxHeight;
+	qboolean doubleWidth;
+	allocator_area_t* freeAreas;
+	size_t freeAreaCount;
+} area_allocator_t;
+
+void AreaAlloc_Init(area_allocator_t* alloc, int width, int height, int maxWidth, int maxHeight);
+
+void AreaAlloc_Destroy(area_allocator_t* alloc);
+
+qboolean AreaAlloc_Allocate(area_allocator_t* alloc, int width, int height, int* x, int* y);
+
 /* ======================================================================= */
 
 #endif
