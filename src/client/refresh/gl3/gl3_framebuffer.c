@@ -160,7 +160,7 @@ UseFramebuffer(gl3_framebuffer_t* fbo, const char* name)
 static void
 RemoveFramebuffer(int index)
 {
-	R_Printf(PRINT_ALL, "removing framebuffer '%s' {w=%d, h=%d, f=%d, n=%d}\n",
+	R_Printf(PRINT_DEVELOPER, "removing framebuffer '%s' {w=%d, h=%d, f=%d, n=%d}\n",
 		fbos[index]->name, fbos[index]->width, fbos[index]->height, fbos[index]->flags, fbos[index]->num_color_textures);
 
 	GL3_DestroyFramebuffer(fbos[index]);

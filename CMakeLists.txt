@@ -608,6 +608,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	set_target_properties(${MAIN_EXE_NAME} PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 			)
+	target_link_options(${MAIN_EXE_NAME} PRIVATE "/SUBSYSTEM:WINDOWS")
 	target_link_libraries(${MAIN_EXE_NAME} ${yquake2LinkerFlags} ${yquake2ClientLinkerFlags}
 			${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
 
@@ -635,6 +636,7 @@ set_target_properties(${DED_EXE_NAME} PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 	)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+	target_link_options(${DED_EXE_NAME} PRIVATE "/SUBSYSTEM:WINDOWS")
 	target_link_libraries(${DED_EXE_NAME} ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
 else()
 	target_link_libraries(${DED_EXE_NAME} ${yquake2LinkerFlags} ${yquake2ServerLinkerFlags} ${yquake2ZLibLinkerFlags})

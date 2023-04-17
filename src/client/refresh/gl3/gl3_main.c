@@ -153,12 +153,12 @@ GL3_Strings(void)
 
 	glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
 
-	R_Printf(PRINT_ALL, "GL_EXTENSIONS:");
+	R_Printf(PRINT_DEVELOPER, "GL_EXTENSIONS:");
 	for(i = 0; i < numExtensions; i++)
 	{
-		R_Printf(PRINT_ALL, " %s", (const char*)glGetStringi(GL_EXTENSIONS, i));
+		R_Printf(PRINT_DEVELOPER, " %s", (const char*)glGetStringi(GL_EXTENSIONS, i));
 	}
-	R_Printf(PRINT_ALL, "\n");
+	R_Printf(PRINT_DEVELOPER, "\n");
 }
 
 static void

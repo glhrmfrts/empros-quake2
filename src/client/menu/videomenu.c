@@ -326,11 +326,6 @@ ApplyChanges(void *unused)
 		}
 	}
 
-	Cvar_SetValue("r_renderscale", (float)s_renderscale_list.curvalue);
-	Cvar_SetValue("r_hdr", (float)s_hdr_list.curvalue);
-	Cvar_SetValue("r_bloom", (float)s_bloom_list.curvalue);
-	Cvar_SetValue("r_ssao", (float)s_ssao_list.curvalue);
-	Cvar_SetValue("r_dithering", (float)s_dithering_list.curvalue);
 	Cvar_SetValue("r_shadowmap", (float)s_shadowmap_list.curvalue);
 
 	if (restart)
