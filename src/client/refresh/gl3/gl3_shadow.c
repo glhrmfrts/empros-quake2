@@ -4,8 +4,6 @@
 
 #define eprintf(...)  R_Printf(PRINT_ALL, __VA_ARGS__)
 
-// TODO: integrate this new system with the mapper-designed shadow lights
-
 #define SUN_SHADOW_BIAS (0.01f)
 
 #define SPOT_SHADOW_BIAS (0.000001f)
@@ -24,8 +22,12 @@ qboolean gl3_rendering_shadow_maps;
 static int shadow_light_id_gen;
 
 static gl3_framebuffer_t shadowAtlasFbo;
-static gl3_shadow_light_t shadowLights[MAX_SHADOW_LIGHTS];
+
 static int shadowLightFrameCount;
+static gl3_shadow_light_t shadowLights[MAX_SHADOW_LIGHTS];
+
+static int mapShadowLightCount;
+static gl3_shadow_light_t mapShadowLights[MAX_SHADOW_LIGHTS*2];
 
 static area_allocator_t shadowMapAllocator;
 
@@ -93,6 +95,8 @@ void GL3_Shadow_Shutdown()
 	if (faceSelectionTex2 != 0) glDeleteTextures(1, &faceSelectionTex2);
 #endif
 }
+
+static qboolean SetupPointLight(gl3_shadow_light_t* l, int shadowMapResolution);
 
 void GL3_Shadow_BeginFrame()
 {
@@ -201,8 +205,13 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 	VectorCopy(angles, view->angles);
 }
 
-qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity)
+qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity, qboolean isMapLight)
 {
+	static const float thresholds[][3] = {
+		{400.0f, 700.0f, 1000.0f}, // for dyn lights
+		{500.0f, 1000.0f, 2000.0f}, // for map lights
+	};
+
 	if (!r_shadowmap->value || !shadowMapResolutionConfig)
 		return false;
 
@@ -214,12 +223,13 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 	VectorSubtract(pos, gl3_newrefdef.vieworg, lightToView);
 	float distanceSqr = DotProduct(lightToView, lightToView);
 
+	const float* thresh = thresholds[isMapLight ? 1 : 0];
 	int shadowMapResolution = shadowMapResolutionConfig;
-	if (distanceSqr > (400.0f * 400.0f))
+	if (distanceSqr > (thresh[0] * thresh[0]))
 		shadowMapResolution /= 2;
-	if (distanceSqr > (700.0f * 700.0f))
+	if (distanceSqr > (thresh[1] * thresh[1]))
 		shadowMapResolution /= 2;
-	if (distanceSqr > (1000.0f * 1000.0f))
+	if (distanceSqr > (thresh[2] * thresh[2]))
 		return false; // Too far away and Quake 2 doesn't have big dynamic lights, so don't do shadows
 
 	gl3_shadow_light_t* l = &shadowLights[shadowLightFrameCount++];
@@ -232,11 +242,21 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 	l->coneAngle = 90;
 	VectorCopy(pos, l->position);
 
+	if (!SetupPointLight(l, shadowMapResolution))
+	{
+		shadowLightFrameCount--;
+	}
+
+	return true;
+}
+
+static qboolean SetupPointLight(gl3_shadow_light_t* l, int shadowMapResolution)
+{
+	// Allocate room for this light in the shadow map atlas
 	l->shadowMapWidth = shadowMapResolution * 3;
 	l->shadowMapHeight = shadowMapResolution * 2;
 	if (!AreaAlloc_Allocate(&shadowMapAllocator, l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY))
 	{
-		shadowLightFrameCount--;
 		return false;
 	}
 

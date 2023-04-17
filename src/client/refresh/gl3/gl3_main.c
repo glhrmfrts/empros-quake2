@@ -975,7 +975,6 @@ GL3_DrawParticles(void)
 		glBufferData(GL_ARRAY_BUFFER, sizeof(part_vtx)*numParticles, buf, GL_STREAM_DRAW);
 		glDrawArrays(GL_POINTS, 0, numParticles);
 
-
 		glDisable(GL_BLEND);
 		glDepthMask(GL_TRUE);
 		glDisable(GL_PROGRAM_POINT_SIZE);
@@ -993,8 +992,6 @@ GL3_DrawEntitiesOnList(void)
 	{
 		return;
 	}
-
-	GL3_ResetShadowAliasModels();
 
 	/* draw non-transparent first */
 	for (i = 0; i < gl3_newrefdef.num_entities; i++)
@@ -1042,7 +1039,6 @@ GL3_DrawEntitiesOnList(void)
 			}
 		}
 	}
-
 	/* draw transparent entities
 	   we could sort these if it ever
 	   becomes a problem... */

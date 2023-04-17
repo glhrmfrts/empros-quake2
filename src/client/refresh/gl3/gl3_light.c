@@ -36,6 +36,10 @@ static vec3_t pointcolor;
 static cplane_t *lightplane; /* used as shadow plane */
 vec3_t lightspot;
 
+enum { MAX_MAP_LIGHTS = 256 };
+static int mapLightsCount;
+static dlight_t mapLights[MAX_MAP_LIGHTS];
+
 void // bit: 1 << i for light number i, will be or'ed into msurface_t::dlightbits if surface is affected by this light
 GL3_MarkLights(dlight_t *light, int bit, mnode_t *node)
 {
@@ -100,6 +104,54 @@ GL3_MarkLights(dlight_t *light, int bit, mnode_t *node)
 }
 
 void
+GL3_AddMapLight(const vec3_t pos, const vec3_t color, float radius, float intensity)
+{
+	if (mapLightsCount >= MAX_MAP_LIGHTS) return;
+
+	dlight_t* l = &mapLights[mapLightsCount++];
+	VectorCopy(pos, l->origin);
+	VectorMA(vec3_origin, intensity, color, l->color);
+	l->intensity = radius;
+}
+
+static void
+PushLight(dlight_t* l, qboolean isMapLight)
+{
+	if (gl3state.uniLightsData.numDynLights >= MAX_DLIGHTS) return;
+
+	float effectiveIntensity = l->intensity;
+	if (r_hdr->value)
+	{
+		// Give it a boost to the dynamic lights in case of HDR rendering
+		effectiveIntensity = l->intensity * 1.6f;
+	}
+	if (GL3_CullSphere(l->origin, effectiveIntensity)) return;
+
+	int pushIndex = gl3state.uniLightsData.numDynLights;
+
+	// TODO: because of the surface batching, we need to move the lightFlags
+	// vertex attribute to it's own buffer and update it accordingly for this
+	// to work, otherwise this has no effect as of now.
+	// GL3_MarkLights(l, 1 << pushIndex, gl3_worldmodel->nodes);
+
+	gl3UniDynLight* udl = &gl3state.uniLightsData.dynLights[pushIndex];
+	VectorCopy(l->origin, udl->origin);
+	VectorCopy(l->color, udl->color);
+	udl->intensity = effectiveIntensity;
+	udl->attenuation = 1.0f / max(0.00001f, udl->intensity*udl->intensity);
+
+	if (!GL3_Shadow_AddDynLight(pushIndex, l->origin, l->intensity, isMapLight))
+	{
+		// Set the shadow parameters to a default to indicate this light doesn't have a shadow map
+		udl->shadowParameters = HMM_Vec4(1,1,1,1);
+	}
+
+	gl3state.uniLightsData.numDynLights++;
+
+	//GL3_Debug_AddSphere(udl->origin, l->intensity, (const vec3_t){1,0,0});
+}
+
+void
 GL3_PushDlights(void)
 {
 	int i;
@@ -108,43 +160,18 @@ GL3_PushDlights(void)
 	/* because the count hasn't advanced yet for this frame */
 	r_dlightframecount = gl3_framecount + 1;
 
-	l = gl3_newrefdef.dlights;
 	gl3state.uniLightsData.numDynLights = 0;
 
+	l = mapLights;
+	for (i = 0; i < mapLightsCount; i++, l++)
+	{
+		PushLight(l, true);
+	}
+
+	l = gl3_newrefdef.dlights;
 	for (i = 0; i < gl3_newrefdef.num_dlights; i++, l++)
 	{
-		if (gl3state.uniLightsData.numDynLights >= MAX_DLIGHTS) continue;
-
-		float effectiveIntensity = l->intensity;
-		if (r_hdr->value)
-		{
-			// Give it a boost to the dynamic lights in case of HDR rendering
-			effectiveIntensity = l->intensity * 1.6f;
-		}
-		if (GL3_CullSphere(l->origin, effectiveIntensity)) continue;
-
-		int pushIndex = gl3state.uniLightsData.numDynLights;
-
-		// TODO: because of the surface batching, we need to move the lightFlags
-		// vertex attribute to it's own buffer and update it accordingly for this
-		// to work, otherwise this has no effect as of now.
-		// GL3_MarkLights(l, 1 << pushIndex, gl3_worldmodel->nodes);
-
-		gl3UniDynLight* udl = &gl3state.uniLightsData.dynLights[pushIndex];
-		VectorCopy(l->origin, udl->origin);
-		VectorCopy(l->color, udl->color);
-		udl->intensity = effectiveIntensity;
-		udl->attenuation = 1.0f / max(0.00001f, udl->intensity*udl->intensity);
-
-		if (!GL3_Shadow_AddDynLight(i, l->origin, l->intensity))
-		{
-			// Set the shadow parameters to a default to indicate this light doesn't have a shadow map
-			udl->shadowParameters = HMM_Vec4(1,1,1,1);
-		}
-
-		gl3state.uniLightsData.numDynLights++;
-
-		//GL3_Debug_AddSphere(udl->origin, l->intensity, (const vec3_t){1,0,0});
+		PushLight(l, false);
 	}
 
 #if 0
@@ -172,7 +199,8 @@ GL3_PushDlights(void)
 
 	assert(MAX_DLIGHTS == 32 && "If MAX_DLIGHTS changes, remember to adjust the uniform buffer definition in the shader!");
 
-	if(i < MAX_DLIGHTS)
+	i = gl3state.uniLightsData.numDynLights;
+	if (i < MAX_DLIGHTS)
 	{
 		memset(&gl3state.uniLightsData.dynLights[i], 0, (MAX_DLIGHTS-i)*sizeof(gl3state.uniLightsData.dynLights[0]));
 	}

@@ -200,7 +200,7 @@ typedef struct
 enum {
 	MAX_SHADOW_LIGHTS = 32,
 	DEFAULT_SHADOWMAP_SIZE = 512,
-	SHADOW_ATLAS_SIZE = 2048,
+	SHADOW_ATLAS_SIZE = 4096,
 };
 
 enum {
@@ -620,6 +620,7 @@ extern void GL3_ImageList_f(void);
 
 // gl3_light.c
 extern void GL3_MarkLights(dlight_t *light, int bit, mnode_t *node);
+extern void GL3_AddMapLight(const vec3_t pos, const vec3_t color, float radius, float intensity);
 extern void GL3_PushDlights(void);
 extern void GL3_LightPoint(entity_t *currententity, vec3_t p, vec3_t color);
 extern void GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride, int step);
@@ -892,7 +893,7 @@ void GL3_Shadow_Init();
 void GL3_Shadow_BeginFrame();
 
 // Returns true if we could add this light to the shadow map or false otherwise
-qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity);
+qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity, qboolean isMapLight);
 
 void GL3_Shadow_RenderShadowMaps();
 void GL3_Shadow_Shutdown();

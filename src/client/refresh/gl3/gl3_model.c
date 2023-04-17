@@ -1541,18 +1541,11 @@ Mod_ForName (char *name, gl3model_t *parent_model, qboolean crash)
 
 enum gl3_entity { entity_invalid, entity_worldspawn, entity_light };
 
-static qboolean worldsun;
-static vec3_t worldsunangle;
-static qboolean shadowlight;
-static vec3_t shadowlightorigin;
-static vec3_t shadowlightangle;
-static vec3_t shadowlightcolor;
-static float shadowlightconeangle;
-static float shadowlightradius;
-static qboolean shadowlightspot;
-static int shadowlightresolution;
-static float shadowlightintensity;
-static qboolean shadowlightstatic;
+static qboolean shadowLight;
+static vec3_t shadowLightOrigin;
+static vec3_t shadowLightColor;
+static float shadowLightRadius;
+static float shadowLightIntensity;
 
 static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keylen, const char* value, size_t valuelen)
 {
@@ -1562,105 +1555,65 @@ static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keyle
 	v[valuelen] = '\0';
 	memcpy(v, value, valuelen);
 
-	if (t == entity_worldspawn) {
-		if (!strncmp(key, "_shadowsun", keylen)) {
-			worldsun = true;
-		}
-		else if (!strncmp(key, "_shadowsunangle", keylen)) {
-			// Cmd_TokenizeString (v);
-			// worldsunangle[0] = Q_atof (Cmd_Argv(0));
-			// worldsunangle[1] = Q_atof (Cmd_Argv(1));
-			// worldsunangle[2] = Q_atof (Cmd_Argv(2));
-		}
-		else if (!strncmp(key, "fog", keylen)) {
+	if (t == entity_worldspawn)
+	{
+		if (!strncmp(key, "fog", keylen) || !strncmp(key, "_fog", keylen))
+		{
 			float d, r, g, b;
 			sscanf(v, "%f %f %f %f", &d, &r, &g, &b);
 			GL3_Fog_Set(r, g, b, d);
 		}
 	}
 	else {
-		if (!strncmp(key, "_shadowlight", keylen)) {
-			shadowlight = true;
+		if (!strncmp(key, "_shadowlight", keylen))
+		{
+			shadowLight = true;
 		}
-		else if (!strncmp(key, "origin", keylen)) {
-			sscanf(v, "%f %f %f", &shadowlightorigin[0], &shadowlightorigin[1], &shadowlightorigin[2]);
+		else if (!strncmp(key, "origin", keylen))
+		{
+			sscanf(v, "%f %f %f", &shadowLightOrigin[0], &shadowLightOrigin[1], &shadowLightOrigin[2]);
 		}
-		else if (!strncmp(key, "mangle", keylen)) {
-			sscanf(v, "%f %f %f", &shadowlightangle[0], &shadowlightangle[1], &shadowlightangle[2]);
-			shadowlightspot = true;
-		}
-		else if (!strncmp(key, "_color", keylen)) {
-			sscanf(v, "%f %f %f", &shadowlightcolor[0], &shadowlightcolor[1], &shadowlightcolor[2]);
+		else if (!strncmp(key, "_color", keylen))
+		{
+			sscanf(v, "%f %f %f", &shadowLightColor[0], &shadowLightColor[1], &shadowLightColor[2]);
 			qboolean is_bytes = false;
 			for (int i = 0; i < 3; i++)
 			{
-				if (shadowlightcolor[i] > 1.0f) { is_bytes = true; break; }
+				if (shadowLightColor[i] > 1.0f) { is_bytes = true; break; }
 			}
 			if (is_bytes) for (int i = 0; i < 3; i++)
 			{
-				shadowlightcolor[i] = shadowlightcolor[i] / 255.0;
+				shadowLightColor[i] = shadowLightColor[i] / 255.0;
 			}
 		}
-		else if (!strncmp(key, "angle", keylen)) {
-			shadowlightconeangle = atof(v);
-			shadowlightspot = true;
+		else if (!strncmp(key, "_shadowlightradius", keylen))
+		{
+			shadowLightRadius = atof(v);
 		}
-		else if (!strncmp(key, "_shadowlightconeangle", keylen)) {
-			shadowlightconeangle = atof(v);
-			shadowlightspot = true;
-		}
-		else if (!strncmp(key, "_shadowlightradius", keylen)) {
-			shadowlightradius = atof(v);
-		}
-		else if (!strncmp(key, "_shadowlightresolution", keylen)) {
-			shadowlightresolution = atoi(v);
-		}
-		else if (!strncmp(key, "_shadowlightintensity", keylen)) {
-			shadowlightintensity = atof(v);
-		}
-		else if (!strncmp(key, "_shadowlightstatic", keylen)) {
-			shadowlightstatic = (qboolean)atoi(v);
+		else if (!strncmp(key, "_shadowlightintensity", keylen))
+		{
+			shadowLightIntensity = atof(v);
 		}
 	}
 	free(v);
 }
 
+static void ResetShadowLightValues()
+{
+	memset(shadowLightOrigin, 0, sizeof(vec3_t));
+	shadowLightColor[0] = shadowLightColor[1] = shadowLightColor[2] = 1.0f;
+	shadowLightRadius = 300.0f;
+	shadowLightIntensity = 1.0f;
+	shadowLight = false;
+}
+
 static void GL3_EndEntity(enum gl3_entity t)
 {
-	if (t == entity_light && shadowlight) {
-		if (shadowlightspot) {
-			/*
-			GL3_Shadow_AddSpotLight(
-				shadowlightorigin,
-				shadowlightangle,
-				shadowlightcolor,
-				shadowlightconeangle,
-				shadowlightradius,
-				shadowlightresolution,
-				shadowlightintensity,
-				shadowlightstatic
-			);
-			*/
-		}
-		else {
-			// R_Shadow_AddPointLight (shadowlightorigin, shadowlightradius);
-		}
+	if (t == entity_light && shadowLight)
+	{
+		GL3_AddMapLight(shadowLightOrigin, shadowLightColor, shadowLightRadius, shadowLightIntensity);
 	}
-	else if (t == entity_worldspawn && worldsun) {
-		// R_Shadow_SetupSun (worldsunangle);
-	}
-
-	memset(shadowlightorigin, 0, sizeof(shadowlightorigin));
-	memset(shadowlightangle, 0, sizeof(shadowlightangle));
-	shadowlightcolor[0] = shadowlightcolor[1] = shadowlightcolor[2] = 1.0f;
-	shadowlightconeangle = 0.0f;
-	shadowlightradius = 0.0f;
-	shadowlightresolution = 0;
-	shadowlightintensity = 1.0f;
-	shadowlightspot = false;
-	shadowlightstatic = false;
-	shadowlight = false;
-	worldsun = false;
+	ResetShadowLightValues();
 }
 
 // gnemeth: parse the map entities to enable renderer featuers (fog, shadow lights, etc...)
@@ -1685,8 +1638,7 @@ static void GL3_ParseEntities (const char* ent_text)
 	size_t textsize = strlen(ent_text);
 	enum gl3_entity current_entity = entity_worldspawn;
 
-	shadowlightcolor[0] = shadowlightcolor[1] = shadowlightcolor[2] = 1.0f;
-	shadowlightintensity = 1.0f;
+	ResetShadowLightValues();
 
 	for (size_t offs = 0; offs < textsize; offs++) {
 		char c = ent_text[offs];

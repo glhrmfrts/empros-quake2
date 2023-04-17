@@ -439,6 +439,7 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 	/* calculate dynamic lighting for bmodel */
 	lt = gl3_newrefdef.dlights;
 
+#if 0
 	if (gl3state.renderPass == RENDER_PASS_SCENE)
 	{
 		for (k = 0; k < gl3_newrefdef.num_dlights; k++, lt++)
@@ -446,6 +447,7 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel, const vec3_t
 			GL3_MarkLights(lt, 1 << k, currentmodel->nodes + currentmodel->firstnode);
 		}
 	}
+#endif
 
 	psurf = &currentmodel->surfaces[currentmodel->firstmodelsurface];
 
@@ -550,7 +552,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		VectorAdd(e->origin, currentmodel->mins, mins);
 		VectorAdd(e->origin, currentmodel->maxs, maxs);
 	}
-	
+
 	if (GL3_CullBox(mins, maxs))
 	{
 		return;
