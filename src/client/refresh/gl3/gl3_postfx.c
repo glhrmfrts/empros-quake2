@@ -207,7 +207,7 @@ void GL3_PostFx_BeforeScene()
 			"ssaoGeometry"
 		);
 
-		GL3_BindFramebuffer(ssaoGeoFbo);
+		GL3_BindFramebuffer(ssaoGeoFbo, true);
 		GL3_UseProgram(gl3state.si3DSSAO.shaderProgram);
 
 		// render the opaque world geometry
@@ -228,7 +228,7 @@ void GL3_PostFx_BeforeScene()
 			GL3_FRAMEBUFFER_FILTERED,
 			"ssaoMap"
 		);
-		GL3_BindFramebuffer(ssaoMapFbo);
+		GL3_BindFramebuffer(ssaoMapFbo, true);
 		GL3_UseProgram(gl3state.siPostfxSSAO.shaderProgram);
 		glUniform1i(ssao_map_uniforms.u_FboSampler[0], 0);
 		glUniform1i(ssao_map_uniforms.u_FboSampler[1], 1);
@@ -251,7 +251,7 @@ void GL3_PostFx_BeforeScene()
 			GL3_FRAMEBUFFER_FILTERED,
 			"ssaoBlur"
 		);
-		GL3_BindFramebuffer(ssaoBlurFbo);
+		GL3_BindFramebuffer(ssaoBlurFbo, true);
 		GL3_UseProgram(gl3state.siPostfxSSAOBlur.shaderProgram);
 		glUniform1i(ssao_blur_uniforms.u_FboSampler[0], 0);
 		//glUniform1i(ssao_blur_uniforms.u_FboSampler[1], 1);
@@ -277,7 +277,7 @@ void GL3_PostFx_BeforeScene()
 		gl3_scaledSize.X, gl3_scaledSize.Y, 2, GL3_FRAMEBUFFER_MULTISAMPLED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_HDR, "Scene"
 	);
 	GL3_DeferReturnFramebuffer(sceneFbo);
-	GL3_BindFramebuffer(sceneFbo);
+	GL3_BindFramebuffer(sceneFbo, true);
 	weapon_model_entity = NULL;
 #endif
 }
@@ -285,7 +285,7 @@ void GL3_PostFx_BeforeScene()
 static gl3_framebuffer_t* RenderResolveMultisample(GLuint scene_texture, GLuint scene_depth_texture)
 {
 	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 2, GL3_FRAMEBUFFER_HDR, "ResolveMultisample");
-	GL3_BindFramebuffer(output);
+	GL3_BindFramebuffer(output, true);
 	GL3_UseProgram(gl3state.siPostfxResolveMultisample.shaderProgram);
 	glUniform1i(resolve_multisample_uniforms.u_FboSampler[0], 0);
 	glUniform1i(resolve_multisample_uniforms.u_DepthSampler0, 1);
@@ -306,7 +306,7 @@ static gl3_framebuffer_t* RenderBloom(GLuint scene_texture)
 	gl3_framebuffer_t* bloomFilterFbo = GL3_BorrowFramebuffer(
 		gl3_scaledSize.X/2.0f, gl3_scaledSize.Y/2.0f, 1, GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_HDR, "BloomFilter"
 	);
-	GL3_BindFramebuffer(bloomFilterFbo);
+	GL3_BindFramebuffer(bloomFilterFbo, true);
 	GL3_UseProgram(gl3state.siPostfxBloomFilter.shaderProgram);
 	glUniform1i(bloom_filter_uniforms.u_FboSampler[0], 0);
 	glUniform1f(bloom_filter_uniforms.u_Intensity, r_bloom_threshold->value);
@@ -334,7 +334,7 @@ static gl3_framebuffer_t* RenderBloom(GLuint scene_texture)
 		{
 			bloomLastFbo = bloomBlurFbo[horizontal];
 			bloomInputFbo = first_iteration ? (bloomFilterFbo) : (bloomBlurFbo[!horizontal]);
-			GL3_BindFramebuffer(bloomLastFbo);
+			GL3_BindFramebuffer(bloomLastFbo, true);
 			glUniform1i(bloom_blur_uniforms.u_SampleCount, horizontal);
 			GL3_BindFramebufferTexture(bloomInputFbo, 0, 0);
 			GL3_BindVAO(screen_vao);
@@ -354,7 +354,7 @@ static gl3_framebuffer_t* RenderBloom(GLuint scene_texture)
 static gl3_framebuffer_t* RenderResolveHDR(GLuint scene_texture, GLuint bloom_texture)
 {
 	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_NONE, "ResolveHDR");
-	GL3_BindFramebuffer(output);
+	GL3_BindFramebuffer(output, true);
 	GL3_UseProgram(gl3state.siPostfxResolveHDR.shaderProgram);
 	glUniform1i(resolve_hdr_uniforms.u_FboSampler[0], 0);
 	glUniform1i(resolve_hdr_uniforms.u_FboSampler[1], 1);
@@ -372,7 +372,7 @@ static gl3_framebuffer_t* RenderMotionBlurMask(entity_t* weapon_model_entity)
 {
 	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_DEPTH, "MotionBlurMask");
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	GL3_BindFramebuffer(output);
+	GL3_BindFramebuffer(output, true);
 	GL3_DrawAliasModel(weapon_model_entity);
 	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
 	GL3_DeferReturnFramebuffer(output);
@@ -384,7 +384,7 @@ static gl3_framebuffer_t* RenderMotionBlur(
 )
 {
 	gl3_framebuffer_t* output = GL3_BorrowFramebuffer(gl3_scaledSize.X, gl3_scaledSize.Y, 1, GL3_FRAMEBUFFER_NONE, "MotionBlur");
-	GL3_BindFramebuffer(output);
+	GL3_BindFramebuffer(output, true);
 	GL3_UseProgram(gl3state.siPostfxMotionBlur.shaderProgram);
 	glUniform1i(motion_blur_uniforms.u_FboSampler[0], 0);
 	glUniform1i(motion_blur_uniforms.u_FboSampler[1], 1);

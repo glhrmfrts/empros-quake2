@@ -22,14 +22,16 @@ qboolean gl3_rendering_shadow_maps;
 static int shadow_light_id_gen;
 
 static gl3_framebuffer_t shadowAtlasFbo;
+static gl3_framebuffer_t staticAtlasFbo;
 
 static int shadowLightFrameCount;
-static gl3_shadow_light_t shadowLights[MAX_SHADOW_LIGHTS];
+static gl3ShadowLight_t shadowLights[MAX_SHADOW_LIGHTS];
 
-static int mapShadowLightCount;
-static gl3_shadow_light_t mapShadowLights[MAX_SHADOW_LIGHTS*2];
+static int staticLightsCount;
+static gl3ShadowLight_t staticLights[MAX_STATIC_SHADOW_LIGHTS];
 
 static area_allocator_t shadowMapAllocator;
+static area_allocator_t staticMapAllocator;
 
 static const float faceSelectionData1[] = {
 	1.0f, 0.0f, 0.0f, 0.0f,
@@ -41,8 +43,8 @@ static const float faceSelectionData1[] = {
 };
 
 static const float faceSelectionData2[] = {
-        -0.5f, -0.5f, 0.5f, 1.5f,
-        0.5f, -0.5f, 0.5f, 0.5f,
+    -0.5f, -0.5f, 0.5f, 1.5f,
+    0.5f, -0.5f, 0.5f, 0.5f,
 	-0.5f, 0.5f, 1.5f, 1.5f,
 	-0.5f, -0.5f, 1.5f, 0.5f,
 	0.5f, -0.5f, 2.5f, 1.5f,
@@ -76,12 +78,39 @@ static void CreateFaceSelectionTexture(const float* data, GLuint* texid)
 
 static qboolean inited;
 
+static void SetResolutionConfig()
+{
+	shadowMapResolutionConfig = 0;
+	if (r_shadowmap->value == 1.0f)
+	{
+		shadowMapResolutionConfig = 256;
+	}
+	else if (r_shadowmap->value == 2.0f)
+	{
+		shadowMapResolutionConfig = 512;
+	}
+}
+
 void GL3_Shadow_Init()
 {
-	const gl3_framebuffer_flag_t fbo_flags = GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_SHADOWMAP;
-	GL3_CreateFramebuffer(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, 1, fbo_flags, &shadowAtlasFbo);
+	// Since the static atlas is never sampled directly for shadows,
+	// we don't need to use the SHADOWMAP flag
+
+	const gl3_framebuffer_flag_t fboFlags = GL3_FRAMEBUFFER_FILTERED | GL3_FRAMEBUFFER_DEPTH | GL3_FRAMEBUFFER_SHADOWMAP;
+	GL3_CreateFramebuffer(SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE, 1, fboFlags, &shadowAtlasFbo);
+	GL3_CreateFramebuffer(SHADOW_STATIC_ATLAS_SIZE, SHADOW_STATIC_ATLAS_SIZE, 1, fboFlags & ~GL3_FRAMEBUFFER_SHADOWMAP, &staticAtlasFbo);
+
 	CreateFaceSelectionTexture(faceSelectionData1, &faceSelectionTex1);
 	CreateFaceSelectionTexture(faceSelectionData2, &faceSelectionTex2);
+
+	AreaAlloc_Init(&staticMapAllocator,
+		SHADOW_STATIC_ATLAS_SIZE, SHADOW_STATIC_ATLAS_SIZE, SHADOW_STATIC_ATLAS_SIZE, SHADOW_STATIC_ATLAS_SIZE);
+
+	SetResolutionConfig();
+
+	GL3_BindFramebuffer(&staticAtlasFbo, true);
+	GL3_UnbindFramebuffer();
+
 	inited = true;
 }
 
@@ -96,7 +125,7 @@ void GL3_Shadow_Shutdown()
 #endif
 }
 
-static qboolean SetupPointLight(gl3_shadow_light_t* l, int shadowMapResolution);
+static qboolean SetupPointLight(gl3ShadowLight_t* l, int shadowMapResolution, area_allocator_t* alloc);
 
 void GL3_Shadow_BeginFrame()
 {
@@ -110,15 +139,7 @@ void GL3_Shadow_BeginFrame()
 	r_shadowmap_maxlights->value = min(r_shadowmap_maxlights->value, 32);
 	r_shadowmap_maxlights->value = max(r_shadowmap_maxlights->value, 1);
 
-	shadowMapResolutionConfig = 0;
-	if (r_shadowmap->value == 1.0f)
-	{
-		shadowMapResolutionConfig = 256;
-	}
-	else if (r_shadowmap->value == 2.0f)
-	{
-		shadowMapResolutionConfig = 512;
-	}
+	SetResolutionConfig();
 }
 
 static const vec3_t pointLightDirection[] = {
@@ -137,12 +158,12 @@ static void AnglesForCubeFace(int index, vec3_t angles)
 	DirectionToAngles(dir, angles);
 }
 
-static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
+static void SetupShadowView(gl3ShadowLight_t* light, int viewIndex)
 {
-	gl3_shadow_view_t* view = &light->shadowViews[viewIndex];
+	gl3ShadowView_t* view = &light->shadowViews[viewIndex];
 
 	vec3_t angles = { 0 };
-	if (light->type == gl3_shadow_light_type_point)
+	if (light->type == SHADOW_LIGHT_TYPE_POINT)
 		AnglesForCubeFace(viewIndex, angles);
 	else
 		VectorCopy(light->angles, angles);
@@ -205,23 +226,44 @@ static void SetupShadowView(gl3_shadow_light_t* light, int viewIndex)
 	VectorCopy(angles, view->angles);
 }
 
-qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity, qboolean isMapLight)
+int GL3_Shadow_CreateStaticLight(const vec3_t pos, float radius, gl3ShadowMode_t mode)
+{
+	if (staticLightsCount >= MAX_STATIC_SHADOW_LIGHTS) return false;
+
+	gl3ShadowLight_t* l = &staticLights[staticLightsCount++];
+	memset(l, 0, sizeof(gl3ShadowLight_t));
+	l->id = staticLightsCount - 1;
+	l->type = SHADOW_LIGHT_TYPE_POINT;
+	l->bias = POINT_SHADOW_BIAS;
+	l->radius = radius*2.0f;
+	l->coneAngle = 90;
+	l->mode = mode;
+	l->staticMapInvalidated = true;
+	VectorCopy(pos, l->position);
+
+	if (!SetupPointLight(l, shadowMapResolutionConfig, &staticMapAllocator))
+	{
+		staticLightsCount - 1;
+		return -1;
+	}
+
+	return staticLightsCount - 1;
+}
+
+static qboolean CullShadowLight(const vec3_t pos, float radius, qboolean isMapLight, int* resolution)
 {
 	static const float thresholds[][3] = {
 		{400.0f, 700.0f, 1000.0f}, // for dyn lights
 		{500.0f, 1000.0f, 2000.0f}, // for map lights
 	};
 
-	if (!r_shadowmap->value || !shadowMapResolutionConfig)
-		return false;
-
-	if (shadowLightFrameCount >= (int)r_shadowmap_maxlights->value)
-		return false;
-
 	// The further away from the view, the smaller the shadow map can be
+
 	vec3_t lightToView = { 0 };
 	VectorSubtract(pos, gl3_newrefdef.vieworg, lightToView);
 	float distanceSqr = DotProduct(lightToView, lightToView);
+
+	distanceSqr -= radius*radius*0.5f;
 
 	const float* thresh = thresholds[isMapLight ? 1 : 0];
 	int shadowMapResolution = shadowMapResolutionConfig;
@@ -230,19 +272,67 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 	if (distanceSqr > (thresh[1] * thresh[1]))
 		shadowMapResolution /= 2;
 	if (distanceSqr > (thresh[2] * thresh[2]))
-		return false; // Too far away and Quake 2 doesn't have big dynamic lights, so don't do shadows
+		return true; // Too far away and Quake 2 doesn't have big dynamic lights, so don't do shadows
 
-	gl3_shadow_light_t* l = &shadowLights[shadowLightFrameCount++];
-	memset(l, 0, sizeof(gl3_shadow_light_t));
+	*resolution = shadowMapResolution;
+	return false;
+}
+
+qboolean GL3_Shadow_TouchStaticLight(int dlightIndex, int staticLightIndex)
+{
+	gl3ShadowLight_t* staticLight = &staticLights[staticLightIndex];
+
+	if (!r_shadowmap->value || !shadowMapResolutionConfig)
+		return false;
+
+	if (shadowLightFrameCount >= (int)r_shadowmap_maxlights->value)
+		return false;
+
+	int resolution = 0;
+	if (CullShadowLight(staticLight->position, staticLight->radius, true, &resolution))
+		return false;
+
+	// Progressively render the static lights at startup
+	if (staticLight->staticMapInvalidated && !((gl3_framecount % staticLightsCount) == staticLight->id))
+		return false;
+
+	gl3ShadowLight_t* frameLight = &shadowLights[shadowLightFrameCount++];
+	*frameLight = *staticLight;
+	frameLight->id = shadowLightFrameCount - 1;
+	frameLight->staticOwner = staticLight;
+	frameLight->dlightIndex = dlightIndex;
+	if (!SetupPointLight(frameLight, resolution, &shadowMapAllocator))
+	{
+		shadowLightFrameCount--;
+	}
+	return true;
+}
+
+qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float radius, qboolean isMapLight, gl3ShadowMode_t mode)
+{
+	if (!r_shadowmap->value || !shadowMapResolutionConfig)
+		return false;
+
+	if (shadowLightFrameCount >= (int)r_shadowmap_maxlights->value)
+		return false;
+
+	// The further away from the view, the smaller the shadow map can be
+	int shadowMapResolution = 0;
+	if (CullShadowLight(pos, radius, isMapLight, &shadowMapResolution))
+		return false;
+
+	gl3ShadowLight_t* l = &shadowLights[shadowLightFrameCount++];
+	memset(l, 0, sizeof(gl3ShadowLight_t));
 	l->id = shadowLightFrameCount - 1;
 	l->dlightIndex = dlightIndex;
-	l->type = gl3_shadow_light_type_point;
+	l->mode = mode;
+	l->type = SHADOW_LIGHT_TYPE_POINT;
 	l->bias = POINT_SHADOW_BIAS;
-	l->radius = intensity*2.0f;
+	l->radius = radius*2.0f;
 	l->coneAngle = 90;
 	VectorCopy(pos, l->position);
 
-	if (!SetupPointLight(l, shadowMapResolution))
+	if (!SetupPointLight(l, shadowMapResolution, &shadowMapAllocator))
 	{
 		shadowLightFrameCount--;
 	}
@@ -250,12 +340,12 @@ qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensi
 	return true;
 }
 
-static qboolean SetupPointLight(gl3_shadow_light_t* l, int shadowMapResolution)
+static qboolean SetupPointLight(gl3ShadowLight_t* l, int shadowMapResolution, area_allocator_t* alloc)
 {
 	// Allocate room for this light in the shadow map atlas
 	l->shadowMapWidth = shadowMapResolution * 3;
 	l->shadowMapHeight = shadowMapResolution * 2;
-	if (!AreaAlloc_Allocate(&shadowMapAllocator, l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY))
+	if (!AreaAlloc_Allocate(alloc, l->shadowMapWidth, l->shadowMapHeight, &l->shadowMapX, &l->shadowMapY))
 	{
 		return false;
 	}
@@ -269,7 +359,7 @@ static qboolean SetupPointLight(gl3_shadow_light_t* l, int shadowMapResolution)
 	return true;
 }
 
-static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
+static void AddLightToUniformBuffer(const gl3ShadowLight_t* light)
 {
 	float shadowStrength = 0.5f;
 
@@ -294,9 +384,21 @@ static void AddLightToUniformBuffer(const gl3_shadow_light_t* light)
 
 qboolean shadowDebug = false;
 
-static void PrepareToRender(gl3_shadow_light_t* light, int viewIndex)
+static void ShadowViewCoords(gl3ShadowLight_t* light, int viewIndex, int* x, int* y, int* width, int* height)
 {
-	gl3_shadow_view_t* view = &light->shadowViews[viewIndex];
+	int actualShadowMapSize = light->shadowMapHeight / 2;
+	int smx = light->shadowMapX;
+	int smy = light->shadowMapY;
+	if (viewIndex & 1) smy += actualShadowMapSize;
+	smx += ((unsigned)viewIndex >> 1) * actualShadowMapSize;
+	*x = smx;
+	*y = smy;
+	*width = *height = actualShadowMapSize;
+}
+
+static void PrepareToRender(gl3ShadowLight_t* light, int viewIndex)
+{
+	gl3ShadowView_t* view = &light->shadowViews[viewIndex];
 
 	// Make the FOV a bit bigger for culling
 
@@ -340,14 +442,20 @@ static void PrepareToRender(gl3_shadow_light_t* light, int viewIndex)
 	GL3_SetupViewCluster();
 	GL3_MarkLeaves();
 
-	if (light->type == gl3_shadow_light_type_point)
+	if (light->type == SHADOW_LIGHT_TYPE_POINT)
 	{
-		int actualShadowMapSize = light->shadowMapHeight / 2;
-		int smx = light->shadowMapX;
-		int smy = light->shadowMapY;
-		if (viewIndex & 1) smy += actualShadowMapSize;
-		smx += ((unsigned)viewIndex >> 1) * actualShadowMapSize;
-		glViewport(smx, smy, actualShadowMapSize, actualShadowMapSize);
+		int smx, smy, width, height;
+		if (light->staticOwner)
+		{
+			ShadowViewCoords(light->staticOwner, viewIndex, &smx, &smy, &width, &height);
+		}
+		else
+		{
+			ShadowViewCoords(light, viewIndex, &smx, &smy, &width, &height);
+		}
+		glViewport(smx, smy, width, height);
+		//glScissor(smx, smy, width, height);
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 	else
 	{
@@ -363,10 +471,9 @@ static void PrepareToRender(gl3_shadow_light_t* light, int viewIndex)
 	GL3_UpdateUBO3D();
 }
 
-static void RenderShadowMap(gl3_shadow_light_t* light)
+static void RenderShadowMap(gl3ShadowLight_t* light)
 {
 	GL3_UseProgram(gl3state.siShadowMap.shaderProgram);
-
 	for (int i = 0; i < light->numShadowViews; i++)
 	{
 		gl3state.currentShadowLight = light;
@@ -376,7 +483,53 @@ static void RenderShadowMap(gl3_shadow_light_t* light)
 		ent.frame = (int)(gl3_newrefdef.time * 2);
 		GL3_RecursiveWorldNode(&ent, gl3_worldmodel->nodes, light->position);
 		GL3_DrawTextureChainsShadowPass(&ent);
-		GL3_DrawEntitiesOnList();
+		if (light->mode == SHADOWMODE_DYNAMIC)
+		{
+			GL3_DrawEntitiesOnList();
+		}
+	}
+}
+
+static void BlitStaticShadowMap(gl3ShadowLight_t* light)
+{
+	GL3_UseProgram(gl3state.siShadowMapBlit.shaderProgram);
+
+	GL3_BindFramebufferDepthTexture(&staticAtlasFbo, 0);
+
+	for (int viewIndex = 0; viewIndex < light->numShadowViews; viewIndex++)
+	{
+		int smx, smy, width, height;
+		ShadowViewCoords(light->staticOwner, viewIndex, &smx, &smy, &width, &height);
+
+		int destx, desty, destw, desth;
+		ShadowViewCoords(light, viewIndex, &destx, &desty, &destw, &desth);
+		glViewport(destx, desty, destw, desth);
+
+		const float u = (float)smx / SHADOW_STATIC_ATLAS_SIZE;
+		const float v = (float)smy / SHADOW_STATIC_ATLAS_SIZE;
+		const float u2 = u + ((float)width / SHADOW_STATIC_ATLAS_SIZE);
+		const float v2 = v + ((float)height / SHADOW_STATIC_ATLAS_SIZE);
+
+		GL3_Draw_TexRect(-1.0f, -1.0f, 1.0f, 1.0f, u, v, u2, v2);
+	}
+}
+
+static void UpdateLight(gl3ShadowLight_t* light)
+{
+	if (light->staticOwner)
+	{
+		if (light->staticOwner->staticMapInvalidated)
+		{
+			GL3_BindFramebuffer(&staticAtlasFbo, false);
+			RenderShadowMap(light);
+			light->staticOwner->staticMapInvalidated = false;
+		}
+		GL3_BindFramebuffer(&shadowAtlasFbo, false);
+		BlitStaticShadowMap(light);
+	}
+	else
+	{
+		RenderShadowMap(light);
 	}
 }
 
@@ -396,11 +549,9 @@ void GL3_Shadow_RenderShadowMaps()
 
 	if (!shadowDebug)
 	{
-		GL3_BindFramebuffer(&shadowAtlasFbo);
+		GL3_BindFramebuffer(&shadowAtlasFbo, true);
 	}
 
-	glViewport(0, 0, SHADOW_ATLAS_SIZE, SHADOW_ATLAS_SIZE);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
 
 	hmm_mat4 old_view = gl3state.uni3DData.transViewMat4;
@@ -411,9 +562,11 @@ void GL3_Shadow_RenderShadowMaps()
 
 	for (int i = 0; i < shadowLightFrameCount; i++)
 	{
-		gl3_shadow_light_t* light = &shadowLights[i];
+		gl3ShadowLight_t* light = &shadowLights[i];
 		gl3state.currentShadowLight = light;
-		RenderShadowMap(light);
+
+		UpdateLight(light);
+
 		gl3state.lastShadowLightRendered = light;
 		AddLightToUniformBuffer(light);
 	}

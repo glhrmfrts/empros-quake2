@@ -121,6 +121,12 @@ drawTexturedRectangle(float x, float y, float w, float h,
 	//glMultiDrawArrays(mode, first, count, drawcount) ??
 }
 
+void
+GL3_Draw_TexRect(float x, float y, float x2, float y2, float u, float v, float u2, float v2)
+{
+	drawTexturedRectangle(x, y, x2-x, y2-y, u, v, u2, v2);
+}
+
 /*
  * Draws one 8*8 graphics character with 0 being transparent.
  * It can be clipped to the top of the screen to allow the console to be

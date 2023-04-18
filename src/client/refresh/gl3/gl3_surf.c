@@ -289,6 +289,9 @@ GL3_DrawAlphaSurfaces(void)
 		{
 			GL3_UseProgram(gl3state.si3DlmTurb.shaderProgram);
 			GL3_BindLightmap(s->lightmaptexturenum);
+			gl3state.uni3DData.specularStrength = 8.0f;
+			gl3state.uni3DData.shininess = 32.0f;
+			GL3_UpdateUBO3D();
 			GL3_SurfBatch_DrawSingle(s);
 		}
 		else if (s->texinfo->flags & SURF_FLOWING)

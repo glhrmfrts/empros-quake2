@@ -158,7 +158,13 @@ typedef struct
 {
 	hmm_mat4 transProjMat4;
 	hmm_mat4 transViewMat4;
+	hmm_mat4 transInverseView;
 	hmm_mat4 transModelMat4;
+
+	float specularStrength;
+	float shininess;
+	float _pad01;
+	float _pad02;
 
 	GLfloat scroll; // for SURF_FLOWING
 	GLfloat time; // for warping surfaces like water & possibly other things
@@ -199,8 +205,10 @@ typedef struct
 
 enum {
 	MAX_SHADOW_LIGHTS = 32,
+	MAX_STATIC_SHADOW_LIGHTS = 256,
 	DEFAULT_SHADOWMAP_SIZE = 512,
 	SHADOW_ATLAS_SIZE = 4096,
+	SHADOW_STATIC_ATLAS_SIZE = 8192,
 };
 
 enum {
@@ -319,6 +327,7 @@ typedef struct
 	gl3ShaderInfo_t siPostfxUnderwater;
 
 	gl3ShaderInfo_t siShadowMap;
+	gl3ShaderInfo_t siShadowMapBlit;
 
 	gl3ShaderInfo_t si3Ddebug;
 
@@ -356,9 +365,9 @@ typedef struct
 
 	gl3ViewParams_t viewParams;
 
-	struct gl3_shadow_light_s* lastShadowLightRendered;
-	struct gl3_shadow_light_s* currentShadowLight;
-	struct gl3_shadow_light_s* flashlight;
+	struct gl3ShadowLight* lastShadowLightRendered;
+	struct gl3ShadowLight* currentShadowLight;
+	struct gl3ShadowLight* flashlight;
 } gl3state_t;
 
 extern gl3config_t gl3config;
@@ -584,6 +593,9 @@ extern gl3image_t * GL3_Draw_FindPic(char *name);
 extern void GL3_Draw_GetPicSize(int *w, int *h, char *pic);
 extern int GL3_Draw_GetPalette(void);
 
+// Bind texture before calling this
+extern void GL3_Draw_TexRect(float x, float y, float x2, float y2, float u, float v, float u2, float v2);
+
 extern void GL3_Draw_PicScaled(int x, int y, char *pic, float factor);
 extern void GL3_Draw_StretchPic(int x, int y, int w, int h, char *pic);
 extern void GL3_Draw_CharScaled(int x, int y, int num, float scale);
@@ -619,8 +631,9 @@ extern qboolean GL3_ImageHasFreeSpace(void);
 extern void GL3_ImageList_f(void);
 
 // gl3_light.c
+extern void GL3_InitLights(void);
 extern void GL3_MarkLights(dlight_t *light, int bit, mnode_t *node);
-extern void GL3_AddMapLight(const vec3_t pos, const vec3_t color, float radius, float intensity);
+extern void GL3_AddMapLight(const vec3_t pos, const vec3_t color, float radius, float intensity, qboolean shadow);
 extern void GL3_PushDlights(void);
 extern void GL3_LightPoint(entity_t *currententity, vec3_t p, vec3_t color);
 extern void GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride, int step);
@@ -817,7 +830,7 @@ extern void GL3_CreateFramebuffer(
 	gl3_framebuffer_t* out
 );
 extern void GL3_DestroyFramebuffer(gl3_framebuffer_t* fb);
-extern void GL3_BindFramebuffer(const gl3_framebuffer_t* fb);
+extern void GL3_BindFramebuffer(const gl3_framebuffer_t* fb, qboolean clear);
 extern void GL3_UnbindFramebuffer();
 extern void GL3_BindFramebufferTexture(const gl3_framebuffer_t* fb, int index, int unit);
 extern void GL3_BindFramebufferDepthTexture(const gl3_framebuffer_t* fb, int unit);
@@ -858,22 +871,30 @@ extern void GL3_PostFx_AfterScene();
 qboolean GL3_Matrix4_Invert(const float *m, float *out);
 
 // gl3_shadows.c
-typedef enum gl3_shadow_light_type {
-	gl3_shadow_light_type_sun,
-	gl3_shadow_light_type_spot,
-	gl3_shadow_light_type_point,
-} gl3_shadow_light_type_t;
+typedef enum {
+	SHADOWMODE_DYNAMIC,
+	SHADOWMODE_NOSHADOW,
+	SHADOWMODE_STATIC,
+} gl3ShadowMode_t;
 
-typedef struct gl3_shadow_view_s {
+typedef enum gl3ShadowLightType {
+	SHADOW_LIGHT_TYPE_SUN,
+	SHADOW_LIGHT_TYPE_SPOT,
+	SHADOW_LIGHT_TYPE_POINT,
+} gl3ShadowLightType_t;
+
+typedef struct gl3ShadowView {
 	hmm_mat4 viewMatrix;
 	hmm_mat4 projMatrix;
 	vec3_t angles; // (pitch yaw roll)
-} gl3_shadow_view_t;
+} gl3ShadowView_t;
 
-typedef struct gl3_shadow_light_s {
+typedef struct gl3ShadowLight {
 	int id;
-	gl3_shadow_light_type_t type;
-	qboolean is_static;
+	gl3ShadowLightType_t type;
+	gl3ShadowMode_t mode;
+	struct gl3ShadowLight* staticOwner;
+	qboolean staticMapInvalidated;
 	vec3_t position;
 	vec3_t angles;
 	vec3_t color;
@@ -886,17 +907,24 @@ typedef struct gl3_shadow_light_s {
 	int shadowMapWidth;
 	int shadowMapHeight;
 	size_t numShadowViews;
-	gl3_shadow_view_t shadowViews[6];
-} gl3_shadow_light_t;
+	gl3ShadowView_t shadowViews[6];
+} gl3ShadowLight_t;
 
 void GL3_Shadow_Init();
 void GL3_Shadow_BeginFrame();
 
-// Returns true if we could add this light to the shadow map or false otherwise
-qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float intensity, qboolean isMapLight);
+// Creates a light that has baked shadows.
+extern int GL3_Shadow_CreateStaticLight(const vec3_t pos, float radius, gl3ShadowMode_t mode);
 
-void GL3_Shadow_RenderShadowMaps();
-void GL3_Shadow_Shutdown();
+// Renders the static portion of the light if needed.
+// Returns true if we could add this light to the frame's shadow map or false otherwise.
+extern qboolean GL3_Shadow_TouchStaticLight(int dlightIndex, int staticLightIndex);
+
+// Returns true if we could add this light to the frame's shadow map or false otherwise.
+extern qboolean GL3_Shadow_AddDynLight(int dlightIndex, const vec3_t pos, float radius, qboolean isMapLight, gl3ShadowMode_t mode);
+
+extern void GL3_Shadow_RenderShadowMaps();
+extern void GL3_Shadow_Shutdown();
 
 extern cvar_t* r_flashlight;
 

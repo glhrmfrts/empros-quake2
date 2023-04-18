@@ -43,6 +43,7 @@
 #include "shaders/particles.h"
 #include "shaders/postfx.h"
 #include "shaders/shadowmap.h"
+#include "shaders/shadowmapblit.h"
 #include "shaders/sky.h"
 #include "shaders/sprite.h"
 #include "shaders/ssao.h"
@@ -253,6 +254,54 @@ err_cleanup:
 	glDeleteProgram(prog);
 
 	return false;
+}
+
+static qboolean
+initShaderShadowMapBlit(gl3ShaderInfo_t* shaderInfo, const char* vertSrc, const char* fragSrc)
+{
+	GLuint shaders2D[2] = {0};
+	GLuint prog = 0;
+
+	if(shaderInfo->shaderProgram != 0)
+	{
+		R_Printf(PRINT_ALL, "WARNING: calling initShader2D for gl3ShaderInfo_t that already has a shaderProgram!\n");
+		glDeleteProgram(shaderInfo->shaderProgram);
+	}
+
+	//shaderInfo->uniColor = shaderInfo->uniProjMatrix = shaderInfo->uniModelViewMatrix = -1;
+	shaderInfo->shaderProgram = 0;
+	shaderInfo->uniLmScales = -1;
+
+	shaders2D[0] = CompileShader(GL_VERTEX_SHADER, vertSrc, NULL);
+	if(shaders2D[0] == 0)  return false;
+
+	shaders2D[1] = CompileShader(GL_FRAGMENT_SHADER, fragSrc, NULL);
+	if(shaders2D[1] == 0)
+	{
+		glDeleteShader(shaders2D[0]);
+		return false;
+	}
+
+	prog = CreateShaderProgram(2, shaders2D);
+
+	// I think the shaders aren't needed anymore once they're linked into the program
+	glDeleteShader(shaders2D[0]);
+	glDeleteShader(shaders2D[1]);
+
+	if(prog == 0)
+	{
+		return false;
+	}
+
+	shaderInfo->shaderProgram = prog;
+	GL3_UseProgram(prog);
+
+	GLint texSampler = glGetUniformLocation(prog, "tex");
+	GLint depthSampler = glGetUniformLocation(prog, "depthTex");
+	glUniform1i(texSampler, 0);
+	glUniform1i(depthSampler, 1);
+
+	return true;
 }
 
 static qboolean
@@ -573,6 +622,11 @@ static qboolean createShaders(void)
 	if(!initShader2D(&gl3state.si2Dcolor, vertexSrc2Dcolor, fragmentSrc2Dcolor))
 	{
 		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for color-only 2D rendering!\n");
+		return false;
+	}
+	if (!initShaderShadowMapBlit(&gl3state.siShadowMapBlit, vertexSrcShadowMapBlit, fragmentSrcShadowMapBlit))
+	{
+		R_Printf(PRINT_ALL, "WARNING: Failed to create shader program for shadow map blitting!\n");
 		return false;
 	}
 	//eprintf("si3Dlm\n");

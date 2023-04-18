@@ -39,6 +39,14 @@ vec3_t lightspot;
 enum { MAX_MAP_LIGHTS = 256 };
 static int mapLightsCount;
 static dlight_t mapLights[MAX_MAP_LIGHTS];
+static gl3ShadowMode_t mapLightsShadows[MAX_MAP_LIGHTS];
+static int mapLightsStaticShadowIDs[MAX_MAP_LIGHTS];
+
+void
+GL3_InitLights()
+{
+	mapLightsCount = 0;
+}
 
 void // bit: 1 << i for light number i, will be or'ed into msurface_t::dlightbits if surface is affected by this light
 GL3_MarkLights(dlight_t *light, int bit, mnode_t *node)
@@ -104,9 +112,15 @@ GL3_MarkLights(dlight_t *light, int bit, mnode_t *node)
 }
 
 void
-GL3_AddMapLight(const vec3_t pos, const vec3_t color, float radius, float intensity)
+GL3_AddMapLight(const vec3_t pos, const vec3_t color, float radius, float intensity, gl3ShadowMode_t shadowMode)
 {
 	if (mapLightsCount >= MAX_MAP_LIGHTS) return;
+
+	mapLightsShadows[mapLightsCount] = shadowMode;
+	if (shadowMode == SHADOWMODE_STATIC)
+	{
+		mapLightsStaticShadowIDs[mapLightsCount] = GL3_Shadow_CreateStaticLight(pos, radius, shadowMode);
+	}
 
 	dlight_t* l = &mapLights[mapLightsCount++];
 	VectorCopy(pos, l->origin);
@@ -115,7 +129,7 @@ GL3_AddMapLight(const vec3_t pos, const vec3_t color, float radius, float intens
 }
 
 static void
-PushLight(dlight_t* l, qboolean isMapLight)
+PushLight(dlight_t* l, int mapLightIndex, gl3ShadowMode_t shadow)
 {
 	if (gl3state.uniLightsData.numDynLights >= MAX_DLIGHTS) return;
 
@@ -123,7 +137,7 @@ PushLight(dlight_t* l, qboolean isMapLight)
 	if (r_hdr->value)
 	{
 		// Give it a boost to the dynamic lights in case of HDR rendering
-		effectiveIntensity = l->intensity * 1.6f;
+		effectiveIntensity = l->intensity * 1.1f;
 	}
 	if (GL3_CullSphere(l->origin, effectiveIntensity)) return;
 
@@ -140,15 +154,26 @@ PushLight(dlight_t* l, qboolean isMapLight)
 	udl->intensity = effectiveIntensity;
 	udl->attenuation = 1.0f / max(0.00001f, udl->intensity*udl->intensity);
 
-	if (!GL3_Shadow_AddDynLight(pushIndex, l->origin, l->intensity, isMapLight))
+	switch (shadow)
 	{
-		// Set the shadow parameters to a default to indicate this light doesn't have a shadow map
+	case SHADOWMODE_NOSHADOW:
 		udl->shadowParameters = HMM_Vec4(1,1,1,1);
+		break;
+	case SHADOWMODE_STATIC:
+		if (!GL3_Shadow_TouchStaticLight(pushIndex, mapLightsStaticShadowIDs[mapLightIndex]))
+		{
+			udl->shadowParameters = HMM_Vec4(1,1,1,1);
+		}
+		break;
+	default:
+		if (!GL3_Shadow_AddDynLight(pushIndex, l->origin, l->intensity, mapLightIndex != -1, shadow))
+		{
+			udl->shadowParameters = HMM_Vec4(1,1,1,1);
+		}
+		break;
 	}
 
 	gl3state.uniLightsData.numDynLights++;
-
-	//GL3_Debug_AddSphere(udl->origin, l->intensity, (const vec3_t){1,0,0});
 }
 
 void
@@ -165,14 +190,16 @@ GL3_PushDlights(void)
 	l = mapLights;
 	for (i = 0; i < mapLightsCount; i++, l++)
 	{
-		PushLight(l, true);
+		PushLight(l, i, mapLightsShadows[i]);
 	}
 
 	l = gl3_newrefdef.dlights;
 	for (i = 0; i < gl3_newrefdef.num_dlights; i++, l++)
 	{
-		PushLight(l, false);
+		PushLight(l, -1, SHADOWMODE_DYNAMIC);
 	}
+
+	//R_Printf(PRINT_ALL, "numDynLights: %d\n", gl3state.uniLightsData.numDynLights);
 
 #if 0
 	// Debug player light

@@ -586,6 +586,8 @@ GL3_Init(void)
 
 	GL3_SurfInit();
 
+	GL3_InitLights();
+
 	GL3_Shadow_Init();
 
 	GL3_Fog_Init();
@@ -1186,6 +1188,7 @@ static void SetProjViewMatrices()
 		viewMat = HMM_MultiplyMat4( viewMat, HMM_Translate(trans) );
 
 		gl3state.uni3DData.transViewMat4 = viewMat;
+		GL3_Matrix4_Invert(viewMat.Elements, gl3state.uni3DData.transInverseView.Elements);
 	}
 }
 
@@ -1244,6 +1247,8 @@ SetupGL(void)
 	}
 	gl3state.uni3DData.scroll = scroll;
 
+	gl3state.uni3DData.specularStrength = 0;
+	gl3state.uni3DData.shininess = 0;
 	GL3_UpdateUBO3D();
 
 // gnemeth: light styles as attributes
@@ -1711,7 +1716,7 @@ GetRefAPI(refimport_t imp)
 	return re;
 }
 
-#define DEBUG_RENDERER 0
+#define DEBUG_RENDERER 1
 
 void R_Printf(int level, const char* msg, ...)
 {

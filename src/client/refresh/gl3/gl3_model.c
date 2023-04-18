@@ -1542,6 +1542,7 @@ Mod_ForName (char *name, gl3model_t *parent_model, qboolean crash)
 enum gl3_entity { entity_invalid, entity_worldspawn, entity_light };
 
 static qboolean shadowLight;
+static gl3ShadowMode_t shadowLightMode;
 static vec3_t shadowLightOrigin;
 static vec3_t shadowLightColor;
 static float shadowLightRadius;
@@ -1594,6 +1595,10 @@ static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keyle
 		{
 			shadowLightIntensity = atof(v);
 		}
+		else if (!strncmp(key, "_shadowlightmode", keylen))
+		{
+			shadowLightMode = atoi(v);
+		}
 	}
 	free(v);
 }
@@ -1604,6 +1609,7 @@ static void ResetShadowLightValues()
 	shadowLightColor[0] = shadowLightColor[1] = shadowLightColor[2] = 1.0f;
 	shadowLightRadius = 300.0f;
 	shadowLightIntensity = 1.0f;
+	shadowLightMode = SHADOWMODE_DYNAMIC;
 	shadowLight = false;
 }
 
@@ -1611,7 +1617,13 @@ static void GL3_EndEntity(enum gl3_entity t)
 {
 	if (t == entity_light && shadowLight)
 	{
-		GL3_AddMapLight(shadowLightOrigin, shadowLightColor, shadowLightRadius, shadowLightIntensity);
+		GL3_AddMapLight(
+			shadowLightOrigin,
+			shadowLightColor,
+			shadowLightRadius,
+			shadowLightIntensity,
+			shadowLightMode
+		);
 	}
 	ResetShadowLightValues();
 }
@@ -1751,6 +1763,7 @@ GL3_BeginRegistration(char *model)
 
 	gl3_viewcluster = -1;
 
+	GL3_InitLights();
 	GL3_Shadow_Shutdown();
 	GL3_Fog_Set(0.3f, 0.3f, 0.3f, 0.0f);
 	GL3_ParseEntities(gl3_worldmodel->entities);
@@ -1810,7 +1823,7 @@ GL3_RegisterModel(char *name)
 	};
 	if (mod)
 	{
-		for (int i = 0; i < sizeof(noCastShadowsModels)/sizeof(noCastShadowsModels[0]); i++)
+		for (int i = 0; i < ArrayCount(noCastShadowsModels); i++)
 		{
 			if (0 == strcmp(name, noCastShadowsModels[i]))
 			{

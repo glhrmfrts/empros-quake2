@@ -21,7 +21,9 @@ static const char* vertexCommon3D = MULTILINE_STRING(#version 150\n
 		{
 			mat4 transProj;
 			mat4 transView;
+			mat4 transInverseView;
 			mat4 transModel;
+			vec4 materialProperties;
 
 			float scroll; // for SURF_FLOWING
 			float time;
@@ -61,7 +63,9 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 		{
 			mat4 transProj;
 			mat4 transView;
+			mat4 transInverseView;
 			mat4 transModel;
+			vec4 materialProperties;
 
 			float scroll; // for SURF_FLOWING
 			float time;
@@ -197,6 +201,20 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 				}
 
 				res += dynLights[i].lightColor.rgb * fact * NdotL;
+
+				vec3 specularReflection = vec3(0.0);
+				if (NdotL > 0.0f)
+				{
+					float specularStrength = materialProperties.x;
+					float shininess = materialProperties.y;
+					vec3 viewDirection = normalize(vec3(transInverseView * vec4(0.0, 0.0, 0.0, 1.0) - vec4(passWorldCoord, 1.0)));
+					float specularFact = dot(reflect(-normalize(lightToPos), passNormal), viewDirection);
+					float spec = pow(max(0.0, specularFact), shininess);
+					specularReflection = dynLights[i].lightColor.rgb * fact * spec * specularStrength;
+				}
+
+				res += specularReflection;
+
 				//lmTex.rgb += shadowDebugColor * fact;
 			}
 			return res;

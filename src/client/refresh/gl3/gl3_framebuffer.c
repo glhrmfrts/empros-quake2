@@ -108,8 +108,12 @@ void GL3_UnbindFramebuffer()
 	glViewport(0, 0, gl3_newrefdef.width, gl3_newrefdef.height);
 }
 
-void GL3_BindFramebuffer(const gl3_framebuffer_t* fb)
+static gl3_framebuffer_t* boundFbo;
+
+void GL3_BindFramebuffer(const gl3_framebuffer_t* fb, qboolean clear)
 {
+	if (boundFbo == fb) return;
+
 	if (!fb)
 	{
 		GL3_UnbindFramebuffer();
@@ -118,6 +122,8 @@ void GL3_BindFramebuffer(const gl3_framebuffer_t* fb)
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fb->id);
 	glViewport(0, 0, fb->width, fb->height);
+
+	if (!clear) return;
 
 	GLbitfield mask = GL_COLOR_BUFFER_BIT;
 	if (fb->flags & GL3_FRAMEBUFFER_DEPTH) {
