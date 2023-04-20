@@ -1417,23 +1417,8 @@ CL_RailTrail(vec3_t start, vec3_t end)
 	const float lradius = 200.0f;
 	const float ldecay = 150.0f;
 
-	for (i = 0; i < len; i += 100)
-	{
-		vec3_t lpos = {0};
-		VectorAdd(lpos, vec, lpos);
-		VectorScale(lpos, ((float)i), lpos);
-		VectorAdd(lpos, move, lpos);
-
-		blight = CL_AllocDlight(i * 291975);
-		VectorCopy(lpos, blight->origin);
-		VectorSet(blight->color, 1.0, 1.0, 1.3);
-		blight->radius = lradius;
-		blight->die = cl.time + ltime;
-		blight->decay = ldecay;
-	}
-
 	// Always add a light at the end.
-	blight = CL_AllocDlight(i * 291975);
+	blight = CL_AllocDlight(291975);
 	VectorCopy(end, blight->origin);
 	VectorSet(blight->color, 1.0, 1.0, 1.3);
 	blight->radius = lradius;

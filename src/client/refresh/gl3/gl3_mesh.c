@@ -492,6 +492,19 @@ DrawAliasShadow(gl3_shadowinfo_t* shadowInfo)
 }
 
 static qboolean
+BoxIntersectsSphere(vec3_t mins, vec3_t maxs, vec3_t c, float r)
+{
+	float r2 = r * r;
+	float dmin = 0;
+	for( int i = 0; i < 3; i++ )
+	{
+		if( c[i] < mins[i] ) dmin += HMM_SQUARE( c[i] - mins[i] );
+		else if( c[i] > maxs[i] ) dmin += HMM_SQUARE( c[i] - maxs[i] );
+	}
+	return dmin <= r2;
+}
+
+static qboolean
 CullAliasModel(vec3_t bbox[8], entity_t *e)
 {
 	int i;
@@ -572,7 +585,8 @@ CullAliasModel(vec3_t bbox[8], entity_t *e)
 			mins[i] += e->origin[i];
 			maxs[i] += e->origin[i];
 		}
-		return GL3_CullBox(mins, maxs);
+		if (GL3_CullBox(mins, maxs)) return true;
+		return !(BoxIntersectsSphere(mins, maxs, gl3state.currentShadowLight->position, gl3state.currentShadowLight->radius));
 	}
 
 #if 0

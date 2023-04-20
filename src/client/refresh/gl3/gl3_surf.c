@@ -282,25 +282,34 @@ GL3_DrawAlphaSurfaces(void)
 
 		if (s->flags & SURF_DRAWTURB)
 		{
+			gl3state.uni3DData.specularStrength = 0;
+			gl3state.uni3DData.shininess = 0;
+			GL3_UpdateUBO3D();
 			GL3_UseProgram(gl3state.si3Dturb.shaderProgram);
 			GL3_SurfBatch_DrawSingle(s);
 		}
 		else if (s->flags & SURF_DRAWTURBLIT)
 		{
-			GL3_UseProgram(gl3state.si3DlmTurb.shaderProgram);
-			GL3_BindLightmap(s->lightmaptexturenum);
 			gl3state.uni3DData.specularStrength = 8.0f;
 			gl3state.uni3DData.shininess = 32.0f;
 			GL3_UpdateUBO3D();
+			GL3_UseProgram(gl3state.si3DlmTurb.shaderProgram);
+			GL3_BindLightmap(s->lightmaptexturenum);
 			GL3_SurfBatch_DrawSingle(s);
 		}
 		else if (s->texinfo->flags & SURF_FLOWING)
 		{
+			gl3state.uni3DData.specularStrength = 0;
+			gl3state.uni3DData.shininess = 0;
+			GL3_UpdateUBO3D();
 			GL3_UseProgram(gl3state.si3DtransFlow.shaderProgram);
 			GL3_SurfBatch_DrawSingle(s);
 		}
 		else
 		{
+			gl3state.uni3DData.specularStrength = 0;
+			gl3state.uni3DData.shininess = 0;
+			GL3_UpdateUBO3D();
 			GL3_UseProgram(gl3state.si3Dtrans.shaderProgram);
 			GL3_SurfBatch_DrawSingle(s);
 		}

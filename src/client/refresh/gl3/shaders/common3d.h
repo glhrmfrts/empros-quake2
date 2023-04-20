@@ -168,6 +168,8 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 
 		float Square(float x) { return x*x; }
 
+		vec3 specularNormal;
+
 		vec3 CalculateDLighting()
 		{
 			vec3 res = vec3(0.0);
@@ -203,12 +205,13 @@ static const char* fragmentCommon3D = MULTILINE_STRING(#version 150\n
 				res += dynLights[i].lightColor.rgb * fact * NdotL;
 
 				vec3 specularReflection = vec3(0.0);
-				if (NdotL > 0.0f)
+				float specularStrength = materialProperties.x;
+				if (NdotL > 0.0f && specularStrength > 0.0f)
 				{
-					float specularStrength = materialProperties.x;
 					float shininess = materialProperties.y;
 					vec3 viewDirection = normalize(vec3(transInverseView * vec4(0.0, 0.0, 0.0, 1.0) - vec4(passWorldCoord, 1.0)));
-					float specularFact = dot(reflect(-normalize(lightToPos), passNormal), viewDirection);
+					vec3 normalDir = specularNormal;
+					float specularFact = dot(reflect(-normalize(lightToPos), normalDir), viewDirection);
 					float spec = pow(max(0.0, specularFact), shininess);
 					specularReflection = dynLights[i].lightColor.rgb * fact * spec * specularStrength;
 				}

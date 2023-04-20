@@ -134,11 +134,6 @@ PushLight(dlight_t* l, int mapLightIndex, gl3ShadowMode_t shadow)
 	if (gl3state.uniLightsData.numDynLights >= MAX_DLIGHTS) return;
 
 	float effectiveIntensity = l->intensity;
-	if (r_hdr->value)
-	{
-		// Give it a boost to the dynamic lights in case of HDR rendering
-		effectiveIntensity = l->intensity * 1.1f;
-	}
 	if (GL3_CullSphere(l->origin, effectiveIntensity)) return;
 
 	int pushIndex = gl3state.uniLightsData.numDynLights;

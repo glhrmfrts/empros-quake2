@@ -43,8 +43,8 @@ static const float faceSelectionData1[] = {
 };
 
 static const float faceSelectionData2[] = {
-    -0.5f, -0.5f, 0.5f, 1.5f,
-    0.5f, -0.5f, 0.5f, 0.5f,
+	-0.5f, -0.5f, 0.5f, 1.5f,
+	0.5f, -0.5f, 0.5f, 0.5f,
 	-0.5f, 0.5f, 1.5f, 1.5f,
 	-0.5f, -0.5f, 1.5f, 0.5f,
 	0.5f, -0.5f, 2.5f, 1.5f,

@@ -25,7 +25,9 @@ static const char* fragmentSrc3DlmWater = MULTILINE_STRING(
 			// tc *= 1.0/64.0; // do this last
 
 			vec4 texel = texture(tex, ntc);
-			vec4 albedo = texel;
+
+			// Simulate an effect as if the water has a normal map
+			specularNormal = passNormal * vec3(0.0, 0.0, clamp(length(texel.rgb)*1.8, 0.0, 1.0));
 
 			// apply intensity
 			texel.rgb *= intensity;

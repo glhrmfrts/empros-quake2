@@ -1584,7 +1584,7 @@ static void GL3_HandleEntityKey(enum gl3_entity t, const char* key, size_t keyle
 			}
 			if (is_bytes) for (int i = 0; i < 3; i++)
 			{
-				shadowLightColor[i] = shadowLightColor[i] / 255.0;
+				shadowLightColor[i] = shadowLightColor[i] / 255.0f;
 			}
 		}
 		else if (!strncmp(key, "_shadowlightradius", keylen))

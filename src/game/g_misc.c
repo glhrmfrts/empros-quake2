@@ -1443,7 +1443,7 @@ SP_misc_blackhole(edict_t *ent)
 	ent->s.renderfx = RF_TRANSLUCENT;
 	ent->use = misc_blackhole_use;
 	ent->think = misc_blackhole_think;
-    ent->prethink = misc_blackhole_transparent;
+	ent->prethink = misc_blackhole_transparent;
 	ent->nextthink = level.time + 2 * FRAMETIME;
 	gi.linkentity(ent);
 }
